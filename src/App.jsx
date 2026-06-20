@@ -21,6 +21,7 @@ const FB_APP_ID = '1011276044687764';
 const FB_REDIRECT_URI = 'https://alfhd-app.vercel.app/';
 const FB_OAUTH_SCOPE = 'pages_show_list,public_profile,business_management';
 const FB_EXCHANGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/dynamic-processor`;
+const FB_SUBSCRIBE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-subscribe-page`;
 
 function startFacebookLogin() {
   const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
@@ -913,6 +914,7 @@ function PagesView({ pages, setPages }) {
   const [exchanging, setExchanging] = useState(false);
   const [fbError, setFbError] = useState('');
   const [fbCandidates, setFbCandidates] = useState(null); // صفحات فيسبوك التي جاءت من OAuth بانتظار اختيار المستخدم
+  const [subscribingId, setSubscribingId] = useState(null);
 
   // عند تحميل الصفحة: تحقق إن كان الرابط يحوي ?code= (يعني فيسبوك رجّعنا بعد الموافقة)
   useEffect(() => {
@@ -993,6 +995,31 @@ function PagesView({ pages, setPages }) {
     }
   };
 
+  const subscribePage = async (pageId) => {
+    setSubscribingId(pageId);
+    try {
+      const res = await fetch(FB_SUBSCRIBE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({ pageId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'فشل تفعيل استقبال الرسائل');
+      }
+      alert('تم تفعيل استقبال الرسائل الحقيقية لهذه الصفحة بنجاح ✅');
+    } catch (e) {
+      console.error('Subscribe failed:', e);
+      alert('تعذّر تفعيل استقبال الرسائل: ' + (e.message || ''));
+    } finally {
+      setSubscribingId(null);
+    }
+  };
+
   return (
     <div style={styles.viewWrap}>
       <div style={styles.viewHeader} className="alfhd-view-header">
@@ -1061,6 +1088,15 @@ function PagesView({ pages, setPages }) {
             <button onClick={() => removePage(p.id)} style={styles.iconBtnDanger}>
               <Trash2 size={15} />
             </button>
+            {p.connected && (
+              <button
+                onClick={() => subscribePage(p.id)}
+                style={styles.subscribeBtn}
+                disabled={subscribingId === p.id}
+              >
+                {subscribingId === p.id ? '...' : 'تفعيل استقبال الرسائل'}
+              </button>
+            )}
           </div>
         ))}
 
@@ -1848,6 +1884,12 @@ const styles = {
   pageCard: {
     display: 'flex', alignItems: 'center', gap: 12, background: '#0E1016',
     border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 16,
+    flexWrap: 'wrap',
+  },
+  subscribeBtn: {
+    width: '100%', marginTop: 4, background: 'rgba(74,222,128,0.1)',
+    border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 0',
+    color: '#4ADE80', fontSize: 12, fontWeight: 700,
   },
   pageCardAvatar: {
     width: 44, height: 44, borderRadius: 12, background: '#14171F', display: 'flex',
