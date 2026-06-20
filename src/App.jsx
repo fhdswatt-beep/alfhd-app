@@ -18,6 +18,8 @@ const sbHeaders = {
   'apikey': SUPABASE_KEY,
   'Authorization': `Bearer ${SUPABASE_KEY}`,
   'Content-Type': 'application/json',
+  'Accept-Profile': 'public',
+  'Content-Profile': 'public',
 };
 
 async function sbSelect(table, query = '') {
@@ -150,6 +152,22 @@ const SEED_USERS = [
 ];
 
 // ──────────────────────────────────────────────
+// أداة كشف حجم الشاشة (للتصميم المتجاوب)
+// ──────────────────────────────────────────────
+function useIsMobile(breakpoint = 860) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+  );
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
+// ──────────────────────────────────────────────
 // شعار AlFhd (SVG مخصص)
 // ──────────────────────────────────────────────
 function FahdLogo({ size = 56 }) {
@@ -212,6 +230,7 @@ function LoginScreen({ users, onLogin }) {
     <div style={styles.loginWrap}>
       <div style={styles.loginBgPattern} />
       <div
+        className="alfhd-login-card"
         style={{
           ...styles.loginCard,
           animation: shake ? 'shake 0.4s ease' : 'none',
@@ -252,13 +271,47 @@ function LoginScreen({ users, onLogin }) {
 // الشريط الجانبي
 // ──────────────────────────────────────────────
 function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
+  const isMobile = useIsMobile();
   const navItems = [
     { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
     { id: 'orders', label: 'الطلبات', icon: Package },
     { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
-    { id: 'users', label: 'إدارة المستخدمين', icon: Users, adminOnly: true },
-    { id: 'pages', label: 'الصفحات المرتبطة', icon: Facebook },
+    { id: 'users', label: 'المستخدمين', icon: Users, adminOnly: true },
+    { id: 'pages', label: 'الصفحات', icon: Facebook },
   ];
+
+  if (isMobile) {
+    return (
+      <>
+        <header style={styles.mobileHeader}>
+          <div style={styles.mobileHeaderBrand}>
+            <FahdLogo size={28} />
+            <span style={styles.mobileHeaderTitle}>AlFhd</span>
+          </div>
+          <button onClick={onLogout} style={styles.mobileLogoutBtn}>
+            <LogOut size={16} />
+          </button>
+        </header>
+        <nav style={styles.bottomNav}>
+          {navItems.map((item) => {
+            if (item.adminOnly && currentUser.role !== 'admin') return null;
+            const Icon = item.icon;
+            const active = activeView === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveView(item.id)}
+                style={{ ...styles.bottomNavItem, ...(active ? styles.bottomNavItemActive : {}) }}
+              >
+                <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
+                <span style={styles.bottomNavLabel}>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </>
+    );
+  }
 
   return (
     <aside style={styles.sidebar}>
@@ -343,7 +396,7 @@ function ConversationsView({ conversations, pages, orders }) {
 
   return (
     <div style={styles.viewWrap}>
-      <div style={styles.viewHeader}>
+      <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>المحادثات</h2>
           <p style={styles.viewSubtitle}>إدارة محادثات صفحاتك في مكان واحد</p>
@@ -387,8 +440,8 @@ function ConversationsView({ conversations, pages, orders }) {
         })}
       </div>
 
-      <div style={styles.convLayout}>
-        <div style={styles.convList}>
+      <div style={styles.convLayout} className="alfhd-conv-layout">
+        <div style={styles.convList} className="alfhd-conv-list">
           <div style={styles.searchBox}>
             <Search size={15} color="#6B6760" />
             <input
@@ -559,7 +612,7 @@ function OrdersView({ orders, pages, setOrders }) {
 
   return (
     <div style={styles.viewWrap}>
-      <div style={styles.viewHeader}>
+      <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>الطلبات</h2>
           <p style={styles.viewSubtitle}>متابعة كاملة لطلبات تطبيق الفهود للتوصيل</p>
@@ -570,7 +623,7 @@ function OrdersView({ orders, pages, setOrders }) {
         </button>
       </div>
 
-      <div style={styles.statsRow}>
+      <div style={styles.statsRow} className="alfhd-stats-row">
         <StatCard icon={Package} label="إجمالي الطلبات" value={stats.total} color="#D4A655" />
         <StatCard icon={Truck} label="قيد التوصيل" value={stats.pending} color="#D4A655" />
         <StatCard icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#4ADE80" />
@@ -611,7 +664,7 @@ function OrdersView({ orders, pages, setOrders }) {
       </div>
 
       <div style={styles.ordersTable}>
-        <div style={styles.tableHeaderRow}>
+        <div style={styles.tableHeaderRow} className="alfhd-orders-table-header">
           <div style={{ width: 28 }} />
           <div style={styles.th}>رقم الطلب</div>
           <div style={styles.th}>العميل</div>
@@ -629,7 +682,7 @@ function OrdersView({ orders, pages, setOrders }) {
           </div>
         ) : (
           filtered.map((o) => (
-            <div key={o.id} style={styles.tableRow}>
+            <div key={o.id} style={styles.tableRow} className="alfhd-orders-row">
               <input
                 type="checkbox"
                 checked={selectedIds.includes(o.id)}
@@ -717,14 +770,14 @@ function StatsView({ orders, pages, conversations }) {
 
   return (
     <div style={styles.viewWrap}>
-      <div style={styles.viewHeader}>
+      <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>الإحصائيات</h2>
           <p style={styles.viewSubtitle}>نظرة شاملة على أداء جميع الصفحات</p>
         </div>
       </div>
 
-      <div style={styles.statsRow}>
+      <div style={styles.statsRow} className="alfhd-stats-row">
         <StatCard icon={Package} label="إجمالي الطلبات" value={overall.total} color="#D4A655" />
         <StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#4ADE80" />
         <StatCard icon={XCircle} label="نسبة الإرجاع" value={overall.total ? `${Math.round((overall.returned / overall.total) * 100)}%` : '0%'} color="#F45B69" />
@@ -735,7 +788,7 @@ function StatsView({ orders, pages, conversations }) {
         <h3 style={styles.chartTitle}>الإيرادات حسب الصفحة</h3>
         <div style={styles.barChartArea}>
           {perPage.map((p) => (
-            <div key={p.id} style={styles.barChartRow}>
+            <div key={p.id} style={styles.barChartRow} className="alfhd-bar-chart-row">
               <div style={styles.barChartLabel}>
                 <span>{p.avatar}</span>
                 <span>{p.name}</span>
@@ -754,7 +807,7 @@ function StatsView({ orders, pages, conversations }) {
         </div>
       </div>
 
-      <div style={styles.statsGrid2}>
+      <div style={styles.statsGrid2} className="alfhd-stats-grid-2">
         <div style={styles.chartCard}>
           <h3 style={styles.chartTitle}>توزيع حالات الطلبات</h3>
           <div style={styles.donutWrap}>
@@ -878,7 +931,7 @@ function PagesView({ pages, setPages }) {
 
   return (
     <div style={styles.viewWrap}>
-      <div style={styles.viewHeader}>
+      <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>الصفحات المرتبطة</h2>
           <p style={styles.viewSubtitle}>أضف صفحات فيسبوك التي تريد إدارة محادثاتها وطلباتها</p>
@@ -908,7 +961,7 @@ function PagesView({ pages, setPages }) {
         </div>
       )}
 
-      <div style={styles.pagesGrid}>
+      <div style={styles.pagesGrid} className="alfhd-pages-grid">
         {pages.map((p) => (
           <div key={p.id} style={styles.pageCard}>
             <div style={styles.pageCardAvatar}>{p.avatar}</div>
@@ -1048,7 +1101,7 @@ function UsersView({ users, setUsers }) {
 
   return (
     <div style={styles.viewWrap}>
-      <div style={styles.viewHeader}>
+      <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>إدارة المستخدمين</h2>
           <p style={styles.viewSubtitle}>تحكم كامل بصلاحيات الوصول لفريقك</p>
@@ -1059,7 +1112,7 @@ function UsersView({ users, setUsers }) {
         </button>
       </div>
 
-      <div style={styles.usersGrid}>
+      <div style={styles.usersGrid} className="alfhd-users-grid">
         {users.map((u) => (
           <div key={u.id} style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }}>
             <div style={styles.userCardTop}>
@@ -1121,7 +1174,7 @@ function UsersView({ users, setUsers }) {
 
       {showAdd && (
         <div style={styles.modalOverlay} onClick={() => setShowAdd(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>{editingUser ? 'تعديل المستخدم' : 'إضافة مستخدم جديد'}</h3>
               <button onClick={() => setShowAdd(false)} style={styles.modalClose}><X size={18} /></button>
@@ -1285,7 +1338,7 @@ export default function AlFhdApp() {
   return (
     <>
       <GlobalStyles />
-      <div style={styles.appWrap}>
+      <div style={styles.appWrap} className="alfhd-app-wrap">
         <Sidebar
           activeView={activeView}
           setActiveView={setActiveView}
@@ -1293,7 +1346,7 @@ export default function AlFhdApp() {
           currentUser={authedUser}
           pages={pages}
         />
-        <main style={styles.mainArea}>
+        <main style={styles.mainArea} className="alfhd-main-area">
           {activeView === 'conversations' && (
             <ConversationsView conversations={conversations} pages={pages} orders={orders} />
           )}
@@ -1342,6 +1395,57 @@ function GlobalStyles() {
       }
       input:focus, select:focus { outline: none; }
       button { font-family: 'Cairo', sans-serif; cursor: pointer; }
+
+      /* ── تصميم متجاوب للموبايل ── */
+      @media (max-width: 860px) {
+        .alfhd-app-wrap {
+          flex-direction: column !important;
+        }
+        .alfhd-main-area {
+          padding: 76px 14px 86px !important;
+          width: 100% !important;
+        }
+        .alfhd-conv-layout {
+          grid-template-columns: 1fr !important;
+        }
+        .alfhd-conv-list {
+          max-height: 360px !important;
+        }
+        .alfhd-stats-row {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+        .alfhd-stats-grid-2 {
+          grid-template-columns: 1fr !important;
+        }
+        .alfhd-orders-table-header {
+          display: none !important;
+        }
+        .alfhd-orders-row {
+          grid-template-columns: 1fr !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 6px !important;
+          padding: 14px !important;
+        }
+        .alfhd-view-header {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+        }
+        .alfhd-pages-grid, .alfhd-users-grid {
+          grid-template-columns: 1fr !important;
+        }
+        .alfhd-bar-chart-row {
+          grid-template-columns: 1fr !important;
+          gap: 6px !important;
+        }
+        .alfhd-modal {
+          max-width: 94vw !important;
+        }
+        .alfhd-login-card {
+          max-width: 92vw !important;
+          padding: 36px 24px !important;
+        }
+      }
     `}</style>
   );
 }
@@ -1434,6 +1538,33 @@ const styles = {
     background: 'transparent', border: '1px solid rgba(244,91,105,0.2)', borderRadius: 10,
     color: '#F45B69', fontSize: 13, fontWeight: 600,
   },
+
+  // ── Mobile header + bottom nav ──
+  mobileHeader: {
+    position: 'fixed', top: 0, right: 0, left: 0, height: 58, zIndex: 100,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    background: '#0E1016', borderBottom: '1px solid rgba(255,255,255,0.06)',
+    padding: '0 16px', direction: 'rtl',
+  },
+  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 8 },
+  mobileHeaderTitle: { fontSize: 16, fontWeight: 800, color: '#E8E6E1' },
+  mobileLogoutBtn: {
+    width: 34, height: 34, borderRadius: 9, background: 'rgba(244,91,105,0.1)',
+    border: 'none', color: '#F45B69', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  bottomNav: {
+    position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100,
+    display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+    background: '#0E1016', borderTop: '1px solid rgba(255,255,255,0.06)',
+    padding: '8px 4px', direction: 'rtl',
+  },
+  bottomNavItem: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+    background: 'transparent', border: 'none', color: '#6B6760', padding: '6px 8px',
+    flex: 1, minWidth: 0,
+  },
+  bottomNavItemActive: { color: '#E8C277' },
+  bottomNavLabel: { fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
   mainArea: { flex: 1, overflow: 'auto', padding: '32px 36px' },
   viewWrap: { animation: 'fadeUp 0.3s ease', maxWidth: 1400 },
