@@ -19,7 +19,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // ──────────────────────────────────────────────
 const FB_APP_ID = '1011276044687764';
 const FB_REDIRECT_URI = 'https://alfhd-app.vercel.app/';
-const FB_OAUTH_SCOPE = 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata';
+const FB_OAUTH_SCOPE = 'pages_show_list,public_profile';
 const FB_EXCHANGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/dynamic-processor`;
 
 function startFacebookLogin() {
