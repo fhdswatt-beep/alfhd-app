@@ -14,6 +14,23 @@ import {
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 
+// ──────────────────────────────────────────────
+// إعدادات ربط فيسبوك الحقيقي (OAuth)
+// ──────────────────────────────────────────────
+const FB_APP_ID = '1011276044687764';
+const FB_REDIRECT_URI = 'https://alfhd-app.vercel.app/';
+const FB_OAUTH_SCOPE = 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata';
+const FB_EXCHANGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/dynamic-processor`;
+
+function startFacebookLogin() {
+  const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
+  dialogUrl.searchParams.set('client_id', FB_APP_ID);
+  dialogUrl.searchParams.set('redirect_uri', FB_REDIRECT_URI);
+  dialogUrl.searchParams.set('scope', FB_OAUTH_SCOPE);
+  dialogUrl.searchParams.set('response_type', 'code');
+  window.location.href = dialogUrl.toString();
+}
+
 const sbHeaders = {
   'apikey': SUPABASE_KEY,
   'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -79,6 +96,7 @@ function mapPageFromDb(row) {
     avatar: row.avatar || '📄',
     source: row.source,
     connected: row.connected,
+    fbPageId: row.fb_page_id,
   };
 }
 
@@ -892,31 +910,77 @@ function DonutChart({ data }) {
 // عرض الصفحات المرتبطة
 // ──────────────────────────────────────────────
 function PagesView({ pages, setPages }) {
-  const [newPageName, setNewPageName] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [exchanging, setExchanging] = useState(false);
+  const [fbError, setFbError] = useState('');
+  const [fbCandidates, setFbCandidates] = useState(null); // صفحات فيسبوك التي جاءت من OAuth بانتظار اختيار المستخدم
 
-  const addPage = async () => {
-    if (!newPageName.trim() || saving) return;
-    setSaving(true);
+  // عند تحميل الصفحة: تحقق إن كان الرابط يحوي ?code= (يعني فيسبوك رجّعنا بعد الموافقة)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const fbErrorParam = params.get('error_description') || params.get('error');
+
+    if (fbErrorParam) {
+      setFbError(decodeURIComponent(fbErrorParam));
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (code) {
+      // نظّف الرابط فوراً حتى لا يُعاد استخدام نفس الكود عند تحديث الصفحة
+      window.history.replaceState({}, '', window.location.pathname);
+      exchangeCodeForPages(code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const exchangeCodeForPages = async (code) => {
+    setExchanging(true);
+    setFbError('');
+    try {
+      const res = await fetch(FB_EXCHANGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({ code, redirectUri: FB_REDIRECT_URI }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'فشل الاتصال بفيسبوك');
+      }
+      if (!data.pages || data.pages.length === 0) {
+        setFbError('لم يتم العثور على أي صفحة فيسبوك مرتبطة بحسابك. تأكد أنك مدير لصفحة فيسبوك واحدة على الأقل ووافقت على الصلاحيات المطلوبة.');
+        return;
+      }
+      setFbCandidates(data.pages);
+    } catch (e) {
+      console.error('FB exchange failed:', e);
+      setFbError(e.message || 'حدث خطأ غير متوقع أثناء الربط مع فيسبوك');
+    } finally {
+      setExchanging(false);
+    }
+  };
+
+  const confirmAddPage = async (candidate) => {
     const emojis = ['🦅', '👔', '🛍️', '📱', '🏪', '✨', '🎯', '💎'];
     const avatar = emojis[pages.length % emojis.length];
-
     try {
       const [created] = await sbInsert('alfhd_pages', {
-        name: newPageName.trim(),
+        name: candidate.name,
         avatar,
         source: 'facebook',
-        connected: false,
+        connected: true,
+        fb_page_id: candidate.fb_page_id,
+        page_access_token: candidate.page_access_token,
       });
       setPages((prev) => [...prev, mapPageFromDb(created)]);
-      setNewPageName('');
-      setAdding(false);
+      setFbCandidates((prev) => prev.filter((c) => c.fb_page_id !== candidate.fb_page_id));
     } catch (e) {
       console.error('Failed to add page:', e);
-      alert('تعذّر إضافة الصفحة، حاول مجدداً');
-    } finally {
-      setSaving(false);
+      alert('تعذّر حفظ الصفحة، حاول مجدداً');
     }
   };
 
@@ -934,30 +998,46 @@ function PagesView({ pages, setPages }) {
       <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>الصفحات المرتبطة</h2>
-          <p style={styles.viewSubtitle}>أضف صفحات فيسبوك التي تريد إدارة محادثاتها وطلباتها</p>
+          <p style={styles.viewSubtitle}>اربط صفحات فيسبوك الحقيقية التي تديرها لإدارة محادثاتها وطلباتها</p>
         </div>
-        <button onClick={() => setAdding(true)} style={styles.addBtn}>
-          <Plus size={16} />
-          ربط صفحة جديدة
+        <button onClick={startFacebookLogin} style={styles.addBtn} disabled={exchanging}>
+          <Facebook size={16} />
+          {exchanging ? 'جارٍ الاتصال بفيسبوك...' : 'ربط صفحة جديدة'}
         </button>
       </div>
 
-      {adding && (
-        <div style={styles.addPageCard}>
-          <input
-            autoFocus
-            placeholder="اسم الصفحة على فيسبوك..."
-            value={newPageName}
-            onChange={(e) => setNewPageName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addPage()}
-            style={styles.addPageInput}
-          />
-          <button onClick={addPage} style={styles.confirmBtn} disabled={saving}>
-            {saving ? '...' : 'إضافة'}
-          </button>
-          <button onClick={() => setAdding(false)} style={styles.cancelBtn}>
-            <X size={16} />
-          </button>
+      {fbError && (
+        <div style={styles.fbErrorBox}>
+          <XCircle size={16} />
+          <span>{fbError}</span>
+        </div>
+      )}
+
+      {exchanging && (
+        <div style={styles.fbExchangingBox}>
+          جارٍ التحقق من حسابك على فيسبوك وجلب صفحاتك...
+        </div>
+      )}
+
+      {fbCandidates && fbCandidates.length > 0 && (
+        <div style={styles.fbCandidatesWrap}>
+          <div style={styles.fbCandidatesTitle}>اختر الصفحة (أو الصفحات) التي تريد ربطها:</div>
+          {fbCandidates.map((c) => (
+            <div key={c.fb_page_id} style={styles.fbCandidateRow}>
+              {c.avatar ? (
+                <img src={c.avatar} alt="" style={styles.fbCandidateAvatarImg} />
+              ) : (
+                <div style={styles.pageCardAvatar}>📘</div>
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={styles.pageCardName}>{c.name}</div>
+                <div style={styles.fbCandidateId}>معرّف الصفحة: {c.fb_page_id}</div>
+              </div>
+              <button onClick={() => confirmAddPage(c)} style={styles.confirmBtn}>
+                ربط هذه الصفحة
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -975,7 +1055,7 @@ function PagesView({ pages, setPages }) {
                   width: 6, height: 6, borderRadius: '50%',
                   background: p.connected ? '#4ADE80' : '#D4A655',
                 }} />
-                {p.connected ? 'متصلة' : 'بانتظار ربط Access Token'}
+                {p.connected ? 'متصلة فعلياً بفيسبوك' : 'بانتظار ربط Access Token'}
               </div>
             </div>
             <button onClick={() => removePage(p.id)} style={styles.iconBtnDanger}>
@@ -1744,6 +1824,26 @@ const styles = {
     background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
     padding: '0 12px', color: '#9A958C',
   },
+  fbErrorBox: {
+    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+    background: 'rgba(244,91,105,0.08)', border: '1px solid rgba(244,91,105,0.25)',
+    borderRadius: 12, padding: '12px 16px', color: '#F45B69', fontSize: 13, lineHeight: 1.6,
+  },
+  fbExchangingBox: {
+    marginBottom: 16, background: 'rgba(212,166,85,0.08)', border: '1px solid rgba(212,166,85,0.2)',
+    borderRadius: 12, padding: '12px 16px', color: '#D4A655', fontSize: 13,
+  },
+  fbCandidatesWrap: {
+    marginBottom: 20, background: '#0E1016', border: '1px solid rgba(212,166,85,0.2)',
+    borderRadius: 14, padding: 16,
+  },
+  fbCandidatesTitle: { fontSize: 13, fontWeight: 700, color: '#E8E6E1', marginBottom: 12 },
+  fbCandidateRow: {
+    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
+  },
+  fbCandidateAvatarImg: { width: 38, height: 38, borderRadius: 10, objectFit: 'cover' },
+  fbCandidateId: { fontSize: 11, color: '#6B6760', marginTop: 2 },
   pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 },
   pageCard: {
     display: 'flex', alignItems: 'center', gap: 12, background: '#0E1016',
