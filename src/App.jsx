@@ -473,20 +473,20 @@ function avatarColorFromName(name = '') {
 
 function PlatformBadge({ platform, size = 'md' }) {
   const isWhatsApp = platform === 'whatsapp';
-  const dim = size === 'lg' ? 17 : 14;
+  const dim = size === 'lg' ? 18 : 17;
   return (
     <div style={{
-      position: 'absolute', bottom: -2, left: -2, width: dim, height: dim,
+      position: 'absolute', bottom: 0, left: 0, width: dim, height: dim,
       borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: isWhatsApp ? '#25D366' : '#006AFF',
-      border: '2px solid #0A0E17', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+      background: isWhatsApp ? '#25D366' : '#0A8CFF',
+      border: '2.5px solid #0A0E17', boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
     }}>
       {isWhatsApp ? (
-        <svg width={dim * 0.55} height={dim * 0.55} viewBox="0 0 24 24" fill="white">
+        <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
           <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
         </svg>
       ) : (
-        <svg width={dim * 0.55} height={dim * 0.55} viewBox="0 0 24 24" fill="white">
+        <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
           <path d="M12 2C6.48 2 2 6.15 2 11.27c0 2.91 1.44 5.5 3.7 7.21V22l3.38-1.86c.9.25 1.86.38 2.92.38 5.52 0 10-4.15 10-9.25S17.52 2 12 2zm1.01 12.46-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
         </svg>
       )}
@@ -799,7 +799,6 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             </div>
           ) : (
             filtered.map((c) => {
-              const page = pages.find((p) => p.id === c.pageId);
               return (
                 <button
                   key={c.id}
@@ -820,7 +819,6 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                       <span style={styles.convLastMsg}>{c.lastMsg}</span>
                       {c.unread > 0 && <span style={styles.unreadBadge}>{c.unread}</span>}
                     </div>
-                    <div style={styles.convPageTag}>{page?.avatar} {page?.name}</div>
                   </div>
                 </button>
               );
@@ -1294,54 +1292,74 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function renderOrderCard(o, index = 0) {
     const page = pages.find((p) => p.id === o.pageId);
+    const statusCfg = STATUS_CONFIG[o.status];
     return (
       <div
         key={o.id}
         style={{ ...styles.orderCard, animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
         className="alfhd-order-card alfhd-card-enter"
       >
-        <div style={styles.orderCardTop}>
-          <span style={styles.orderCardPageTag}>{page?.avatar} {page?.name || 'بدون صفحة'}</span>
-          <span style={styles.orderCardNo}>#{o.orderNo}</span>
+        <div style={styles.orderTicketHead}>
+          <div style={styles.orderTicketAvatar}>{o.customer?.[0] || '؟'}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={styles.orderCardCustomer}>{o.customer}</div>
+            <div style={styles.orderTicketPage}>{page?.avatar} {page?.name || 'بدون صفحة'}</div>
+          </div>
+          <div style={{ ...styles.orderStatusPill, color: statusCfg.color, background: statusCfg.bg }}>
+            {statusCfg.label}
+          </div>
         </div>
 
-        <div style={styles.orderCardCustomer}>{o.customer}</div>
-        {o.phone && <div style={styles.orderCardSub}>{o.phone}</div>}
-        {o.address && <div style={styles.orderCardSub}>{o.address}</div>}
+        <div style={styles.orderTicketBody}>
+          {o.phone && (
+            <div style={styles.orderDetailRow}>
+              <Phone size={12} color="#5E6986" />
+              <span>{o.phone}</span>
+            </div>
+          )}
+          {o.address && (
+            <div style={styles.orderDetailRow}>
+              <MapPin size={12} color="#5E6986" />
+              <span>{o.address}</span>
+            </div>
+          )}
+          {o.items && (
+            <div style={styles.orderTicketItems}>{o.items}</div>
+          )}
+        </div>
 
-        <div style={styles.orderCardItems}>{o.items}</div>
+        <div style={styles.orderTicketFoot}>
+          <div>
+            <div style={styles.orderCardTotal}>{Number(o.total).toLocaleString()} <span style={styles.orderCurrency}>د.ع</span></div>
+            <div style={styles.orderTicketMeta}>
+              <span>{o.date}</span>
+              <span style={{ fontFamily: 'monospace' }}>· {o.fahdRef}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {o.printed && <span style={styles.printedBadge}><Printer size={9} /> مطبوعة</span>}
+            {o.converted && <span style={styles.convertedBadge}>محوّلة</span>}
+          </div>
+        </div>
 
-        <div style={styles.orderCardBottomRow}>
-          <span style={styles.orderCardTotal}>{Number(o.total).toLocaleString()} د.ع</span>
+        <div style={styles.orderCardActions} className="alfhd-no-print">
           <select
             value={o.status}
             onChange={(e) => updateStatus(o.id, e.target.value)}
             style={{
               ...styles.statusSelect,
-              color: STATUS_CONFIG[o.status].color,
-              borderColor: STATUS_CONFIG[o.status].color + '44',
-              background: STATUS_CONFIG[o.status].bg,
+              color: statusCfg.color,
+              borderColor: statusCfg.color + '44',
+              background: statusCfg.bg,
+              flex: 1.4,
             }}
           >
             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
               <option key={key} value={key}>{cfg.label}</option>
             ))}
           </select>
-        </div>
-
-        <div style={styles.orderCardMeta}>
-          <span>{o.date}</span>
-          <span style={{ fontFamily: 'monospace' }}>{o.fahdRef}</span>
-          {o.printed && <span style={styles.printedBadge}><Printer size={10} /> مطبوعة</span>}
-          {o.converted && <span style={styles.convertedBadge}>محوّلة</span>}
-        </div>
-
-        <div style={styles.orderCardActions} className="alfhd-no-print">
           <button onClick={() => startEditOrder(o)} style={styles.orderActionBtn} title="تعديل">
             <Edit3 size={14} />
-          </button>
-          <button onClick={() => handleDelete(o)} style={{ ...styles.orderActionBtn, color: '#F45B69' }} title="حذف">
-            <Trash2 size={14} />
           </button>
           <button onClick={() => handleShare(o)} style={styles.orderActionBtn} title="مشاركة تفاصيل الطلب">
             <Send size={14} />
@@ -1351,6 +1369,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               <MessageSquare size={14} />
             </button>
           )}
+          <button onClick={() => handleDelete(o)} style={{ ...styles.orderActionBtn, color: '#F45B69' }} title="حذف">
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
     );
@@ -2790,39 +2811,39 @@ const styles = {
   },
   convTabCountActive: { background: 'rgba(59,130,246,0.3)', color: '#93C5FD' },
 
-  convLayout: { display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, minHeight: 500 },
+  convLayout: { display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, minHeight: 500 },
   convList: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 14, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 600, overflow: 'auto',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+    background: 'transparent', border: 'none', borderRadius: 0,
+    padding: 0, display: 'flex', flexDirection: 'column', gap: 0, maxHeight: 640, overflow: 'auto',
   },
   searchBox: {
-    display: 'flex', alignItems: 'center', gap: 8, background: '#1A2235',
-    border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 13px', marginBottom: 10,
+    display: 'flex', alignItems: 'center', gap: 9, background: '#161E30',
+    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 15px', marginBottom: 6,
   },
   searchInput: {
-    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13,
+    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13.5,
     width: '100%', fontFamily: "'Cairo', sans-serif",
   },
   convItem: {
-    display: 'flex', gap: 11, padding: '11px 12px', background: 'transparent', border: '1px solid transparent',
-    borderRadius: 14, textAlign: 'right', alignItems: 'flex-start', transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
+    display: 'flex', gap: 13, padding: '11px 10px', background: 'transparent', border: 'none',
+    borderBottom: '1px solid rgba(255,255,255,0.05)', borderRadius: 0,
+    textAlign: 'right', alignItems: 'center', transition: 'background 0.16s ease', width: '100%',
   },
-  convItemActive: { background: 'linear-gradient(90deg, rgba(59,130,246,0.14), rgba(59,130,246,0.04))', borderColor: 'rgba(59,130,246,0.2)' },
+  convItemActive: { background: 'rgba(59,130,246,0.1)', borderRadius: 14, borderBottomColor: 'transparent' },
   convAvatar: {
-    width: 44, height: 44, borderRadius: 14, background: '#222C42', color: '#3B82F6',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 15,
+    width: 52, height: 52, borderRadius: '50%', background: '#222C42', color: '#3B82F6',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 18,
   },
-  convItemTop: { display: 'flex', justifyContent: 'space-between', marginBottom: 3 },
-  convCustomer: { fontSize: 13.5, fontWeight: 700, color: '#EAF0FB' },
-  convTime: { fontSize: 11, color: '#5E6986' },
-  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
-  convLastMsg: { fontSize: 12, color: '#5E6986', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
+  convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+  convCustomer: { fontSize: 14.5, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  convTime: { fontSize: 11.5, color: '#5E6986', flexShrink: 0, marginRight: 8 },
+  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' },
+  convLastMsg: { fontSize: 12.5, color: '#7C879E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
   unreadBadge: {
-    background: 'linear-gradient(135deg,#60A5FA,#3B82F6)', color: '#fff', borderRadius: 20, fontSize: 10, fontWeight: 800,
-    padding: '2px 7px', minWidth: 18, textAlign: 'center', flexShrink: 0, boxShadow: '0 2px 8px -1px rgba(59,130,246,0.5)',
+    background: 'linear-gradient(135deg,#60A5FA,#3B82F6)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800,
+    padding: '2px 8px', minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    textAlign: 'center', flexShrink: 0, boxShadow: '0 2px 8px -1px rgba(59,130,246,0.5)',
   },
-  convPageTag: { fontSize: 10, color: '#5E6986', marginTop: 4 },
 
   convDetail: {
     background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
@@ -2835,7 +2856,7 @@ const styles = {
     justifyContent: 'center', flexShrink: 0,
   },
   convAvatarLg: {
-    width: 48, height: 48, borderRadius: 15, background: '#222C42', color: '#3B82F6',
+    width: 48, height: 48, borderRadius: '50%', background: '#222C42', color: '#3B82F6',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, flexShrink: 0,
   },
   detailName: { fontSize: 16, fontWeight: 700, color: '#EAF0FB' },
@@ -2940,36 +2961,51 @@ const styles = {
   },
   orderCard: {
     background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 18, display: 'flex', flexDirection: 'column', gap: 9,
+    padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
     boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
     transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
   },
-  orderCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  orderCardPageTag: {
-    fontSize: 11, fontWeight: 700, color: '#3B82F6', background: 'rgba(59,130,246,0.08)',
-    border: '1px solid rgba(59,130,246,0.18)', borderRadius: 20, padding: '3px 10px',
+  orderTicketHead: {
+    display: 'flex', alignItems: 'center', gap: 11, padding: '15px 16px 12px',
   },
-  orderCardNo: { fontSize: 12, fontWeight: 700, color: '#5E6986', fontFamily: 'monospace' },
-  orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#EAF0FB' },
-  orderCardSub: { fontSize: 12, color: '#8B96AD' },
-  orderCardItems: {
-    fontSize: 12, color: '#C4CEE0', background: '#1A2235', borderRadius: 10,
-    padding: '8px 10px', marginTop: 4, lineHeight: 1.5,
+  orderTicketAvatar: {
+    width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+    background: 'linear-gradient(135deg, rgba(59,130,246,0.25), rgba(59,130,246,0.08))',
+    border: '1px solid rgba(59,130,246,0.2)', color: '#93C5FD',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 17,
   },
-  orderCardBottomRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  orderCardTotal: { fontSize: 15, fontWeight: 800, color: '#3B82F6' },
-  orderCardMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#39425C', marginTop: 2, flexWrap: 'wrap', gap: 6 },
+  orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderTicketPage: { fontSize: 11.5, color: '#5E6986', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderStatusPill: {
+    fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 11px', flexShrink: 0,
+  },
+  orderTicketBody: {
+    padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 7,
+  },
+  orderDetailRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#8B96AD' },
+  orderTicketItems: {
+    fontSize: 12.5, color: '#C4CEE0', background: 'rgba(255,255,255,0.03)', borderRadius: 11,
+    padding: '10px 12px', marginTop: 2, lineHeight: 1.55, border: '1px solid rgba(255,255,255,0.04)',
+  },
+  orderTicketFoot: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+    padding: '12px 16px', borderTop: '1px dashed rgba(255,255,255,0.08)',
+  },
+  orderCardTotal: { fontSize: 19, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.02em' },
+  orderCurrency: { fontSize: 12, fontWeight: 600, color: '#5E6986' },
+  orderTicketMeta: { display: 'flex', gap: 5, alignItems: 'center', fontSize: 10.5, color: '#5E6986', marginTop: 3 },
   convertedBadge: {
     background: 'rgba(91,141,239,0.14)', color: '#5B8DEF', border: '1px solid rgba(91,141,239,0.3)',
-    borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700,
+    borderRadius: 20, padding: '2px 9px', fontSize: 10, fontWeight: 700,
   },
   printedBadge: {
     display: 'inline-flex', alignItems: 'center', gap: 3,
     background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)',
-    borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700,
+    borderRadius: 20, padding: '2px 9px', fontSize: 10, fontWeight: 700,
   },
   batchBlock: {
-    background: '#111725', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 18,
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: 18,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   batchHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10,
@@ -2977,15 +3013,16 @@ const styles = {
   batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#EAF0FB' },
   batchHeaderTime: { fontSize: 11, color: '#5E6986', fontWeight: 500 },
   orderCardActions: {
-    display: 'flex', gap: 6, marginTop: 8, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)',
+    display: 'flex', gap: 6, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)',
+    background: 'rgba(0,0,0,0.15)',
   },
   orderActionBtn: {
     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: 32, borderRadius: 9, background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
+    height: 34, borderRadius: 10, background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
     color: '#8B96AD',
   },
   statusSelect: {
-    border: '1px solid', borderRadius: 8, padding: '6px 10px', fontSize: 12,
+    border: '1px solid', borderRadius: 10, padding: '6px 10px', fontSize: 12,
     fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
   },
 
@@ -3007,8 +3044,8 @@ const styles = {
   barChartRow: { display: 'grid', gridTemplateColumns: '180px 1fr 120px', gap: 14, alignItems: 'center' },
   barChartLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#C4CEE0', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
   barChartTrack: { height: 10, background: '#1A2235', borderRadius: 6, overflow: 'hidden' },
-  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1D4ED8,#60A5FA)', borderRadius: 6, transition: 'width 0.5s ease' },
-  barChartValue: { fontSize: 12, fontWeight: 700, color: '#3B82F6', textAlign: 'left' },
+  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1D4ED8,#60A5FA)', borderRadius: 6, transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', boxShadow: '0 0 12px -2px rgba(59,130,246,0.6)' },
+  barChartValue: { fontSize: 12, fontWeight: 700, color: '#60A5FA', textAlign: 'left' },
 
   statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
   donutWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0' },
