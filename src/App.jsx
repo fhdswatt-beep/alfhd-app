@@ -832,7 +832,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
         >
           {selectedConv ? (
             <>
-              <div style={styles.detailHeader}>
+              <div style={styles.detailHeader} className="alfhd-chat-detail-header">
                 <button
                   onClick={() => setSelectedConv(null)}
                   style={styles.convBackBtn}
@@ -860,7 +860,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               </div>
 
               {linkedOrder && (
-                <div style={styles.linkedOrderCard}>
+                <div style={styles.linkedOrderCard} className="alfhd-linked-order">
                   <div style={styles.linkedOrderHeader}>
                     <Pin size={14} color="#3B82F6" />
                     <span>طلب مثبّت بهذه المحادثة</span>
@@ -924,7 +924,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                 )}
               </div>
 
-              <div style={styles.composerBar}>
+              <div style={styles.composerBar} className="alfhd-composer-bar">
                 <input
                   type="file"
                   accept="image/*"
@@ -2578,15 +2578,45 @@ function GlobalStyles() {
         }
         .alfhd-conv-detail-active-mobile {
           position: fixed !important;
-          top: 58px !important;
+          top: 0 !important;
           right: 0 !important;
           left: 0 !important;
           bottom: 0 !important;
-          z-index: 90 !important;
+          z-index: 200 !important;
           border-radius: 0 !important;
           border: none !important;
-          padding: 12px 14px !important;
+          padding: 0 !important;
+          min-height: 0 !important;
+          height: 100dvh !important;
+          display: flex !important;
+          flex-direction: column !important;
           animation: chatSlideIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
+        }
+        .alfhd-conv-detail-active-mobile .alfhd-chat-detail-header {
+          padding: 14px 14px 12px !important;
+          padding-top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+        }
+        .alfhd-conv-detail-active-mobile .alfhd-chat-scroll {
+          flex: 1 1 auto !important;
+          max-height: none !important;
+          min-height: 0 !important;
+          padding: 12px 14px !important;
+        }
+        .alfhd-conv-detail-active-mobile .alfhd-composer-bar {
+          margin: 0 !important;
+          border-radius: 0 !important;
+          border-left: none !important;
+          border-right: none !important;
+          border-bottom: none !important;
+          padding: 10px 12px !important;
+          padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+          flex-shrink: 0 !important;
+        }
+        .alfhd-conv-detail-active-mobile .alfhd-linked-order {
+          flex-shrink: 0 !important;
+          margin: 0 14px 0 !important;
+          max-height: 120px !important;
+          overflow-y: auto !important;
         }
         .alfhd-conv-back-btn {
           display: flex !important;
