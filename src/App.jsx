@@ -128,6 +128,23 @@ function mapUserFromDb(row) {
   };
 }
 
+function mapConversationFromDb(row) {
+  return {
+    id: row.id,
+    pageId: row.page_id,
+    customer: row.customer_name,
+    customerPsid: row.customer_psid,
+    avatar: row.avatar || '👤',
+    lastMsg: row.last_message || '',
+    time: row.last_message_time
+      ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
+      : '',
+    unread: row.unread_count || 0,
+    tab: row.tab || 'normal',
+    orderId: row.order_id,
+  };
+}
+
 // ──────────────────────────────────────────────
 // ثوابت التصميم
 // ──────────────────────────────────────────────
@@ -1379,13 +1396,28 @@ export default function AlFhdApp() {
   const [activeView, setActiveView] = useState('conversations');
 
   const [pages, setPages] = useState(SEED_PAGES);
-  const [conversations] = useState(SEED_CONVERSATIONS);
+  const [conversations, setConversations] = useState(SEED_CONVERSATIONS);
   const [orders, setOrders] = useState(SEED_ORDERS);
   const [users, setUsers] = useState(SEED_USERS);
   const [storageReady, setStorageReady] = useState(false);
 
   // ── حالة تسجيل الدخول ──
   const [authedUser, setAuthedUser] = useState(null);
+
+  // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
+  const refreshConversations = useCallback(async () => {
+    try {
+      const dbConversations = await sbSelect(
+        'alfhd_conversations',
+        '&order=last_message_time.desc'
+      );
+      if (dbConversations) {
+        setConversations(dbConversations.map(mapConversationFromDb));
+      }
+    } catch (e) {
+      console.error('Supabase conversations load error:', e);
+    }
+  }, []);
 
   // تحميل البيانات الحقيقية من Supabase (لا يمنع عرض الواجهة أبداً)
   useEffect(() => {
@@ -1400,13 +1432,21 @@ export default function AlFhdApp() {
         if (dbPages?.length) setPages(dbPages.map(mapPageFromDb));
         if (dbOrders?.length) setOrders(dbOrders.map(mapOrderFromDb));
         if (dbUsers?.length) setUsers(dbUsers.map(mapUserFromDb));
+
+        await refreshConversations();
       } catch (e) {
         console.error('Supabase init load error:', e);
       } finally {
         setStorageReady(true);
       }
     })();
-  }, []);
+  }, [refreshConversations]);
+
+  // تحديث المحادثات تلقائياً كل 8 ثواني عشان الرسائل الجديدة تظهر بدون تحديث الصفحة يدوياً
+  useEffect(() => {
+    const interval = setInterval(refreshConversations, 8000);
+    return () => clearInterval(interval);
+  }, [refreshConversations]);
 
   // استرجاع الجلسة المحفوظة محلياً (الجلسة فقط، مو البيانات نفسها)
   useEffect(() => {
