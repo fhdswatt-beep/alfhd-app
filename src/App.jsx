@@ -192,7 +192,7 @@ function mapMessageFromDb(row) {
 // ثوابت التصميم
 // ──────────────────────────────────────────────
 const STATUS_CONFIG = {
-  pending:   { label: 'قيد التوصيل', color: '#2F8EFF', bg: 'rgba(47,142,255,0.12)', icon: Truck },
+  pending:   { label: 'قيد التوصيل', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Truck },
   returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
   delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 },
 };
@@ -254,8 +254,8 @@ function FahdLogo({ size = 56 }) {
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
       <defs>
         <linearGradient id="fahdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6FB6FF" />
-          <stop offset="100%" stopColor="#1A5FB4" />
+          <stop offset="0%" stopColor="#60A5FA" />
+          <stop offset="100%" stopColor="#1D4ED8" />
         </linearGradient>
       </defs>
       <circle cx="50" cy="50" r="48" stroke="url(#fahdGrad)" strokeWidth="1.5" opacity="0.4" />
@@ -263,9 +263,9 @@ function FahdLogo({ size = 56 }) {
         d="M50 18 C35 18 24 30 22 45 C21 52 24 58 28 63 L32 58 C29 54 27 50 28 45 C29 35 38 26 50 26 C62 26 71 35 72 45 C73 50 71 54 68 58 L72 63 C76 58 79 52 78 45 C76 30 65 18 50 18 Z"
         fill="url(#fahdGrad)"
       />
-      <circle cx="40" cy="42" r="3" fill="#0B0D12" />
-      <circle cx="60" cy="42" r="3" fill="#0B0D12" />
-      <path d="M50 48 L46 55 L54 55 Z" fill="#0B0D12" opacity="0.7" />
+      <circle cx="40" cy="42" r="3" fill="#0A0E17" />
+      <circle cx="60" cy="42" r="3" fill="#0A0E17" />
+      <path d="M50 48 L46 55 L54 55 Z" fill="#0A0E17" opacity="0.7" />
       <path
         d="M30 68 Q50 78 70 68 L66 82 Q50 90 34 82 Z"
         fill="url(#fahdGrad)"
@@ -479,7 +479,7 @@ function PlatformBadge({ platform, size = 'md' }) {
       position: 'absolute', bottom: -2, left: -2, width: dim, height: dim,
       borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: isWhatsApp ? '#25D366' : '#006AFF',
-      border: '2px solid #0B0D12', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+      border: '2px solid #0A0E17', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
     }}>
       {isWhatsApp ? (
         <svg width={dim * 0.55} height={dim * 0.55} viewBox="0 0 24 24" fill="white">
@@ -503,7 +503,7 @@ function ConvAvatar({ conv, size = 'md' }) {
         <img
           src={conv.avatarUrl}
           alt={conv.customer || ''}
-          style={{ ...wrapStyle, objectFit: 'cover', background: '#1C1F28' }}
+          style={{ ...wrapStyle, objectFit: 'cover', background: '#222C42' }}
         />
       ) : (
         <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
@@ -581,7 +581,14 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     if (!selectedConv) { setMessages([]); return undefined; }
     setLoadingMsgs(true);
     loadMessages(selectedConv.id).finally(() => setLoadingMsgs(false));
-    const interval = setInterval(() => loadMessages(selectedConv.id), 4000);
+    // أثناء فتح المحادثة: اسحب من فيسبوك مباشرة وحدّث الرسائل كل 2.5 ثانية لأقل تأخير ممكن
+    const refreshOpenChat = async () => {
+      try {
+        await fetch(FB_POLL_FUNCTION_URL, { method: 'GET' });
+      } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
+      await loadMessages(selectedConv.id);
+    };
+    const interval = setInterval(refreshOpenChat, 2500);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
@@ -732,7 +739,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           <p style={styles.viewSubtitle}>إدارة محادثات صفحاتك في مكان واحد</p>
         </div>
         <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#2F8EFF" />
+          <Facebook size={15} color="#3B82F6" />
           <select
             value={selectedPage}
             onChange={(e) => setSelectedPage(e.target.value)}
@@ -743,7 +750,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <ChevronDown size={14} color="#6B6760" />
+          <ChevronDown size={14} color="#5E6986" />
         </div>
       </div>
 
@@ -776,7 +783,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
         >
           <div style={styles.searchBox}>
-            <Search size={15} color="#6B6760" />
+            <Search size={15} color="#5E6986" />
             <input
               placeholder="بحث باسم العميل..."
               value={search}
@@ -787,7 +794,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
           {filtered.length === 0 ? (
             <div style={styles.emptyState}>
-              <MessageSquare size={32} color="#3A372F" />
+              <MessageSquare size={32} color="#39425C" />
               <p>لا توجد محادثات هنا</p>
             </div>
           ) : (
@@ -857,7 +864,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               {linkedOrder && (
                 <div style={styles.linkedOrderCard}>
                   <div style={styles.linkedOrderHeader}>
-                    <Pin size={14} color="#2F8EFF" />
+                    <Pin size={14} color="#3B82F6" />
                     <span>طلب مثبّت بهذه المحادثة</span>
                   </div>
                   <div style={styles.linkedOrderBody}>
@@ -875,7 +882,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                     </div>
                     <div style={styles.linkedOrderRow}>
                       <span style={styles.linkedOrderLabel}>المبلغ</span>
-                      <span style={{ ...styles.linkedOrderValue, color: '#2F8EFF', fontWeight: 700 }}>
+                      <span style={{ ...styles.linkedOrderValue, color: '#3B82F6', fontWeight: 700 }}>
                         {linkedOrder.total.toLocaleString()} د.ع
                       </span>
                     </div>
@@ -886,11 +893,11 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               <div style={styles.chatScroll} ref={scrollRef} className="alfhd-chat-scroll">
                 {loadingMsgs ? (
                   <div style={styles.emptyStateLg}>
-                    <RefreshCw size={22} color="#3A372F" style={{ animation: 'spin 1s linear infinite' }} />
+                    <RefreshCw size={22} color="#39425C" style={{ animation: 'spin 1s linear infinite' }} />
                   </div>
                 ) : messages.length === 0 ? (
                   <div style={styles.emptyStateLg}>
-                    <MessageSquare size={32} color="#3A372F" />
+                    <MessageSquare size={32} color="#39425C" />
                     <p>لا توجد رسائل بعد</p>
                   </div>
                 ) : (
@@ -964,7 +971,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             </>
           ) : (
             <div style={styles.emptyStateLg}>
-              <MessageSquare size={40} color="#3A372F" />
+              <MessageSquare size={40} color="#39425C" />
               <p>اختر محادثة لعرض التفاصيل</p>
             </div>
           )}
@@ -1285,10 +1292,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const deliveryOrders = filtered.filter((o) => o.printed);
   const batches = useMemo(() => groupByBatch(deliveryOrders), [deliveryOrders]);
 
-  function renderOrderCard(o) {
+  function renderOrderCard(o, index = 0) {
     const page = pages.find((p) => p.id === o.pageId);
     return (
-      <div key={o.id} style={styles.orderCard} className="alfhd-order-card">
+      <div
+        key={o.id}
+        style={{ ...styles.orderCard, animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
+        className="alfhd-order-card alfhd-card-enter"
+      >
         <div style={styles.orderCardTop}>
           <span style={styles.orderCardPageTag}>{page?.avatar} {page?.name || 'بدون صفحة'}</span>
           <span style={styles.orderCardNo}>#{o.orderNo}</span>
@@ -1372,8 +1383,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row alfhd-no-print">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={stats.total} color="#2F8EFF" />
-        <StatCard icon={Truck} label="قيد التوصيل" value={stats.pending} color="#2F8EFF" />
+        <StatCard icon={Package} label="إجمالي الطلبات" value={stats.total} color="#3B82F6" />
+        <StatCard icon={Truck} label="قيد التوصيل" value={stats.pending} color="#3B82F6" />
         <StatCard icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#4ADE80" />
         <StatCard icon={XCircle} label="راجعة" value={stats.returned} color="#F45B69" />
       </div>
@@ -1401,12 +1412,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
       <div style={styles.ordersToolbar} className="alfhd-no-print">
         <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#2F8EFF" />
+          <Facebook size={15} color="#3B82F6" />
           <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} style={styles.pageSelect}>
             <option value="all">كل الصفحات</option>
             {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <ChevronDown size={14} color="#6B6760" />
+          <ChevronDown size={14} color="#5E6986" />
         </div>
 
         {section === 'delivery' && (
@@ -1424,7 +1435,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         )}
 
         <div style={styles.searchBox}>
-          <Search size={15} color="#6B6760" />
+          <Search size={15} color="#5E6986" />
           <input
             placeholder="رقم الطلب أو اسم العميل..."
             value={search}
@@ -1441,7 +1452,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         >
           {readyOrders.length === 0 ? (
             <div style={styles.emptyState}>
-              <Package size={32} color="#3A372F" />
+              <Package size={32} color="#39425C" />
               <p>لا توجد طلبات جاهزة للطباعة حالياً</p>
             </div>
           ) : readyOrders.map(renderOrderCard)}
@@ -1450,7 +1461,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           {batches.length === 0 ? (
             <div style={styles.emptyState}>
-              <Truck size={32} color="#3A372F" />
+              <Truck size={32} color="#39425C" />
               <p>لا توجد طلبات لدى شركة التوصيل بعد</p>
             </div>
           ) : (
@@ -1458,7 +1469,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               <div key={batch.batchId} style={styles.batchBlock}>
                 <div style={styles.batchHeader} className="alfhd-no-print">
                   <div style={styles.batchHeaderInfo}>
-                    <Printer size={14} color="#2F8EFF" />
+                    <Printer size={14} color="#3B82F6" />
                     <span>دفعة طباعة — {batch.orders.length} طلب</span>
                     {batch.printedAt && (
                       <span style={styles.batchHeaderTime}>
@@ -1559,9 +1570,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
 function StatCard({ icon: Icon, label, value, color }) {
   return (
-    <div style={styles.statCard}>
-      <div style={{ ...styles.statIconWrap, background: color + '14', color }}>
-        <Icon size={18} />
+    <div style={styles.statCard} className="alfhd-stat-card">
+      <div style={{ ...styles.statIconWrap, background: `linear-gradient(135deg, ${color}22, ${color}0D)`, color, boxShadow: `0 4px 12px -4px ${color}55` }}>
+        <Icon size={19} />
       </div>
       <div>
         <div style={styles.statValue}>{typeof value === 'number' && value > 999 ? value.toLocaleString() : value}</div>
@@ -1673,7 +1684,7 @@ function StatsView({ orders, pages, conversations }) {
           </div>
         </div>
         <div style={styles.statsRow} className="alfhd-stats-row">
-          <StatCard icon={Package} label="إجمالي الطلبات بالفترة" value={dailyBreakdown.total} color="#2F8EFF" />
+          <StatCard icon={Package} label="إجمالي الطلبات بالفترة" value={dailyBreakdown.total} color="#3B82F6" />
           <StatCard icon={MessageSquare} label="من المحادثات" value={dailyBreakdown.fromChat} color="#5B8DEF" />
           <StatCard icon={Edit3} label="مضافة يدوياً" value={dailyBreakdown.manual} color="#4ADE80" />
           <StatCard icon={Send} label="طلبات محوّلة" value={dailyBreakdown.converted} color="#A78BFA" />
@@ -1681,10 +1692,10 @@ function StatsView({ orders, pages, conversations }) {
       </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={overall.total} color="#2F8EFF" />
+        <StatCard icon={Package} label="إجمالي الطلبات" value={overall.total} color="#3B82F6" />
         <StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#4ADE80" />
         <StatCard icon={XCircle} label="نسبة الإرجاع" value={overall.total ? `${Math.round((overall.returned / overall.total) * 100)}%` : '0%'} color="#F45B69" />
-        <StatCard icon={Sparkles} label="إجمالي الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#2F8EFF" />
+        <StatCard icon={Sparkles} label="إجمالي الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#3B82F6" />
       </div>
 
       <div style={styles.chartCard}>
@@ -1717,7 +1728,7 @@ function StatsView({ orders, pages, conversations }) {
             <DonutChart
               data={[
                 { label: 'مستلم', value: overall.delivered, color: '#4ADE80' },
-                { label: 'قيد التوصيل', value: overall.pending, color: '#2F8EFF' },
+                { label: 'قيد التوصيل', value: overall.pending, color: '#3B82F6' },
                 { label: 'راجع', value: overall.returned, color: '#F45B69' },
               ]}
             />
@@ -1732,8 +1743,8 @@ function StatsView({ orders, pages, conversations }) {
                 <div style={styles.pageStatInfo}>
                   <span style={{ fontSize: 20 }}>{p.avatar}</span>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#E8E6E1' }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: '#6B6760' }}>{p.orderCount} طلب</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#EAF0FB' }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: '#5E6986' }}>{p.orderCount} طلب</div>
                   </div>
                 </div>
                 <div style={styles.pageStatBadge}>{p.convCount} محادثة</div>
@@ -1755,7 +1766,7 @@ function DonutChart({ data }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
       <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r={radius} fill="none" stroke="#1C1F28" strokeWidth="18" />
+        <circle cx="80" cy="80" r={radius} fill="none" stroke="#222C42" strokeWidth="18" />
         {data.map((d, i) => {
           const fraction = d.value / total;
           const dash = fraction * circumference;
@@ -1775,15 +1786,15 @@ function DonutChart({ data }) {
             />
           );
         })}
-        <text x="80" y="76" textAnchor="middle" fontSize="22" fontWeight="700" fill="#E8E6E1">{total}</text>
-        <text x="80" y="94" textAnchor="middle" fontSize="11" fill="#6B6760">طلب</text>
+        <text x="80" y="76" textAnchor="middle" fontSize="22" fontWeight="700" fill="#EAF0FB">{total}</text>
+        <text x="80" y="94" textAnchor="middle" fontSize="11" fill="#5E6986">طلب</text>
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {data.map((d, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 10, height: 10, borderRadius: 3, background: d.color }} />
-            <span style={{ fontSize: 12, color: '#9A958C' }}>{d.label}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#E8E6E1' }}>{d.value}</span>
+            <span style={{ fontSize: 12, color: '#8B96AD' }}>{d.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#EAF0FB' }}>{d.value}</span>
           </div>
         ))}
       </div>
@@ -1956,17 +1967,17 @@ function PagesView({ pages, setPages }) {
 
       <div style={styles.pagesGrid} className="alfhd-pages-grid">
         {pages.map((p) => (
-          <div key={p.id} style={styles.pageCard}>
+          <div key={p.id} style={styles.pageCard} className="alfhd-order-card">
             <div style={styles.pageCardAvatar}>{p.avatar}</div>
             <div style={{ flex: 1 }}>
               <div style={styles.pageCardName}>{p.name}</div>
               <div style={{
                 ...styles.pageCardStatus,
-                color: p.connected ? '#4ADE80' : '#2F8EFF',
+                color: p.connected ? '#4ADE80' : '#3B82F6',
               }}>
                 <div style={{
                   width: 6, height: 6, borderRadius: '50%',
-                  background: p.connected ? '#4ADE80' : '#2F8EFF',
+                  background: p.connected ? '#4ADE80' : '#3B82F6',
                 }} />
                 {p.connected ? 'متصلة فعلياً بفيسبوك' : 'بانتظار ربط Access Token'}
               </div>
@@ -1988,7 +1999,7 @@ function PagesView({ pages, setPages }) {
 
         {pages.length === 0 && (
           <div style={styles.emptyStateLg}>
-            <Facebook size={40} color="#3A372F" />
+            <Facebook size={40} color="#39425C" />
             <p>لا توجد صفحات مرتبطة بعد</p>
           </div>
         )}
@@ -2116,12 +2127,12 @@ function UsersView({ users, setUsers }) {
 
       <div style={styles.usersGrid} className="alfhd-users-grid">
         {users.map((u) => (
-          <div key={u.id} style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }}>
+          <div key={u.id} style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }} className="alfhd-order-card">
             <div style={styles.userCardTop}>
               <div style={{
                 ...styles.userCardAvatar,
-                background: u.role === 'admin' ? 'linear-gradient(135deg,#6FB6FF,#1A5FB4)' : '#1C1F28',
-                color: u.role === 'admin' ? '#0B0D12' : '#2F8EFF',
+                background: u.role === 'admin' ? 'linear-gradient(135deg,#60A5FA,#1D4ED8)' : '#222C42',
+                color: u.role === 'admin' ? '#0A0E17' : '#3B82F6',
               }}>
                 {u.name[0]}
               </div>
@@ -2131,20 +2142,20 @@ function UsersView({ users, setUsers }) {
                   {u.role === 'admin' ? (
                     <><ShieldCheck size={12} color="#4ADE80" /> صلاحية كاملة</>
                   ) : (
-                    <><Shield size={12} color="#2F8EFF" /> صلاحية محددة ({u.permissions.length})</>
+                    <><Shield size={12} color="#3B82F6" /> صلاحية محددة ({u.permissions.length})</>
                   )}
                 </div>
               </div>
               <div style={{
                 ...styles.activeDot,
-                background: u.active ? '#4ADE80' : '#6B6760',
+                background: u.active ? '#4ADE80' : '#5E6986',
               }} />
             </div>
 
             {u.role !== 'admin' && (
               <div style={styles.userPermsList}>
                 {u.permissions.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#6B6760' }}>لا توجد صلاحيات مفعّلة</span>
+                  <span style={{ fontSize: 11, color: '#5E6986' }}>لا توجد صلاحيات مفعّلة</span>
                 ) : (
                   u.permissions.map((pId) => {
                     const perm = PERMISSIONS_LIST.find((p) => p.id === pId);
@@ -2450,11 +2461,22 @@ function GlobalStyles() {
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
       * { box-sizing: border-box; font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
-      body { margin: 0; }
+      body {
+        margin: 0;
+        background: #0A0E17;
+        background-image:
+          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.08), transparent 60%),
+          radial-gradient(ellipse 60% 50% at 100% 100%, rgba(59,130,246,0.04), transparent 55%);
+        background-attachment: fixed;
+      }
+      input::placeholder, textarea::placeholder { color: #5E6986; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+        outline: 2px solid rgba(59,130,246,0.5); outline-offset: 1px;
+      }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #2A2D38; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #3A3D48; }
+      ::-webkit-scrollbar-thumb { background: #2A3550; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #3A4768; }
       @keyframes shake {
         0%, 100% { transform: translateX(0); }
         20% { transform: translateX(-8px); }
@@ -2475,6 +2497,10 @@ function GlobalStyles() {
         from { transform: scale(0.92); opacity: 0; }
         to { transform: scale(1); opacity: 1; }
       }
+      @keyframes cardEnter {
+        from { transform: translateY(12px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
       input:focus, select:focus, textarea:focus { outline: none; }
       button {
         font-family: 'Cairo', sans-serif; cursor: pointer;
@@ -2483,16 +2509,28 @@ function GlobalStyles() {
       button:active { transform: scale(0.95); }
       button:disabled { opacity: 0.55; cursor: default; transform: none; }
       .alfhd-conv-item, .alfhd-order-card {
-        transition: border-color 0.15s ease, transform 0.12s ease, background 0.15s ease;
+        transition: border-color 0.16s ease, transform 0.16s cubic-bezier(0.22,1,0.36,1), background 0.16s ease, box-shadow 0.16s ease;
       }
       .alfhd-conv-item:active { transform: scale(0.985); background: rgba(255,255,255,0.02); }
+      @media (hover: hover) {
+        .alfhd-order-card:hover {
+          transform: translateY(-3px);
+          border-color: rgba(59,130,246,0.28) !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 18px 40px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(59,130,246,0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+        }
+        .alfhd-conv-item:hover { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06) !important; }
+        .alfhd-nav-item:hover { background: rgba(255,255,255,0.04); color: #C4CEE0 !important; }
+        .alfhd-stat-card:hover { transform: translateY(-2px); }
+      }
+      .alfhd-stat-card { transition: transform 0.16s cubic-bezier(0.22,1,0.36,1); }
       .alfhd-chat-scroll {
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
       }
       .alfhd-chat-bubble-row { animation: msgPop 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
+      .alfhd-card-enter { animation: cardEnter 0.4s cubic-bezier(0.22,1,0.36,1) backwards; }
       .alfhd-bottom-nav-item, .alfhd-nav-item {
-        transition: color 0.18s ease, background 0.18s ease;
+        transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
       }
       .alfhd-bottom-nav-item svg, .alfhd-nav-item svg {
         transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -2572,6 +2610,14 @@ function GlobalStyles() {
       }
 
       /* ── طباعة الطلبات ── */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
       @media print {
         body * { visibility: hidden; }
         .alfhd-print-area, .alfhd-print-area * { visibility: visible; }
@@ -2594,18 +2640,18 @@ const styles = {
   loginWrap: {
     minHeight: '100vh', display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
-    background: '#0B0D12', position: 'relative', overflow: 'hidden',
+    background: '#0A0E17', position: 'relative', overflow: 'hidden',
     direction: 'rtl', padding: 20,
   },
   loginBgPattern: {
     position: 'absolute', inset: 0,
-    backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(47,142,255,0.06) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(47,142,255,0.04) 0%, transparent 40%)',
+    backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(59,130,246,0.06) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(59,130,246,0.04) 0%, transparent 40%)',
     pointerEvents: 'none',
   },
   loginCard: {
     position: 'relative', zIndex: 1,
-    background: 'linear-gradient(180deg, #161A24 0%, #11141C 100%)',
-    border: '1px solid rgba(47,142,255,0.15)',
+    background: 'linear-gradient(180deg, #161E30 0%, #11141C 100%)',
+    border: '1px solid rgba(59,130,246,0.15)',
     borderRadius: 22, padding: '50px 38px 42px', width: '100%', maxWidth: 400,
     display: 'flex', flexDirection: 'column', alignItems: 'center',
     boxShadow: '0 24px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)',
@@ -2613,73 +2659,74 @@ const styles = {
   },
   loginCardAccent: {
     position: 'absolute', top: 0, right: 0, left: 0, height: 3,
-    background: 'linear-gradient(90deg, transparent, #6FB6FF, transparent)',
+    background: 'linear-gradient(90deg, transparent, #60A5FA, transparent)',
   },
   loginLogoArea: { position: 'relative', marginBottom: 4 },
   logoGlow: {
     position: 'absolute', inset: -20, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(47,142,255,0.25) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)',
     filter: 'blur(8px)',
   },
   loginTitle: {
-    fontSize: 32, fontWeight: 800, color: '#E8E6E1', margin: '18px 0 4px',
+    fontSize: 32, fontWeight: 800, color: '#EAF0FB', margin: '18px 0 4px',
     letterSpacing: '0.02em', fontFamily: "'Cairo', sans-serif",
   },
-  loginSubtitle: { fontSize: 13, color: '#6B6760', letterSpacing: '0.03em', margin: 0 },
-  inputLabel: { display: 'block', fontSize: 12, color: '#9A958C', marginBottom: 14, fontWeight: 600, textAlign: 'center' },
+  loginSubtitle: { fontSize: 13, color: '#5E6986', letterSpacing: '0.03em', margin: 0 },
+  inputLabel: { display: 'block', fontSize: 12, color: '#8B96AD', marginBottom: 14, fontWeight: 600, textAlign: 'center' },
   pinBoxesWrap: { position: 'relative', display: 'flex', gap: 9, justifyContent: 'center', cursor: 'text' },
   pinBox: {
-    width: 42, height: 52, borderRadius: 12, background: '#0B0D12',
-    border: '1.5px solid rgba(47,142,255,0.18)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: 22, color: '#6FB6FF', fontWeight: 700,
+    width: 42, height: 52, borderRadius: 12, background: '#0A0E17',
+    border: '1.5px solid rgba(59,130,246,0.18)', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', fontSize: 22, color: '#60A5FA', fontWeight: 700,
     transition: 'border-color 0.15s, transform 0.12s, background 0.15s',
   },
-  pinBoxActive: { borderColor: '#2F8EFF', transform: 'translateY(-2px)' },
-  pinBoxFilled: { borderColor: 'rgba(47,142,255,0.55)', background: 'rgba(47,142,255,0.07)' },
+  pinBoxActive: { borderColor: '#3B82F6', transform: 'translateY(-2px)' },
+  pinBoxFilled: { borderColor: 'rgba(59,130,246,0.55)', background: 'rgba(59,130,246,0.07)' },
   pinBoxError: { borderColor: '#F45B69' },
   pinHiddenInput: {
     position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%',
     border: 'none', padding: 0, margin: 0, cursor: 'text',
   },
   errorText: { color: '#F45B69', fontSize: 12, marginTop: 14, textAlign: 'center' },
-  checkbox: { width: 16, height: 16, accentColor: '#2F8EFF', cursor: 'pointer' },
-  loginFooter: { marginTop: 28, fontSize: 11, color: '#3A372F', position: 'relative', zIndex: 1 },
+  checkbox: { width: 16, height: 16, accentColor: '#3B82F6', cursor: 'pointer' },
+  loginFooter: { marginTop: 28, fontSize: 11, color: '#39425C', position: 'relative', zIndex: 1 },
 
   // ── App layout ──
   appWrap: {
-    display: 'flex', minHeight: '100vh', background: '#0B0D12',
-    direction: 'rtl', color: '#E8E6E1', fontFamily: "'Cairo', sans-serif",
+    display: 'flex', minHeight: '100vh', background: '#0A0E17',
+    direction: 'rtl', color: '#EAF0FB', fontFamily: "'Cairo', sans-serif",
   },
   sidebar: {
-    width: 260, background: '#0E1016', borderLeft: '1px solid rgba(255,255,255,0.05)',
+    width: 264, background: 'linear-gradient(180deg,#121826,#0E1422)', borderLeft: '1px solid rgba(255,255,255,0.06)',
     display: 'flex', flexDirection: 'column', padding: '24px 16px', flexShrink: 0,
   },
-  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 16 },
-  sidebarBrand: { fontSize: 17, fontWeight: 800, color: '#E8E6E1' },
-  sidebarBrandSub: { fontSize: 10, color: '#6B6760' },
-  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 3, flex: 1 },
+  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 11, padding: '0 8px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 18 },
+  sidebarBrand: { fontSize: 18, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
+  sidebarBrandSub: { fontSize: 10, color: '#5E6986', letterSpacing: '0.04em' },
+  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
   navItem: {
-    display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px',
-    borderRadius: 10, border: 'none', background: 'transparent', color: '#9A958C',
+    display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
+    borderRadius: 11, border: '1px solid transparent', background: 'transparent', color: '#8B96AD',
     fontSize: 14, fontWeight: 500, textAlign: 'right', position: 'relative',
-    transition: 'all 0.15s',
+    transition: 'all 0.18s cubic-bezier(0.22,1,0.36,1)',
   },
   navItemActive: {
-    background: 'rgba(47,142,255,0.1)', color: '#6FB6FF', fontWeight: 700,
+    background: 'linear-gradient(90deg, rgba(59,130,246,0.16), rgba(59,130,246,0.05))',
+    borderColor: 'rgba(59,130,246,0.22)', color: '#93C5FD', fontWeight: 700,
   },
-  navActiveDot: { position: 'absolute', left: 10, width: 5, height: 5, borderRadius: '50%', background: '#2F8EFF' },
-  sidebarFooter: { paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)' },
-  userBadge: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px', marginBottom: 8 },
+  navActiveDot: { position: 'absolute', right: -16, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, borderRadius: 4, background: '#3B82F6', boxShadow: '0 0 10px rgba(59,130,246,0.6)' },
+  sidebarFooter: { paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' },
+  userBadge: { display: 'flex', alignItems: 'center', gap: 11, padding: '8px', marginBottom: 8 },
   userAvatar: {
-    width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6FB6FF,#1A5FB4)',
-    color: '#0B0D12', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontWeight: 700, fontSize: 14, flexShrink: 0,
+    width: 36, height: 36, borderRadius: 11, background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
+    color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 700, fontSize: 14, flexShrink: 0, boxShadow: '0 4px 12px -2px rgba(59,130,246,0.5)',
   },
-  userName: { fontSize: 13, fontWeight: 700, color: '#E8E6E1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  userRole: { fontSize: 11, color: '#6B6760' },
+  userName: { fontSize: 13, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  userRole: { fontSize: 11, color: '#5E6986' },
   logoutBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px',
-    background: 'transparent', border: '1px solid rgba(244,91,105,0.2)', borderRadius: 10,
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '11px 14px',
+    background: 'transparent', border: '1px solid rgba(244,91,105,0.2)', borderRadius: 11,
     color: '#F45B69', fontSize: 13, fontWeight: 600,
   },
 
@@ -2687,222 +2734,231 @@ const styles = {
   mobileHeader: {
     position: 'fixed', top: 0, right: 0, left: 0, height: 58, zIndex: 100,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: '#0E1016', borderBottom: '1px solid rgba(255,255,255,0.06)',
+    background: 'rgba(14,20,34,0.82)', backdropFilter: 'blur(16px)',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
     padding: '0 16px', direction: 'rtl',
   },
-  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 8 },
-  mobileHeaderTitle: { fontSize: 16, fontWeight: 800, color: '#E8E6E1' },
+  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 9 },
+  mobileHeaderTitle: { fontSize: 16, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
   mobileLogoutBtn: {
-    width: 34, height: 34, borderRadius: 9, background: 'rgba(244,91,105,0.1)',
+    width: 34, height: 34, borderRadius: 10, background: 'rgba(244,91,105,0.1)',
     border: 'none', color: '#F45B69', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   bottomNav: {
     position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100,
     display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-    background: '#0E1016', borderTop: '1px solid rgba(255,255,255,0.06)',
-    padding: '8px 4px', direction: 'rtl',
+    background: 'rgba(14,20,34,0.9)', backdropFilter: 'blur(16px)',
+    borderTop: '1px solid rgba(255,255,255,0.06)',
+    padding: '8px 4px 10px', direction: 'rtl',
   },
   bottomNavItem: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-    background: 'transparent', border: 'none', color: '#6B6760', padding: '6px 8px',
-    flex: 1, minWidth: 0,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+    background: 'transparent', border: 'none', color: '#5E6986', padding: '6px 8px',
+    flex: 1, minWidth: 0, position: 'relative',
   },
-  bottomNavItemActive: { color: '#6FB6FF' },
+  bottomNavItemActive: { color: '#60A5FA' },
   bottomNavLabel: { fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
   mainArea: { flex: 1, overflow: 'auto', padding: '32px 36px' },
-  viewWrap: { animation: 'fadeUp 0.3s ease', maxWidth: 1400 },
-  viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 14 },
-  viewTitle: { fontSize: 24, fontWeight: 800, color: '#E8E6E1', margin: 0 },
-  viewSubtitle: { fontSize: 13, color: '#6B6760', margin: '4px 0 0' },
+  viewWrap: { animation: 'fadeUp 0.35s cubic-bezier(0.22,1,0.36,1)', maxWidth: 1400 },
+  viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 26, flexWrap: 'wrap', gap: 14 },
+  viewTitle: { fontSize: 25, fontWeight: 800, color: '#EAF0FB', margin: 0, letterSpacing: '-0.02em' },
+  viewSubtitle: { fontSize: 13, color: '#5E6986', margin: '5px 0 0', letterSpacing: '0.01em' },
 
   pageSelectWrap: {
-    display: 'flex', alignItems: 'center', gap: 8, background: '#14171F',
+    display: 'flex', alignItems: 'center', gap: 8, background: '#1A2235',
     border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 12px',
   },
   pageSelect: {
-    background: 'transparent', border: 'none', color: '#E8E6E1', fontSize: 13,
+    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13,
     fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
   },
 
   // ── Conversations ──
   convTabs: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
   convTab: {
-    display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px',
-    background: '#14171F', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10,
-    color: '#9A958C', fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+    display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px',
+    background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12,
+    color: '#8B96AD', fontSize: 13, fontWeight: 600, transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
   },
   convTabActive: {
-    background: 'rgba(47,142,255,0.1)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF',
+    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
+    borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
   },
   convTabCount: {
     background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700,
   },
-  convTabCountActive: { background: 'rgba(47,142,255,0.25)', color: '#6FB6FF' },
+  convTabCountActive: { background: 'rgba(59,130,246,0.3)', color: '#93C5FD' },
 
   convLayout: { display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, minHeight: 500 },
   convList: {
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16,
-    padding: 14, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflow: 'auto',
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
+    padding: 14, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 600, overflow: 'auto',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   searchBox: {
-    display: 'flex', alignItems: 'center', gap: 8, background: '#14171F',
-    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '9px 12px', marginBottom: 8,
+    display: 'flex', alignItems: 'center', gap: 8, background: '#1A2235',
+    border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 13px', marginBottom: 10,
   },
   searchInput: {
-    background: 'transparent', border: 'none', color: '#E8E6E1', fontSize: 13,
+    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13,
     width: '100%', fontFamily: "'Cairo', sans-serif",
   },
   convItem: {
-    display: 'flex', gap: 10, padding: 12, background: 'transparent', border: 'none',
-    borderRadius: 12, textAlign: 'right', alignItems: 'flex-start', transition: 'background 0.15s',
+    display: 'flex', gap: 11, padding: '11px 12px', background: 'transparent', border: '1px solid transparent',
+    borderRadius: 14, textAlign: 'right', alignItems: 'flex-start', transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
   },
-  convItemActive: { background: 'rgba(47,142,255,0.08)' },
+  convItemActive: { background: 'linear-gradient(90deg, rgba(59,130,246,0.14), rgba(59,130,246,0.04))', borderColor: 'rgba(59,130,246,0.2)' },
   convAvatar: {
-    width: 40, height: 40, borderRadius: 12, background: '#1C1F28', color: '#2F8EFF',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0,
+    width: 44, height: 44, borderRadius: 14, background: '#222C42', color: '#3B82F6',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 15,
   },
   convItemTop: { display: 'flex', justifyContent: 'space-between', marginBottom: 3 },
-  convCustomer: { fontSize: 13, fontWeight: 700, color: '#E8E6E1' },
-  convTime: { fontSize: 11, color: '#6B6760' },
+  convCustomer: { fontSize: 13.5, fontWeight: 700, color: '#EAF0FB' },
+  convTime: { fontSize: 11, color: '#5E6986' },
   convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
-  convLastMsg: { fontSize: 12, color: '#6B6760', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
+  convLastMsg: { fontSize: 12, color: '#5E6986', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
   unreadBadge: {
-    background: '#2F8EFF', color: '#0B0D12', borderRadius: 20, fontSize: 10, fontWeight: 800,
-    padding: '1px 6px', minWidth: 16, textAlign: 'center', flexShrink: 0,
+    background: 'linear-gradient(135deg,#60A5FA,#3B82F6)', color: '#fff', borderRadius: 20, fontSize: 10, fontWeight: 800,
+    padding: '2px 7px', minWidth: 18, textAlign: 'center', flexShrink: 0, boxShadow: '0 2px 8px -1px rgba(59,130,246,0.5)',
   },
-  convPageTag: { fontSize: 10, color: '#3A372F', marginTop: 4 },
+  convPageTag: { fontSize: 10, color: '#5E6986', marginTop: 4 },
 
   convDetail: {
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16,
-    padding: 24, display: 'flex', flexDirection: 'column', minHeight: 560,
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
+    padding: 24, display: 'flex', flexDirection: 'column', minHeight: 560, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
-  detailHeader: { display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 14 },
+  detailHeader: { display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 14 },
   convBackBtn: {
-    display: 'none', width: 34, height: 34, borderRadius: 10, background: '#14171F',
-    border: '1px solid rgba(255,255,255,0.06)', color: '#C8C4BB', alignItems: 'center',
+    display: 'none', width: 36, height: 36, borderRadius: 11, background: '#1A2235',
+    border: '1px solid rgba(255,255,255,0.06)', color: '#C4CEE0', alignItems: 'center',
     justifyContent: 'center', flexShrink: 0,
   },
   convAvatarLg: {
-    width: 48, height: 48, borderRadius: 14, background: '#1C1F28', color: '#2F8EFF',
+    width: 48, height: 48, borderRadius: 15, background: '#222C42', color: '#3B82F6',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, flexShrink: 0,
   },
-  detailName: { fontSize: 16, fontWeight: 700, color: '#E8E6E1' },
-  detailPage: { fontSize: 12, color: '#6B6760' },
+  detailName: { fontSize: 16, fontWeight: 700, color: '#EAF0FB' },
+  detailPage: { fontSize: 12, color: '#5E6986' },
   pinOrderBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-    background: 'rgba(47,142,255,0.1)', border: '1px solid rgba(47,142,255,0.3)',
-    borderRadius: 9, color: '#2F8EFF', fontSize: 12, fontWeight: 700, flexShrink: 0,
+    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 13px',
+    background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)',
+    borderRadius: 11, color: '#60A5FA', fontSize: 12, fontWeight: 700, flexShrink: 0,
   },
   chatScroll: {
     flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column',
-    padding: '6px 2px', minHeight: 240, maxHeight: 480,
+    padding: '8px 2px', minHeight: 240, maxHeight: 480,
   },
   msgBubbleIn: {
-    background: '#14171F', borderRadius: '16px 4px 16px 16px', padding: '10px 14px',
-    fontSize: 13, color: '#E8E6E1', maxWidth: '72%', lineHeight: 1.6,
-    display: 'flex', flexDirection: 'column', gap: 4,
+    background: '#1E2740', borderRadius: '18px 6px 18px 18px', padding: '10px 14px',
+    fontSize: 13, color: '#EAF0FB', maxWidth: '74%', lineHeight: 1.6,
+    display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
   },
   msgBubbleOut: {
-    background: 'rgba(47,142,255,0.16)', border: '1px solid rgba(47,142,255,0.22)',
-    borderRadius: '4px 16px 16px 16px', padding: '10px 14px',
-    fontSize: 13, color: '#F3E6C8', maxWidth: '72%', lineHeight: 1.6,
-    display: 'flex', flexDirection: 'column', gap: 4,
+    background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
+    borderRadius: '6px 18px 18px 18px', padding: '10px 14px',
+    fontSize: 13, color: '#ffffff', maxWidth: '74%', lineHeight: 1.6,
+    display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 12px -2px rgba(59,130,246,0.45)',
   },
-  msgImage: { width: '100%', maxWidth: 220, borderRadius: 10, display: 'block' },
+  msgImage: { width: '100%', maxWidth: 220, borderRadius: 12, display: 'block' },
   msgAudio: { width: 220, maxWidth: '100%', height: 36 },
-  msgTime: { fontSize: 10, color: '#6B6760', alignSelf: 'flex-end' },
+  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.5)', alignSelf: 'flex-end' },
   composerBar: {
     display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
-    background: '#14171F', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 14, padding: 8,
+    background: '#1A2235', border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: 16, padding: 8,
   },
   composerIconBtn: {
-    width: 36, height: 36, borderRadius: 10, background: 'transparent',
-    border: 'none', color: '#9A958C', display: 'flex', alignItems: 'center',
+    width: 38, height: 38, borderRadius: 11, background: 'transparent',
+    border: 'none', color: '#8B96AD', display: 'flex', alignItems: 'center',
     justifyContent: 'center', flexShrink: 0,
   },
   composerIconBtnActive: { background: 'rgba(244,91,105,0.15)', color: '#F45B69' },
   composerInput: {
-    flex: 1, background: 'transparent', border: 'none', color: '#E8E6E1',
-    fontSize: 13, padding: '6px 4px', fontFamily: "'Cairo', sans-serif",
+    flex: 1, background: 'transparent', border: 'none', color: '#EAF0FB',
+    fontSize: 13.5, padding: '6px 4px', fontFamily: "'Cairo', sans-serif",
   },
   composerSendBtn: {
-    width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #6FB6FF, #2F8EFF)',
+    width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg, #60A5FA, #2563EB)',
     border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 10px rgba(47,142,255,0.35)',
+    justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px -2px rgba(59,130,246,0.5)',
   },
   linkedOrderCard: {
-    background: 'rgba(47,142,255,0.06)', border: '1px solid rgba(47,142,255,0.2)',
+    background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)',
     borderRadius: 14, padding: 16, marginBottom: 14,
   },
-  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#2F8EFF', marginBottom: 12 },
+  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#3B82F6', marginBottom: 12 },
   linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 9 },
   linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  linkedOrderLabel: { fontSize: 12, color: '#6B6760' },
-  linkedOrderValue: { fontSize: 13, color: '#E8E6E1', fontWeight: 600 },
+  linkedOrderLabel: { fontSize: 12, color: '#5E6986' },
+  linkedOrderValue: { fontSize: 13, color: '#EAF0FB', fontWeight: 600 },
 
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '50px 20px', color: '#6B6760', fontSize: 13 },
-  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: '#6B6760', fontSize: 14 },
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '50px 20px', color: '#5E6986', fontSize: 13 },
+  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: '#5E6986', fontSize: 14 },
 
   // ── Orders ──
   printBtn: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: '#14171F', border: '1px solid rgba(47,142,255,0.25)', borderRadius: 10,
-    color: '#2F8EFF', fontSize: 13, fontWeight: 700,
+    background: 'linear-gradient(135deg,#60A5FA,#2563EB)', border: 'none', borderRadius: 11,
+    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.55)',
   },
   secondaryBtn: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px',
-    background: '#14171F', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
-    color: '#C8C4BB', fontSize: 13, fontWeight: 700,
+    background: '#1A2235', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 11,
+    color: '#C4CEE0', fontSize: 13, fontWeight: 700,
   },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 },
   statCard: {
-    display: 'flex', alignItems: 'center', gap: 12, background: '#0E1016',
-    border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: '16px 18px',
+    display: 'flex', alignItems: 'center', gap: 13, background: 'linear-gradient(180deg,#141B2C,#111725)',
+    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '18px 20px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
-  statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  statValue: { fontSize: 20, fontWeight: 800, color: '#E8E6E1', lineHeight: 1.2 },
-  statLabel: { fontSize: 11, color: '#6B6760', marginTop: 2 },
+  statIconWrap: { width: 42, height: 42, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  statValue: { fontSize: 22, fontWeight: 800, color: '#EAF0FB', lineHeight: 1.15, letterSpacing: '-0.02em' },
+  statLabel: { fontSize: 11, color: '#5E6986', marginTop: 3 },
 
   sectionTabs: { display: 'flex', gap: 8, marginBottom: 18 },
   sectionTab: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11,
-    color: '#9A958C', fontSize: 13, fontWeight: 700,
+    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
+    background: '#111725', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 13,
+    color: '#8B96AD', fontSize: 13, fontWeight: 700, transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
   },
-  sectionTabActive: { background: 'rgba(47,142,255,0.1)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF' },
+  sectionTabActive: {
+    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
+    borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
+  },
   ordersToolbar: { display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' },
   filterChips: { display: 'flex', gap: 6 },
   chip: {
-    padding: '8px 14px', background: '#14171F', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 9, color: '#9A958C', fontSize: 12, fontWeight: 600,
+    padding: '8px 14px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 10, color: '#8B96AD', fontSize: 12, fontWeight: 600,
   },
-  chipActive: { background: 'rgba(47,142,255,0.12)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF' },
+  chipActive: { background: 'rgba(59,130,246,0.14)', borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD' },
 
   ordersGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16,
   },
   orderCard: {
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16,
-    padding: 16, display: 'flex', flexDirection: 'column', gap: 8,
-    transition: 'border-color 0.15s, transform 0.15s',
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
+    padding: 18, display: 'flex', flexDirection: 'column', gap: 9,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+    transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
   },
   orderCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   orderCardPageTag: {
-    fontSize: 11, fontWeight: 700, color: '#2F8EFF', background: 'rgba(47,142,255,0.08)',
-    border: '1px solid rgba(47,142,255,0.18)', borderRadius: 20, padding: '3px 10px',
+    fontSize: 11, fontWeight: 700, color: '#3B82F6', background: 'rgba(59,130,246,0.08)',
+    border: '1px solid rgba(59,130,246,0.18)', borderRadius: 20, padding: '3px 10px',
   },
-  orderCardNo: { fontSize: 12, fontWeight: 700, color: '#6B6760', fontFamily: 'monospace' },
-  orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#E8E6E1' },
-  orderCardSub: { fontSize: 12, color: '#9A958C' },
+  orderCardNo: { fontSize: 12, fontWeight: 700, color: '#5E6986', fontFamily: 'monospace' },
+  orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#EAF0FB' },
+  orderCardSub: { fontSize: 12, color: '#8B96AD' },
   orderCardItems: {
-    fontSize: 12, color: '#C8C4BB', background: '#14171F', borderRadius: 10,
+    fontSize: 12, color: '#C4CEE0', background: '#1A2235', borderRadius: 10,
     padding: '8px 10px', marginTop: 4, lineHeight: 1.5,
   },
   orderCardBottomRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  orderCardTotal: { fontSize: 15, fontWeight: 800, color: '#2F8EFF' },
-  orderCardMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#3A372F', marginTop: 2, flexWrap: 'wrap', gap: 6 },
+  orderCardTotal: { fontSize: 15, fontWeight: 800, color: '#3B82F6' },
+  orderCardMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#39425C', marginTop: 2, flexWrap: 'wrap', gap: 6 },
   convertedBadge: {
     background: 'rgba(91,141,239,0.14)', color: '#5B8DEF', border: '1px solid rgba(91,141,239,0.3)',
     borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700,
@@ -2913,20 +2969,20 @@ const styles = {
     borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700,
   },
   batchBlock: {
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: 18,
+    background: '#111725', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 18,
   },
   batchHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10,
   },
-  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#E8E6E1' },
-  batchHeaderTime: { fontSize: 11, color: '#6B6760', fontWeight: 500 },
+  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#EAF0FB' },
+  batchHeaderTime: { fontSize: 11, color: '#5E6986', fontWeight: 500 },
   orderCardActions: {
-    display: 'flex', gap: 6, marginTop: 8, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)',
+    display: 'flex', gap: 6, marginTop: 8, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)',
   },
   orderActionBtn: {
     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: 32, borderRadius: 9, background: '#14171F', border: '1px solid rgba(255,255,255,0.06)',
-    color: '#9A958C',
+    height: 32, borderRadius: 9, background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
+    color: '#8B96AD',
   },
   statusSelect: {
     border: '1px solid', borderRadius: 8, padding: '6px 10px', fontSize: 12,
@@ -2935,42 +2991,42 @@ const styles = {
 
   // ── Stats ──
   chartCard: {
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16,
-    padding: 24, marginBottom: 20,
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
+    padding: 24, marginBottom: 20, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   dailyStatsCard: {
-    background: 'linear-gradient(160deg, rgba(47,142,255,0.07), rgba(14,16,22,0.4))',
-    border: '1px solid rgba(47,142,255,0.18)', borderRadius: 16, padding: 22, marginBottom: 24,
+    background: 'linear-gradient(160deg, rgba(59,130,246,0.07), rgba(14,16,22,0.4))',
+    border: '1px solid rgba(59,130,246,0.18)', borderRadius: 16, padding: 22, marginBottom: 24,
   },
   dailyStatsHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 16, flexWrap: 'wrap', gap: 10,
   },
-  chartTitle: { fontSize: 15, fontWeight: 700, color: '#E8E6E1', margin: '0 0 18px' },
+  chartTitle: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', margin: '0 0 18px' },
   barChartArea: { display: 'flex', flexDirection: 'column', gap: 16 },
   barChartRow: { display: 'grid', gridTemplateColumns: '180px 1fr 120px', gap: 14, alignItems: 'center' },
-  barChartLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#C8C4BB', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
-  barChartTrack: { height: 10, background: '#14171F', borderRadius: 6, overflow: 'hidden' },
-  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1A5FB4,#6FB6FF)', borderRadius: 6, transition: 'width 0.5s ease' },
-  barChartValue: { fontSize: 12, fontWeight: 700, color: '#2F8EFF', textAlign: 'left' },
+  barChartLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#C4CEE0', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+  barChartTrack: { height: 10, background: '#1A2235', borderRadius: 6, overflow: 'hidden' },
+  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1D4ED8,#60A5FA)', borderRadius: 6, transition: 'width 0.5s ease' },
+  barChartValue: { fontSize: 12, fontWeight: 700, color: '#3B82F6', textAlign: 'left' },
 
   statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
   donutWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0' },
   pageStatRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   pageStatInfo: { display: 'flex', alignItems: 'center', gap: 10 },
   pageStatBadge: {
-    background: '#14171F', padding: '5px 12px', borderRadius: 20, fontSize: 11,
-    fontWeight: 700, color: '#9A958C',
+    background: '#1A2235', padding: '5px 12px', borderRadius: 20, fontSize: 11,
+    fontWeight: 700, color: '#8B96AD',
   },
 
   // ── Pages ──
   addBtn: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: 'linear-gradient(135deg,#6FB6FF,#1A5FB4)', border: 'none', borderRadius: 10,
-    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 10px rgba(47,142,255,0.3)',
+    background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)', border: 'none', borderRadius: 10,
+    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
   },
   confirmBtn: {
-    background: '#2F8EFF', border: 'none', borderRadius: 8, padding: '0 18px',
+    background: '#3B82F6', border: 'none', borderRadius: 8, padding: '0 18px',
     color: '#ffffff', fontWeight: 700, fontSize: 13,
   },
   fbErrorBox: {
@@ -2979,25 +3035,25 @@ const styles = {
     borderRadius: 12, padding: '12px 16px', color: '#F45B69', fontSize: 13, lineHeight: 1.6,
   },
   fbExchangingBox: {
-    marginBottom: 16, background: 'rgba(47,142,255,0.08)', border: '1px solid rgba(47,142,255,0.2)',
-    borderRadius: 12, padding: '12px 16px', color: '#2F8EFF', fontSize: 13,
+    marginBottom: 16, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
+    borderRadius: 12, padding: '12px 16px', color: '#3B82F6', fontSize: 13,
   },
   fbCandidatesWrap: {
-    marginBottom: 20, background: '#0E1016', border: '1px solid rgba(47,142,255,0.2)',
+    marginBottom: 20, background: '#111725', border: '1px solid rgba(59,130,246,0.2)',
     borderRadius: 14, padding: 16,
   },
-  fbCandidatesTitle: { fontSize: 13, fontWeight: 700, color: '#E8E6E1', marginBottom: 12 },
+  fbCandidatesTitle: { fontSize: 13, fontWeight: 700, color: '#EAF0FB', marginBottom: 12 },
   fbCandidateRow: {
     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.05)',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
   },
   fbCandidateAvatarImg: { width: 38, height: 38, borderRadius: 10, objectFit: 'cover' },
-  fbCandidateId: { fontSize: 11, color: '#6B6760', marginTop: 2 },
+  fbCandidateId: { fontSize: 11, color: '#5E6986', marginTop: 2 },
   pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 },
   pageCard: {
-    display: 'flex', alignItems: 'center', gap: 12, background: '#0E1016',
-    border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 16,
-    flexWrap: 'wrap',
+    display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(180deg,#141B2C,#111725)',
+    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 18,
+    flexWrap: 'wrap', boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   subscribeBtn: {
     width: '100%', marginTop: 4, background: 'rgba(74,222,128,0.1)',
@@ -3005,10 +3061,10 @@ const styles = {
     color: '#4ADE80', fontSize: 12, fontWeight: 700,
   },
   pageCardAvatar: {
-    width: 44, height: 44, borderRadius: 12, background: '#14171F', display: 'flex',
+    width: 44, height: 44, borderRadius: 12, background: '#1A2235', display: 'flex',
     alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
   },
-  pageCardName: { fontSize: 14, fontWeight: 700, color: '#E8E6E1' },
+  pageCardName: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
   pageCardStatus: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginTop: 4, fontWeight: 600 },
   iconBtnDanger: {
     width: 32, height: 32, borderRadius: 9, background: 'rgba(244,91,105,0.1)',
@@ -3018,26 +3074,27 @@ const styles = {
   // ── Users ──
   usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 },
   userCard: {
-    background: '#0E1016', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: 18,
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: 18,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   userCardTop: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
   userCardAvatar: {
     width: 42, height: 42, borderRadius: 12, display: 'flex', alignItems: 'center',
     justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0,
   },
-  userCardName: { fontSize: 14, fontWeight: 700, color: '#E8E6E1' },
-  userCardRole: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#9A958C', marginTop: 3 },
+  userCardName: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
+  userCardRole: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#8B96AD', marginTop: 3 },
   activeDot: { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
-  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.05)' },
+  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)' },
   permTag: {
-    background: 'rgba(47,142,255,0.1)', color: '#2F8EFF', fontSize: 10, fontWeight: 600,
-    padding: '4px 9px', borderRadius: 7,
+    background: 'rgba(59,130,246,0.12)', color: '#60A5FA', fontSize: 10, fontWeight: 600,
+    padding: '4px 9px', borderRadius: 8,
   },
   userCardActions: { display: 'flex', gap: 8 },
   userActionBtn: {
     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-    padding: '8px', background: '#14171F', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 8, color: '#9A958C', fontSize: 11, fontWeight: 600,
+    padding: '8px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 8, color: '#8B96AD', fontSize: 11, fontWeight: 600,
   },
 
   // ── Modal ──
@@ -3046,39 +3103,40 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
   },
   modal: {
-    background: '#13161F', border: '1px solid rgba(47,142,255,0.15)', borderRadius: 18,
-    width: '100%', maxWidth: 440, maxHeight: '85vh', overflow: 'auto', direction: 'rtl',
+    background: 'linear-gradient(180deg,#161E30,#121826)', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 20, width: '100%', maxWidth: 460, maxHeight: '88vh', overflowY: 'auto',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 16px 50px -12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)', position: 'relative', zIndex: 1,
   },
   modalHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+    padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)',
   },
-  modalTitle: { fontSize: 16, fontWeight: 700, color: '#E8E6E1', margin: 0 },
-  modalClose: { background: 'transparent', border: 'none', color: '#6B6760', display: 'flex' },
+  modalTitle: { fontSize: 16, fontWeight: 700, color: '#EAF0FB', margin: 0 },
+  modalClose: { background: 'transparent', border: 'none', color: '#5E6986', display: 'flex' },
   modalBody: { padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 },
   formGroup: { display: 'flex', flexDirection: 'column', gap: 7 },
-  formLabel: { fontSize: 12, fontWeight: 600, color: '#9A958C' },
+  formLabel: { fontSize: 12, fontWeight: 600, color: '#8B96AD' },
   formInput: {
-    background: '#0B0D12', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9,
-    padding: '11px 14px', color: '#E8E6E1', fontSize: 13, fontFamily: "'Cairo', sans-serif",
+    background: '#0A0E17', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9,
+    padding: '11px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif",
   },
   roleToggle: { display: 'flex', gap: 8 },
   roleBtn: {
     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: '10px', background: '#0B0D12', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 9, color: '#9A958C', fontSize: 12, fontWeight: 600,
+    padding: '10px', background: '#0A0E17', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 9, color: '#8B96AD', fontSize: 12, fontWeight: 600,
   },
-  roleBtnActive: { background: 'rgba(47,142,255,0.12)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF' },
+  roleBtnActive: { background: 'rgba(59,130,246,0.12)', borderColor: 'rgba(59,130,246,0.3)', color: '#60A5FA' },
   permsGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
-  permCheckRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#C8C4BB', padding: '6px 0', cursor: 'pointer' },
-  modalFooter: { display: 'flex', gap: 10, padding: '18px 22px', borderTop: '1px solid rgba(255,255,255,0.05)' },
+  permCheckRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#C4CEE0', padding: '6px 0', cursor: 'pointer' },
+  modalFooter: { display: 'flex', gap: 10, padding: '18px 22px', borderTop: '1px solid rgba(255,255,255,0.06)' },
   modalCancelBtn: {
     flex: 1, padding: '11px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 9, color: '#9A958C', fontSize: 13, fontWeight: 600,
+    borderRadius: 9, color: '#8B96AD', fontSize: 13, fontWeight: 600,
   },
   modalSaveBtn: {
-    flex: 1, padding: '11px', background: 'linear-gradient(135deg,#6FB6FF,#1A5FB4)',
+    flex: 1, padding: '11px', background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
     border: 'none', borderRadius: 9, color: '#ffffff', fontSize: 13, fontWeight: 700,
-    boxShadow: '0 2px 10px rgba(47,142,255,0.3)',
+    boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
   },
 };
