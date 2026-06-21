@@ -108,6 +108,38 @@ function fileToBase64(file) {
   });
 }
 
+// صوت إشعار لطيف عند تثبيت طلب جديد (نغمتان صاعدتان)
+let _audioCtx = null;
+function playNotificationSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!_audioCtx) _audioCtx = new Ctx();
+    const ctx = _audioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [
+      { freq: 660, start: 0, dur: 0.16 },
+      { freq: 880, start: 0.14, dur: 0.24 },
+    ];
+    notes.forEach(({ freq, start, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + start);
+      gain.gain.linearRampToValueAtTime(0.18, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + dur);
+    });
+  } catch (_e) {
+    // تجاهل لو المتصفح منع الصوت
+  }
+}
+
 // ── تحويل بين أعمدة قاعدة البيانات (snake_case) وحقول الواجهة (camelCase) ──
 function mapPageFromDb(row) {
   return {
@@ -129,6 +161,7 @@ function mapOrderFromDb(row) {
     phone: row.phone,
     address: row.address,
     items: row.items,
+    orderType: row.order_type || '',
     total: Number(row.total) || 0,
     status: row.status,
     date: row.order_date,
@@ -141,6 +174,16 @@ function mapOrderFromDb(row) {
     printed: !!row.printed,
     printBatchId: row.print_batch_id || null,
     printedAt: row.printed_at || null,
+    // مرحلة الطلب: ready (جاهز للطباعة) → prep (قيد التجهيز) → delivery (لدى شركة التوصيل)
+    stage: row.stage || (row.printed ? 'prep' : 'ready'),
+    // التجهيز
+    prepStatus: row.prep_status || null, // null | 'done' | 'rejected'
+    prepBy: row.prep_by || null,
+    prepByName: row.prep_by_name || null,
+    prepReason: row.prep_reason || null,
+    prepAt: row.prep_at || null,
+    // شركة التوصيل
+    deliveryStatus: row.delivery_status || null,
   };
 }
 
@@ -149,9 +192,11 @@ function mapUserFromDb(row) {
     id: row.id,
     name: row.name,
     code: row.code,
-    role: row.role,
+    role: row.role, // 'admin' | 'manager' | 'warehouse'
     permissions: row.permissions || [],
     active: row.active,
+    jobTitle: row.job_title || '',
+    whatsapp: row.whatsapp || '',
   };
 }
 
@@ -196,6 +241,21 @@ const STATUS_CONFIG = {
   returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
   delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 },
 };
+
+// حالات شركة التوصيل (تُحدَّث لاحقاً عبر الربط مع الشركة)
+const DELIVERY_STATUS_CONFIG = {
+  sorting:   { label: 'قيد العد والفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' },
+  shipping:  { label: 'بالطريق',          color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
+  delivered: { label: 'مستلم',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)' },
+  returned:  { label: 'راجع',             color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
+};
+
+// مراحل دورة حياة الطلب
+const ORDER_STAGES = [
+  { id: 'ready',    label: 'جاهزة للطباعة' },
+  { id: 'prep',     label: 'قيد التجهيز' },
+  { id: 'delivery', label: 'لدى شركة التوصيل' },
+];
 
 const CONV_TABS = [
   { id: 'normal',  label: 'محادثات اعتيادية',         icon: MessageSquare },
@@ -301,6 +361,11 @@ function LoginScreen({ users, onLogin }) {
     const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
     setCode(value);
     setError(false);
+    // جرّب الدخول عند تطابق رمز فعّال (4 أرقام لموظف المخزن، 6 للمدراء)
+    if (value.length >= 4) {
+      const match = users.find((u) => u.code === value && u.active);
+      if (match) { onLogin(match); return; }
+    }
     if (value.length === 6) {
       attemptLogin(value);
     }
@@ -325,7 +390,7 @@ function LoginScreen({ users, onLogin }) {
         <p style={styles.loginSubtitle}>منصّة إدارة الطلبات والمحادثات</p>
 
         <div style={{ width: '100%', marginTop: 38 }}>
-          <label style={styles.inputLabel}>أدخل رمز الدخول المكوّن من 6 أرقام</label>
+          <label style={styles.inputLabel}>أدخل رمز الدخول</label>
           <div style={styles.pinBoxesWrap} onClick={() => hiddenInputRef.current?.focus()}>
             {Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -371,7 +436,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
     { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
     { id: 'orders', label: 'الطلبات', icon: Package },
     { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
-    { id: 'users', label: 'المستخدمين', icon: Users, adminOnly: true },
+    { id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true },
     { id: 'pages', label: 'الصفحات', icon: Facebook },
   ];
 
@@ -518,7 +583,7 @@ function ConvAvatar({ conv, size = 'md' }) {
 // ──────────────────────────────────────────────
 // عرض المحادثات
 // ──────────────────────────────────────────────
-function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv }) {
+function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails }) {
   const [activeTab, setActiveTab] = useState('normal');
   const [selectedPage, setSelectedPage] = useState('all');
   const [search, setSearch] = useState('');
@@ -530,6 +595,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     if (target) {
       setActiveTab(target.tab);
       setSelectedConv(target);
+      markConversationRead(target.id);
     }
     clearPendingOpenConvId?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -546,6 +612,32 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   const audioChunksRef = React.useRef([]);
   const scrollRef = React.useRef(null);
 
+  const markConversationRead = useCallback(async (convId) => {
+    if (!convId) return;
+    setConversations?.((prev) => prev.map((c) => (
+      c.id === convId && c.unread ? { ...c, unread: 0 } : c
+    )));
+    try {
+      await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() });
+    } catch (e) {
+      console.error('mark read error:', e);
+    }
+  }, [setConversations]);
+
+  const markAllRead = useCallback(async (convList) => {
+    const unreadOnes = convList.filter((c) => c.unread > 0);
+    if (unreadOnes.length === 0) return;
+    const ids = unreadOnes.map((c) => c.id);
+    setConversations?.((prev) => prev.map((c) => (
+      ids.includes(c.id) ? { ...c, unread: 0 } : c
+    )));
+    try {
+      await Promise.all(ids.map((id) => sbUpdate('alfhd_conversations', id, { unread_count: 0, last_read_at: new Date().toISOString() })));
+    } catch (e) {
+      console.error('mark all read error:', e);
+    }
+  }, [setConversations]);
+
   const filtered = useMemo(() => {
     return conversations.filter((c) => {
       if (c.tab !== activeTab) return false;
@@ -557,10 +649,16 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
   const counts = useMemo(() => {
     const base = { normal: 0, pinned: 0, handoff: 0 };
+    const unread = { normal: 0, pinned: 0, handoff: 0 };
     conversations.forEach((c) => {
-      if (selectedPage === 'all' || c.pageId === selectedPage) base[c.tab]++;
+      if (selectedPage === 'all' || c.pageId === selectedPage) {
+        if (base[c.tab] !== undefined) {
+          base[c.tab]++;
+          if (c.unread > 0) unread[c.tab] += c.unread;
+        }
+      }
     });
-    return base;
+    return { total: base, unread };
   }, [conversations, selectedPage]);
 
   const linkedOrder = selectedConv?.orderId
@@ -620,7 +718,10 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       },
       body: file,
     });
-    if (!res.ok) throw new Error(`فشل رفع الملف: ${res.status}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تأكد من إنشاء Storage Bucket باسم chat-media وجعله Public'}`);
+    }
     return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`;
   }
 
@@ -680,7 +781,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       await loadMessages(selectedConv.id);
     } catch (e) {
       console.error('send image error:', e);
-      alert('تعذّر إرسال الصورة، تأكد من إنشاء Storage Bucket باسم chat-media وجعله عاماً (Public)');
+      alert(`تعذّر إرسال الصورة:\n${e?.message || 'خطأ غير معروف'}`);
     } finally {
       setSendingMsg(false);
     }
@@ -713,7 +814,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           await loadMessages(selectedConv.id);
         } catch (e) {
           console.error('send audio error:', e);
-          alert('تعذّر إرسال التسجيل الصوتي');
+          alert(`تعذّر إرسال التسجيل الصوتي:\n${e?.message || 'خطأ غير معروف'}`);
         } finally {
           setSendingMsg(false);
         }
@@ -762,7 +863,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
-              style={{ ...styles.convTab, ...(active ? styles.convTabActive : {}) }}
+              style={{ ...styles.convTab, ...(active ? styles.convTabActive : {}), position: 'relative' }}
             >
               <Icon size={15} />
               {tab.label}
@@ -770,8 +871,13 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                 ...styles.convTabCount,
                 ...(active ? styles.convTabCountActive : {}),
               }}>
-                {counts[tab.id]}
+                {counts.total[tab.id]}
               </span>
+              {counts.unread[tab.id] > 0 && (
+                <span style={styles.unreadPulse} className="alfhd-unread-pulse">
+                  {counts.unread[tab.id]}
+                </span>
+              )}
             </button>
           );
         })}
@@ -792,6 +898,16 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             />
           </div>
 
+          {filtered.some((c) => c.unread > 0) && (
+            <button
+              onClick={() => markAllRead(filtered)}
+              style={styles.markAllReadBtn}
+            >
+              <CheckCircle2 size={14} />
+              تعليم الكل كمقروء ({filtered.reduce((s, c) => s + (c.unread || 0), 0)})
+            </button>
+          )}
+
           {filtered.length === 0 ? (
             <div style={styles.emptyState}>
               <MessageSquare size={32} color="#39425C" />
@@ -802,7 +918,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               return (
                 <button
                   key={c.id}
-                  onClick={() => setSelectedConv(c)}
+                  onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
                   className="alfhd-conv-item"
                   style={{
                     ...styles.convItem,
@@ -828,7 +944,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
         <div
           style={styles.convDetail}
-          className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ''}`}
+          className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
         >
           {selectedConv ? (
             <>
@@ -874,17 +990,25 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                       <span style={styles.linkedOrderLabel}>الحالة</span>
                       <StatusPill status={linkedOrder.status} />
                     </div>
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>المنتجات</span>
-                      <span style={styles.linkedOrderValue}>{linkedOrder.items}</span>
-                    </div>
+                    {linkedOrder.orderType && (
+                      <div style={styles.linkedOrderRow}>
+                        <span style={styles.linkedOrderLabel}>نوع الطلب</span>
+                        <span style={styles.linkedOrderValue}>{linkedOrder.orderType}</span>
+                      </div>
+                    )}
                     <div style={styles.linkedOrderRow}>
                       <span style={styles.linkedOrderLabel}>المبلغ</span>
-                      <span style={{ ...styles.linkedOrderValue, color: '#3B82F6', fontWeight: 700 }}>
+                      <span style={{ ...styles.linkedOrderValue, color: '#60A5FA', fontWeight: 700 }}>
                         {linkedOrder.total.toLocaleString()} د.ع
                       </span>
                     </div>
                   </div>
+                  <button
+                    onClick={() => onOpenOrderDetails?.(linkedOrder)}
+                    style={styles.linkedOrderDetailBtn}
+                  >
+                    <Eye size={14} /> عرض تفاصيل الطلب وإدارته
+                  </button>
                 </div>
               )}
 
@@ -907,6 +1031,8 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                         display: 'flex',
                         justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start',
                         marginBottom: 10,
+                        width: '100%',
+                        minWidth: 0,
                       }}
                     >
                       <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
@@ -916,7 +1042,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                         {m.type === 'audio' && m.mediaUrl && (
                           <audio controls src={m.mediaUrl} style={styles.msgAudio} />
                         )}
-                        {m.content && <div>{m.content}</div>}
+                        {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
                         <div style={styles.msgTime}>{m.time}</div>
                       </div>
                     </div>
@@ -1001,11 +1127,12 @@ function StatusPill({ status }) {
 // ──────────────────────────────────────────────
 // عرض الطلبات
 // ──────────────────────────────────────────────
-function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv }) {
+function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId }) {
   const [selectedPage, setSelectedPage] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [editingOrder, setEditingOrder] = useState(null);
+  const [detailOrder, setDetailOrder] = useState(null);
   const [saving, setSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const ocrInputRef = React.useRef(null);
@@ -1019,35 +1146,62 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       id: null,
       pageId: conv.pageId || pages[0]?.id || '',
       customer: conv.customer || '',
-      phone: '',
-      address: '',
-      items: '',
-      total: '',
-      status: 'pending',
-      conversationId: conv.id || '',
+      phone: '', address: '', items: '', orderType: '', total: '',
+      status: 'pending', conversationId: conv.id || '',
     });
     clearPendingNewOrderFromConv?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingNewOrderFromConv]);
 
-  const filtered = useMemo(() => {
-    return orders.filter((o) => {
+  useEffect(() => {
+    if (!pendingOpenOrderId) return;
+    const target = orders.find((o) => o.id === pendingOpenOrderId);
+    if (target) {
+      const stage = target.stage || (target.printed ? 'prep' : 'ready');
+      setSection(stage);
+      setDetailOrder(target);
+    }
+    clearPendingOpenOrderId?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenOrderId, orders]);
+
+  // الطلب المحوّل يُستبعد من القوائم كلها (يبقى بالإحصائيات فقط)
+  const visibleOrders = useMemo(() => orders.filter((o) => !o.converted), [orders]);
+
+  const stageOrders = useMemo(() => {
+    return visibleOrders.filter((o) => {
+      const stage = o.stage || (o.printed ? 'prep' : 'ready');
+      if (stage !== section) return false;
       if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
-      if (statusFilter !== 'all' && o.status !== statusFilter) return false;
-      if (search && !o.customer.includes(search) && !o.orderNo.includes(search)) return false;
+      if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
+      if (search) {
+        const q = search.trim().toLowerCase();
+        const hay = [o.customer, o.orderNo, o.phone, o.orderType].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
-  }, [orders, selectedPage, statusFilter, search]);
+  }, [visibleOrders, section, selectedPage, statusFilter, search]);
+
+  const stageCounts = useMemo(() => {
+    const c = { ready: 0, prep: 0, delivery: 0 };
+    visibleOrders.forEach((o) => {
+      if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
+      const stage = o.stage || (o.printed ? 'prep' : 'ready');
+      if (c[stage] !== undefined) c[stage]++;
+    });
+    return c;
+  }, [visibleOrders, selectedPage]);
 
   const stats = useMemo(() => {
-    const scoped = selectedPage === 'all' ? orders : orders.filter((o) => o.pageId === selectedPage);
+    const scoped = selectedPage === 'all' ? visibleOrders : visibleOrders.filter((o) => o.pageId === selectedPage);
     return {
       total: scoped.length,
       pending: scoped.filter((o) => o.status === 'pending').length,
       delivered: scoped.filter((o) => o.status === 'delivered').length,
       returned: scoped.filter((o) => o.status === 'returned').length,
     };
-  }, [orders, selectedPage]);
+  }, [visibleOrders, selectedPage]);
 
   const updateStatus = async (id, status) => {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
@@ -1061,42 +1215,46 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   function startNewOrder() {
     setEditingOrder({
       id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
-      items: '', total: '', status: 'pending', conversationId: '',
+      items: '', orderType: '', total: '', status: 'pending', conversationId: '',
     });
   }
 
   function startEditOrder(o) {
     setEditingOrder({ ...o, total: String(o.total), conversationId: o.conversationId || '' });
+    setDetailOrder(null);
   }
 
   async function handleDelete(o) {
-    if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع عن هذا الإجراء، ولن يُحتسب بعدها ضمن الإحصائيات.`)) return;
+    if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع، ولن يُحتسب ضمن الإحصائيات.`)) return;
     setOrders((prev) => prev.filter((x) => x.id !== o.id));
+    setDetailOrder(null);
     try {
       await sbDelete('alfhd_orders', o.id);
     } catch (e) {
       console.error('delete order error:', e);
-      alert('تعذّر حذف الطلب من القاعدة، تحقق من اتصالك وحاول مرة أخرى');
+      alert('تعذّر حذف الطلب، تحقق من اتصالك');
     }
   }
 
   function buildOrderShareText(o) {
     const page = pages.find((p) => p.id === o.pageId);
     return [
-      `طلب جديد #${o.orderNo}`,
+      `طلب #${o.orderNo}`,
       page ? `الصفحة: ${page.name}` : null,
       `العميل: ${o.customer}`,
       o.phone ? `الهاتف: ${o.phone}` : null,
       o.address ? `العنوان: ${o.address}` : null,
+      o.orderType ? `نوع الطلب: ${o.orderType}` : null,
       `المنتجات: ${o.items}`,
       `المبلغ: ${Number(o.total).toLocaleString()} د.ع`,
     ].filter(Boolean).join('\n');
   }
 
-  async function markOrderConverted(id) {
-    setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, converted: true, convertedAt: new Date().toISOString() } : x)));
+  async function markOrderConverted(o) {
+    // التحويل: يُشال من القوائم، يبقى بالإحصائيات، ويصير "قيد التوصيل" بمحادثة الزبون
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, converted: true, convertedAt: new Date().toISOString(), status: 'pending' } : x)));
     try {
-      await sbUpdate('alfhd_orders', id, { converted: true, converted_at: new Date().toISOString() });
+      await sbUpdate('alfhd_orders', o.id, { converted: true, converted_at: new Date().toISOString(), status: 'pending' });
     } catch (e) {
       console.error('convert order error:', e);
     }
@@ -1107,17 +1265,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     try {
       if (navigator.share) {
         await navigator.share({ title: `طلب #${o.orderNo}`, text });
-        await markOrderConverted(o.id);
+        await markOrderConverted(o);
         return;
       }
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
-        alert('تم نسخ تفاصيل الطلب، الصقها بأي تطبيق تحب (واتساب، تليجرام، رسائل نصية...)');
-        await markOrderConverted(o.id);
+        alert('تم نسخ تفاصيل الطلب، الصقها بأي تطبيق تحب');
+        await markOrderConverted(o);
         return;
       }
-      window.prompt('انسخ تفاصيل الطلب يدوياً:', text);
-      await markOrderConverted(o.id);
+      window.prompt('انسخ تفاصيل الطلب:', text);
+      await markOrderConverted(o);
     } catch (e) {
       if (e?.name !== 'AbortError') {
         console.error('share error:', e);
@@ -1134,13 +1292,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     try {
       await sbUpdate('alfhd_conversations', conversationId, { tab: 'pinned', order_id: orderId });
     } catch (e) {
-      console.error('pin conversation to order error:', e);
+      console.error('pin conversation error:', e);
     }
   }
 
   async function handleSaveOrder() {
     if (!editingOrder.customer.trim()) { alert('أدخل اسم العميل'); return; }
-    if (!editingOrder.pageId) { alert('اختر الصفحة المرتبطة بالطلب'); return; }
+    if (!editingOrder.pageId) { alert('اختر الصفحة'); return; }
     setSaving(true);
     try {
       if (editingOrder.id) {
@@ -1150,6 +1308,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           phone: editingOrder.phone,
           address: editingOrder.address,
           items: editingOrder.items,
+          order_type: editingOrder.orderType || null,
           total: Number(editingOrder.total) || 0,
           status: editingOrder.status,
           conversation_id: editingOrder.conversationId || null,
@@ -1159,13 +1318,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? {
           ...o,
           pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
-          address: editingOrder.address, items: editingOrder.items, total: Number(editingOrder.total) || 0,
-          status: editingOrder.status, conversationId: editingOrder.conversationId || null,
+          address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
+          total: Number(editingOrder.total) || 0, status: editingOrder.status,
+          conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (o.source || 'manual'),
         } : o)));
-        if (editingOrder.conversationId) {
-          await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
-        }
+        if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
       } else {
         const payload = {
           order_no: String(Date.now()).slice(-6),
@@ -1174,8 +1332,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           phone: editingOrder.phone,
           address: editingOrder.address,
           items: editingOrder.items,
+          order_type: editingOrder.orderType || null,
           total: Number(editingOrder.total) || 0,
           status: editingOrder.status || 'pending',
+          stage: 'ready',
           order_date: new Date().toISOString().slice(0, 10),
           fahd_ref: `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
           conversation_id: editingOrder.conversationId || null,
@@ -1184,15 +1344,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         const created = await sbInsert('alfhd_orders', payload);
         if (created?.[0]) {
           setOrders((prev) => [mapOrderFromDb(created[0]), ...prev]);
-          if (editingOrder.conversationId) {
-            await pinConversationToOrder(editingOrder.conversationId, created[0].id);
-          }
+          if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
         }
       }
       setEditingOrder(null);
     } catch (e) {
       console.error('save order error:', e);
-      alert('تعذّر حفظ الطلب، تحقق من اتصالك وحاول مرة أخرى');
+      alert('تعذّر حفظ الطلب، تحقق من اتصالك');
     } finally {
       setSaving(false);
     }
@@ -1213,22 +1371,19 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) throw new Error(data?.error || 'فشل الاستخراج');
       setEditingOrder({
-        id: null,
-        pageId: pages[0]?.id || '',
-        customer: data.order?.customer_name || '',
-        phone: data.order?.phone || '',
-        address: data.order?.address || '',
-        items: data.order?.items || '',
+        id: null, pageId: pages[0]?.id || '',
+        customer: data.order?.customer_name || '', phone: data.order?.phone || '',
+        address: data.order?.address || '', items: data.order?.items || '',
+        orderType: data.order?.order_type || '',
         total: data.order?.total ? String(data.order.total) : '',
-        status: 'pending',
-        conversationId: '',
+        status: 'pending', conversationId: '',
       });
     } catch (e) {
       console.error('ocr error:', e);
-      alert('تعذّر استخراج تفاصيل الطلب من الصورة تلقائياً، تقدر تدخلها يدوياً بالنموذج الحين');
+      alert('تعذّر استخراج التفاصيل تلقائياً، أدخلها يدوياً بالنموذج');
       setEditingOrder({
         id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
-        items: '', total: '', status: 'pending', conversationId: '',
+        items: '', orderType: '', total: '', status: 'pending', conversationId: '',
       });
     } finally {
       setOcrLoading(false);
@@ -1243,56 +1398,70 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       batches.get(key).push(o);
     }
     return Array.from(batches.entries())
-      .map(([batchId, batchOrders]) => ({
-        batchId,
-        orders: batchOrders,
-        printedAt: batchOrders[0]?.printedAt || null,
-      }))
+      .map(([batchId, batchOrders]) => ({ batchId, orders: batchOrders, printedAt: batchOrders[0]?.printedAt || null }))
       .sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
   }
 
-  async function markOrdersPrinted(ids) {
+  // الطباعة تنقل الطلبات من "جاهز للطباعة" إلى "قيد التجهيز"
+  async function markOrdersPrintedAndPrep(ids) {
     if (ids.length === 0) return;
     const batchId = `batch-${Date.now()}`;
     const printedAt = new Date().toISOString();
     setOrders((prev) => prev.map((o) => (
-      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt } : o
+      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
     )));
     try {
       await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
-        printed: true, print_batch_id: batchId, printed_at: printedAt,
+        printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
       })));
     } catch (e) {
       console.error('mark printed error:', e);
     }
   }
 
-  function triggerPrint(target, idsToMark) {
+  function triggerPrint(target, idsToMove) {
     setPrintTarget(target);
     setTimeout(() => {
       window.print();
       setPrintTarget(null);
-      if (idsToMark?.length) markOrdersPrinted(idsToMark);
+      if (idsToMove?.length) markOrdersPrintedAndPrep(idsToMove);
     }, 60);
   }
 
   function handlePrintReady() {
-    const ids = readyOrders.map((o) => o.id);
-    if (ids.length === 0) { alert('لا توجد طلبات جاهزة للطباعة حالياً'); return; }
+    const ids = stageOrders.map((o) => o.id);
+    if (ids.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
     triggerPrint('ready', ids);
   }
 
-  function handleReprintBatch(batchId) {
+  function handleReprintBatch(batchId, batchOrders) {
     triggerPrint(batchId, null);
   }
 
-  const readyOrders = filtered.filter((o) => !o.printed);
-  const deliveryOrders = filtered.filter((o) => o.printed);
-  const batches = useMemo(() => groupByBatch(deliveryOrders), [deliveryOrders]);
+  // نقل الطلب يدوياً لمرحلة شركة التوصيل (مؤقتاً لحين ربط شركة التوصيل)
+  async function moveToDelivery(o) {
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, stage: 'delivery', deliveryStatus: 'sorting' } : x)));
+    setDetailOrder(null);
+    try {
+      await sbUpdate('alfhd_orders', o.id, { stage: 'delivery', delivery_status: 'sorting' });
+    } catch (e) { console.error('move to delivery error:', e); }
+  }
+
+  const prepBatches = useMemo(() => groupByBatch(stageOrders), [stageOrders]);
+
+  function StageStatusBadge({ o }) {
+    if (section === 'delivery') {
+      const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus] || DELIVERY_STATUS_CONFIG.sorting;
+      return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
+    }
+    if (section === 'prep') {
+      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
+    }
+    return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
+  }
 
   function renderOrderCard(o, index = 0) {
     const page = pages.find((p) => p.id === o.pageId);
-    const statusCfg = STATUS_CONFIG[o.status];
     return (
       <div
         key={o.id}
@@ -1305,27 +1474,20 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <div style={styles.orderCardCustomer}>{o.customer}</div>
             <div style={styles.orderTicketPage}>{page?.avatar} {page?.name || 'بدون صفحة'}</div>
           </div>
-          <div style={{ ...styles.orderStatusPill, color: statusCfg.color, background: statusCfg.bg }}>
-            {statusCfg.label}
-          </div>
+          <StageStatusBadge o={o} />
         </div>
 
         <div style={styles.orderTicketBody}>
+          {o.orderType && (
+            <div style={styles.orderDetailRow}><Package size={12} color="#5E6986" /><span>{o.orderType}</span></div>
+          )}
           {o.phone && (
-            <div style={styles.orderDetailRow}>
-              <Phone size={12} color="#5E6986" />
-              <span>{o.phone}</span>
-            </div>
+            <div style={styles.orderDetailRow}><Phone size={12} color="#5E6986" /><span>{o.phone}</span></div>
           )}
           {o.address && (
-            <div style={styles.orderDetailRow}>
-              <MapPin size={12} color="#5E6986" />
-              <span>{o.address}</span>
-            </div>
+            <div style={styles.orderDetailRow}><MapPin size={12} color="#5E6986" /><span>{o.address}</span></div>
           )}
-          {o.items && (
-            <div style={styles.orderTicketItems}>{o.items}</div>
-          )}
+          {o.items && <div style={styles.orderTicketItems}>{o.items}</div>}
         </div>
 
         <div style={styles.orderTicketFoot}>
@@ -1338,51 +1500,42 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {o.printed && <span style={styles.printedBadge}><Printer size={9} /> مطبوعة</span>}
-            {o.converted && <span style={styles.convertedBadge}>محوّلة</span>}
           </div>
         </div>
 
         <div style={styles.orderCardActions} className="alfhd-no-print">
-          <select
-            value={o.status}
-            onChange={(e) => updateStatus(o.id, e.target.value)}
-            style={{
-              ...styles.statusSelect,
-              color: statusCfg.color,
-              borderColor: statusCfg.color + '44',
-              background: statusCfg.bg,
-              flex: 1.4,
-            }}
-          >
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-              <option key={key} value={key}>{cfg.label}</option>
-            ))}
-          </select>
-          <button onClick={() => startEditOrder(o)} style={styles.orderActionBtn} title="تعديل">
-            <Edit3 size={14} />
+          <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
+            <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
-          <button onClick={() => handleShare(o)} style={styles.orderActionBtn} title="مشاركة تفاصيل الطلب">
-            <Send size={14} />
-          </button>
+          {section === 'delivery' && (
+            <select
+              value={o.status}
+              onChange={(e) => updateStatus(o.id, e.target.value)}
+              style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status].color, borderColor: STATUS_CONFIG[o.status].color + '44', background: STATUS_CONFIG[o.status].bg, flex: 1.4 }}
+            >
+              {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
+            </select>
+          )}
           {o.conversationId && (
             <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
               <MessageSquare size={14} />
             </button>
           )}
-          <button onClick={() => handleDelete(o)} style={{ ...styles.orderActionBtn, color: '#F45B69' }} title="حذف">
-            <Trash2 size={14} />
-          </button>
         </div>
       </div>
     );
   }
+
+  const isReady = section === 'ready';
+  const isPrep = section === 'prep';
+  const isDelivery = section === 'delivery';
 
   return (
     <div style={styles.viewWrap}>
       <div style={styles.viewHeader} className="alfhd-view-header alfhd-no-print">
         <div>
           <h2 style={styles.viewTitle}>الطلبات</h2>
-          <p style={styles.viewSubtitle}>متابعة كاملة لطلبات صفحاتك مع طباعة وتحويل مباشر</p>
+          <p style={styles.viewSubtitle}>متابعة كاملة لطلباتك عبر مراحل التجهيز والتوصيل</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <input type="file" accept="image/*" ref={ocrInputRef} onChange={handlePickOcrImage} style={{ display: 'none' }} />
@@ -1391,44 +1544,40 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             إضافة بالصورة
           </button>
           <button onClick={startNewOrder} style={styles.secondaryBtn}>
-            <Plus size={15} />
-            إضافة طلب
+            <Plus size={15} /> إضافة طلب
           </button>
-          {section === 'ready' && (
+          {isReady && (
             <button onClick={handlePrintReady} style={styles.printBtn}>
-              <Printer size={15} />
-              طباعة الآن
+              <Printer size={15} /> طباعة الآن
             </button>
           )}
         </div>
       </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row alfhd-no-print">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={stats.total} color="#3B82F6" />
-        <StatCard icon={Truck} label="قيد التوصيل" value={stats.pending} color="#3B82F6" />
-        <StatCard icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#4ADE80" />
-        <StatCard icon={XCircle} label="راجعة" value={stats.returned} color="#F45B69" />
+        <ClickableStat icon={Package} label="إجمالي الطلبات" value={stats.total} color="#3B82F6"
+          active={isDelivery && statusFilter === 'all'} onClick={() => { setSection('delivery'); setStatusFilter('all'); }} />
+        <ClickableStat icon={Truck} label="قيد التوصيل" value={stats.pending} color="#3B82F6"
+          active={isDelivery && statusFilter === 'pending'} onClick={() => { setSection('delivery'); setStatusFilter('pending'); }} />
+        <ClickableStat icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#4ADE80"
+          active={isDelivery && statusFilter === 'delivered'} onClick={() => { setSection('delivery'); setStatusFilter('delivered'); }} />
+        <ClickableStat icon={XCircle} label="راجعة" value={stats.returned} color="#F45B69"
+          active={isDelivery && statusFilter === 'returned'} onClick={() => { setSection('delivery'); setStatusFilter('returned'); }} />
       </div>
 
       <div style={styles.sectionTabs} className="alfhd-no-print">
-        <button
-          onClick={() => setSection('ready')}
-          style={{ ...styles.sectionTab, ...(section === 'ready' ? styles.sectionTabActive : {}) }}
-        >
-          جاهزة للطباعة
-          <span style={{ ...styles.convTabCount, ...(section === 'ready' ? styles.convTabCountActive : {}) }}>
-            {orders.filter((o) => !o.printed && (selectedPage === 'all' || o.pageId === selectedPage)).length}
-          </span>
-        </button>
-        <button
-          onClick={() => setSection('delivery')}
-          style={{ ...styles.sectionTab, ...(section === 'delivery' ? styles.sectionTabActive : {}) }}
-        >
-          لدى شركة التوصيل
-          <span style={{ ...styles.convTabCount, ...(section === 'delivery' ? styles.convTabCountActive : {}) }}>
-            {orders.filter((o) => o.printed && (selectedPage === 'all' || o.pageId === selectedPage)).length}
-          </span>
-        </button>
+        {ORDER_STAGES.map((st) => (
+          <button
+            key={st.id}
+            onClick={() => { setSection(st.id); setStatusFilter('all'); }}
+            style={{ ...styles.sectionTab, ...(section === st.id ? styles.sectionTabActive : {}) }}
+          >
+            {st.label}
+            <span style={{ ...styles.convTabCount, ...(section === st.id ? styles.convTabCountActive : {}) }}>
+              {stageCounts[st.id]}
+            </span>
+          </button>
+        ))}
       </div>
 
       <div style={styles.ordersToolbar} className="alfhd-no-print">
@@ -1441,14 +1590,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <ChevronDown size={14} color="#5E6986" />
         </div>
 
-        {section === 'delivery' && (
+        {isDelivery && (
           <div style={styles.filterChips}>
             {['all', 'pending', 'delivered', 'returned'].map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}
-              >
+              <button key={s} onClick={() => setStatusFilter(s)} style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}>
                 {s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
               </button>
             ))}
@@ -1457,62 +1602,55 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
         <div style={styles.searchBox}>
           <Search size={15} color="#5E6986" />
-          <input
-            placeholder="رقم الطلب أو اسم العميل..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={styles.searchInput}
-          />
+          <input placeholder="رقم الطلب، الاسم، الهاتف، أو نوع الطلب..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.searchInput} />
         </div>
       </div>
 
-      {section === 'ready' ? (
-        <div
-          style={styles.ordersGrid}
-          className={`alfhd-orders-grid${printTarget === 'ready' ? ' alfhd-print-area' : ''}`}
-        >
-          {readyOrders.length === 0 ? (
-            <div style={styles.emptyState}>
-              <Package size={32} color="#39425C" />
-              <p>لا توجد طلبات جاهزة للطباعة حالياً</p>
+      {isPrep ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          {prepBatches.length === 0 ? (
+            <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا توجد طلبات قيد التجهيز</p></div>
+          ) : prepBatches.map((batch) => (
+            <div key={batch.batchId} style={styles.batchBlock}>
+              <div style={styles.batchHeader} className="alfhd-no-print">
+                <div style={styles.batchHeaderInfo}>
+                  <Printer size={14} color="#3B82F6" />
+                  <span>دفعة — {batch.orders.length} طلب</span>
+                  {batch.printedAt && <span style={styles.batchHeaderTime}>{new Date(batch.printedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}</span>}
+                </div>
+                <button onClick={() => handleReprintBatch(batch.batchId, batch.orders)} style={styles.secondaryBtn}>
+                  <Printer size={14} /> إعادة طباعة
+                </button>
+              </div>
+              <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === batch.batchId ? ' alfhd-print-area' : ''}`}>
+                {batch.orders.map(renderOrderCard)}
+              </div>
             </div>
-          ) : readyOrders.map(renderOrderCard)}
+          ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {batches.length === 0 ? (
+        <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === 'ready' ? ' alfhd-print-area' : ''}`}>
+          {stageOrders.length === 0 ? (
             <div style={styles.emptyState}>
-              <Truck size={32} color="#39425C" />
-              <p>لا توجد طلبات لدى شركة التوصيل بعد</p>
+              {isReady ? <Package size={32} color="#39425C" /> : <Truck size={32} color="#39425C" />}
+              <p>{isReady ? 'لا توجد طلبات جاهزة للطباعة' : 'لا توجد طلبات لدى شركة التوصيل بعد'}</p>
             </div>
-          ) : (
-            batches.map((batch) => (
-              <div key={batch.batchId} style={styles.batchBlock}>
-                <div style={styles.batchHeader} className="alfhd-no-print">
-                  <div style={styles.batchHeaderInfo}>
-                    <Printer size={14} color="#3B82F6" />
-                    <span>دفعة طباعة — {batch.orders.length} طلب</span>
-                    {batch.printedAt && (
-                      <span style={styles.batchHeaderTime}>
-                        {new Date(batch.printedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}
-                      </span>
-                    )}
-                  </div>
-                  <button onClick={() => handleReprintBatch(batch.batchId)} style={styles.secondaryBtn}>
-                    <Printer size={14} />
-                    إعادة طباعة
-                  </button>
-                </div>
-                <div
-                  style={styles.ordersGrid}
-                  className={`alfhd-orders-grid${printTarget === batch.batchId ? ' alfhd-print-area' : ''}`}
-                >
-                  {batch.orders.map(renderOrderCard)}
-                </div>
-              </div>
-            ))
-          )}
+          ) : stageOrders.map(renderOrderCard)}
         </div>
+      )}
+
+      {detailOrder && (
+        <OrderDetailModal
+          order={detailOrder}
+          page={pages.find((p) => p.id === detailOrder.pageId)}
+          section={section}
+          onClose={() => setDetailOrder(null)}
+          onEdit={() => startEditOrder(detailOrder)}
+          onDelete={() => handleDelete(detailOrder)}
+          onShare={() => handleShare(detailOrder)}
+          onViewConversation={detailOrder.conversationId ? () => { onViewConversation?.(detailOrder.conversationId); setDetailOrder(null); } : null}
+          onMoveToDelivery={isPrep ? () => moveToDelivery(detailOrder) : null}
+        />
       )}
 
       {editingOrder && (
@@ -1525,17 +1663,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <div style={styles.modalBody}>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>الصفحة</label>
-                <select
-                  value={editingOrder.pageId}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, pageId: e.target.value })}
-                  style={styles.formInput}
-                >
+                <select value={editingOrder.pageId} onChange={(e) => setEditingOrder({ ...editingOrder, pageId: e.target.value })} style={styles.formInput}>
                   {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>اسم العميل</label>
                 <input value={editingOrder.customer} onChange={(e) => setEditingOrder({ ...editingOrder, customer: e.target.value })} style={styles.formInput} placeholder="اسم الزبون" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>نوع الطلب</label>
+                <input value={editingOrder.orderType} onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })} style={styles.formInput} placeholder="مثال: أرضيات سيارة" />
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>رقم الهاتف</label>
@@ -1546,31 +1684,16 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <input value={editingOrder.address} onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })} style={styles.formInput} placeholder="المحافظة - المنطقة" />
               </div>
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المنتجات</label>
-                <textarea
-                  value={editingOrder.items}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })}
-                  style={{ ...styles.formInput, minHeight: 70, resize: 'vertical' }}
-                  placeholder="وصف المنتجات والكميات"
-                />
+                <label style={styles.formLabel}>المنتجات / التفاصيل</label>
+                <textarea value={editingOrder.items} onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })} style={{ ...styles.formInput, minHeight: 70, resize: 'vertical' }} placeholder="وصف المنتجات والكميات" />
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>المبلغ (د.ع)</label>
                 <input type="number" value={editingOrder.total} onChange={(e) => setEditingOrder({ ...editingOrder, total: e.target.value })} style={styles.formInput} placeholder="0" />
               </div>
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>الحالة</label>
-                <select value={editingOrder.status} onChange={(e) => setEditingOrder({ ...editingOrder, status: e.target.value })} style={styles.formInput}>
-                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
-                </select>
-              </div>
-              <div style={styles.formGroup}>
                 <label style={styles.formLabel}>ربط بمحادثة (اختياري)</label>
-                <select
-                  value={editingOrder.conversationId || ''}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })}
-                  style={styles.formInput}
-                >
+                <select value={editingOrder.conversationId || ''} onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })} style={styles.formInput}>
                   <option value="">بدون ربط</option>
                   {conversations.map((c) => <option key={c.id} value={c.id}>{c.customer}</option>)}
                 </select>
@@ -1578,13 +1701,66 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             </div>
             <div style={styles.modalFooter}>
               <button onClick={() => setEditingOrder(null)} style={styles.modalCancelBtn}>إلغاء</button>
-              <button onClick={handleSaveOrder} style={styles.modalSaveBtn} disabled={saving}>
-                {saving ? 'جارٍ الحفظ...' : 'حفظ'}
-              </button>
+              <button onClick={handleSaveOrder} style={styles.modalSaveBtn} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ'}</button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ClickableStat({ icon: Icon, label, value, color, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{ ...styles.statCard, ...(active ? { borderColor: color + '66', background: `linear-gradient(180deg, ${color}14, #111725)` } : {}), cursor: 'pointer', textAlign: 'right', width: '100%' }} className="alfhd-stat-card">
+      <div style={{ ...styles.statIconWrap, background: `linear-gradient(135deg, ${color}22, ${color}0D)`, color, boxShadow: `0 4px 12px -4px ${color}55` }}>
+        <Icon size={19} />
+      </div>
+      <div>
+        <div style={styles.statValue}>{typeof value === 'number' && value > 999 ? value.toLocaleString() : value}</div>
+        <div style={styles.statLabel}>{label}</div>
+      </div>
+    </button>
+  );
+}
+
+function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery }) {
+  const o = order;
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>تفاصيل الطلب #{o.orderNo}</h3>
+          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+        </div>
+        <div style={styles.modalBody}>
+          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العميل</span><span style={styles.detailGridValue}>{o.customer}</span></div>
+          {page && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الصفحة</span><span style={styles.detailGridValue}>{page.avatar} {page.name}</span></div>}
+          {o.orderType && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>نوع الطلب</span><span style={styles.detailGridValue}>{o.orderType}</span></div>}
+          {o.phone && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الهاتف</span><span style={styles.detailGridValue}>{o.phone}</span></div>}
+          {o.address && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العنوان</span><span style={styles.detailGridValue}>{o.address}</span></div>}
+          {o.items && (
+            <div style={{ ...styles.detailGridRow, flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+              <span style={styles.detailGridLabel}>المنتجات</span>
+              <span style={{ ...styles.detailGridValue, whiteSpace: 'pre-wrap', textAlign: 'right' }}>{o.items}</span>
+            </div>
+          )}
+          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المبلغ</span><span style={{ ...styles.detailGridValue, color: '#60A5FA', fontWeight: 800, fontSize: 16 }}>{Number(o.total).toLocaleString()} د.ع</span></div>
+          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>التاريخ</span><span style={styles.detailGridValue}>{o.date}</span></div>
+          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الرقم المرجعي</span><span style={{ ...styles.detailGridValue, fontFamily: 'monospace' }}>{o.fahdRef}</span></div>
+        </div>
+        <div style={{ ...styles.modalFooter, flexWrap: 'wrap' }}>
+          {onMoveToDelivery && (
+            <button onClick={onMoveToDelivery} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4 }}>
+              <Truck size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> نقل لشركة التوصيل
+            </button>
+          )}
+          <button onClick={onEdit} style={styles.detailActionBtn}><Edit3 size={14} /> تعديل</button>
+          <button onClick={onShare} style={styles.detailActionBtn}><Send size={14} /> تحويل</button>
+          {onViewConversation && <button onClick={onViewConversation} style={styles.detailActionBtn}><MessageSquare size={14} /> المحادثة</button>}
+          <button onClick={onDelete} style={{ ...styles.detailActionBtn, color: '#F45B69', borderColor: 'rgba(244,91,105,0.3)' }}><Trash2 size={14} /> حذف</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1607,67 +1783,72 @@ function StatCard({ icon: Icon, label, value, color }) {
 // عرض الإحصائيات
 // ──────────────────────────────────────────────
 function StatsView({ orders, pages, conversations }) {
-  const [dailyFilter, setDailyFilter] = useState('today');
+  const [statsPage, setStatsPage] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
 
-  const DAILY_FILTERS = [
+  const TIME_FILTERS = [
     { id: 'today', label: 'اليوم' },
     { id: 'yesterday', label: 'أمس' },
     { id: 'dayBeforeYesterday', label: 'أول أمس' },
-    { id: 'week', label: 'هذا الأسبوع' },
+    { id: 'week', label: 'آخر أسبوع' },
     { id: 'month', label: 'هذا الشهر' },
+    { id: 'custom', label: 'شهر محدد' },
+    { id: 'all', label: 'الكل' },
   ];
+
+  const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
   function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 
-  function isInDailyRange(dateStr, range) {
+  function isInRange(dateStr) {
+    if (timeFilter === 'all') return true;
     if (!dateStr) return false;
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return false;
     const now = new Date();
     const today = startOfDay(now);
-    if (range === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (range === 'yesterday') {
-      const y = new Date(today); y.setDate(y.getDate() - 1);
-      return startOfDay(d).getTime() === y.getTime();
-    }
-    if (range === 'dayBeforeYesterday') {
-      const y2 = new Date(today); y2.setDate(y2.getDate() - 2);
-      return startOfDay(d).getTime() === y2.getTime();
-    }
-    if (range === 'week') {
-      const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
-      return d >= weekAgo && d <= now;
-    }
-    if (range === 'month') {
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }
+    if (timeFilter === 'today') return startOfDay(d).getTime() === today.getTime();
+    if (timeFilter === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
+    if (timeFilter === 'dayBeforeYesterday') { const y2 = new Date(today); y2.setDate(y2.getDate() - 2); return startOfDay(d).getTime() === y2.getTime(); }
+    if (timeFilter === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w && d <= now; }
+    if (timeFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (timeFilter === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
     return true;
   }
 
-  const dailyOrders = useMemo(
-    () => orders.filter((o) => isInDailyRange(o.createdAt, dailyFilter)),
-    [orders, dailyFilter]
-  );
+  // كل الإحصائيات تحترم فلتر الصفحة + فلتر الوقت
+  const scopedOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (statsPage !== 'all' && o.pageId !== statsPage) return false;
+      if (!isInRange(o.createdAt || o.date)) return false;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, statsPage, timeFilter, customYear, customMonth]);
 
-  const dailyBreakdown = useMemo(() => {
-    const converted = dailyOrders.filter((o) => o.converted);
-    const fromChat = dailyOrders.filter((o) => !o.converted && o.source === 'chat');
-    const manual = dailyOrders.filter((o) => !o.converted && o.source !== 'chat');
-    return { total: dailyOrders.length, converted: converted.length, fromChat: fromChat.length, manual: manual.length };
-  }, [dailyOrders]);
+  const breakdown = useMemo(() => {
+    const converted = scopedOrders.filter((o) => o.converted);
+    const fromChat = scopedOrders.filter((o) => !o.converted && o.source === 'chat');
+    const manual = scopedOrders.filter((o) => !o.converted && o.source !== 'chat');
+    return { total: scopedOrders.length, converted: converted.length, fromChat: fromChat.length, manual: manual.length };
+  }, [scopedOrders]);
 
   const overall = useMemo(() => {
-    const delivered = orders.filter((o) => o.status === 'delivered');
-    const pending = orders.filter((o) => o.status === 'pending');
-    const returned = orders.filter((o) => o.status === 'returned');
+    const delivered = scopedOrders.filter((o) => o.status === 'delivered');
+    const pending = scopedOrders.filter((o) => o.status === 'pending');
+    const returned = scopedOrders.filter((o) => o.status === 'returned');
     const revenue = delivered.reduce((s, o) => s + o.total, 0);
-    const deliveryRate = orders.length ? Math.round((delivered.length / orders.length) * 100) : 0;
-    return { total: orders.length, delivered: delivered.length, pending: pending.length, returned: returned.length, revenue, deliveryRate };
-  }, [orders]);
+    const deliveryRate = scopedOrders.length ? Math.round((delivered.length / scopedOrders.length) * 100) : 0;
+    const returnRate = scopedOrders.length ? Math.round((returned.length / scopedOrders.length) * 100) : 0;
+    return { delivered: delivered.length, pending: pending.length, returned: returned.length, revenue, deliveryRate, returnRate };
+  }, [scopedOrders]);
 
   const perPage = useMemo(() => {
-    return pages.map((p) => {
-      const pOrders = orders.filter((o) => o.pageId === p.id);
+    const scope = statsPage === 'all' ? pages : pages.filter((p) => p.id === statsPage);
+    return scope.map((p) => {
+      const pOrders = scopedOrders.filter((o) => o.pageId === p.id);
       const pConvs = conversations.filter((c) => c.pageId === p.id);
       return {
         ...p,
@@ -1676,47 +1857,60 @@ function StatsView({ orders, pages, conversations }) {
         convCount: pConvs.length,
       };
     });
-  }, [pages, orders, conversations]);
+  }, [pages, scopedOrders, conversations, statsPage]);
 
   const maxRevenue = Math.max(...perPage.map((p) => p.revenue), 1);
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
   return (
     <div style={styles.viewWrap}>
       <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>الإحصائيات</h2>
-          <p style={styles.viewSubtitle}>نظرة شاملة على أداء جميع الصفحات</p>
+          <p style={styles.viewSubtitle}>نظرة شاملة على الأداء مع فلاتر دقيقة</p>
+        </div>
+        <div style={styles.pageSelectWrap}>
+          <Facebook size={15} color="#3B82F6" />
+          <select value={statsPage} onChange={(e) => setStatsPage(e.target.value)} style={styles.pageSelect}>
+            <option value="all">كل الصفحات</option>
+            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <ChevronDown size={14} color="#5E6986" />
         </div>
       </div>
 
-      <div style={styles.dailyStatsCard}>
-        <div style={styles.dailyStatsHeader}>
-          <h3 style={styles.chartTitle}>إحصائية الطلبات اليومية</h3>
-          <div style={styles.filterChips}>
-            {DAILY_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setDailyFilter(f.id)}
-                style={{ ...styles.chip, ...(dailyFilter === f.id ? styles.chipActive : {}) }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+      <div style={styles.timeFilterBar}>
+        {TIME_FILTERS.map((f) => (
+          <button key={f.id} onClick={() => setTimeFilter(f.id)} style={{ ...styles.chip, ...(timeFilter === f.id ? styles.chipActive : {}) }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {timeFilter === 'custom' && (
+        <div style={styles.customDateRow}>
+          <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelect}>
+            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelect}>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
         </div>
-        <div style={styles.statsRow} className="alfhd-stats-row">
-          <StatCard icon={Package} label="إجمالي الطلبات بالفترة" value={dailyBreakdown.total} color="#3B82F6" />
-          <StatCard icon={MessageSquare} label="من المحادثات" value={dailyBreakdown.fromChat} color="#5B8DEF" />
-          <StatCard icon={Edit3} label="مضافة يدوياً" value={dailyBreakdown.manual} color="#4ADE80" />
-          <StatCard icon={Send} label="طلبات محوّلة" value={dailyBreakdown.converted} color="#A78BFA" />
-        </div>
+      )}
+
+      <div style={styles.statsRow} className="alfhd-stats-row">
+        <StatCard icon={Package} label="إجمالي الطلبات" value={breakdown.total} color="#3B82F6" />
+        <StatCard icon={MessageSquare} label="من المحادثات" value={breakdown.fromChat} color="#5B8DEF" />
+        <StatCard icon={Edit3} label="مضافة يدوياً" value={breakdown.manual} color="#4ADE80" />
+        <StatCard icon={Send} label="طلبات محوّلة" value={breakdown.converted} color="#A78BFA" />
       </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={overall.total} color="#3B82F6" />
+        <StatCard icon={Truck} label="قيد التوصيل" value={overall.pending} color="#3B82F6" />
         <StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#4ADE80" />
-        <StatCard icon={XCircle} label="نسبة الإرجاع" value={overall.total ? `${Math.round((overall.returned / overall.total) * 100)}%` : '0%'} color="#F45B69" />
-        <StatCard icon={Sparkles} label="إجمالي الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#3B82F6" />
+        <StatCard icon={XCircle} label="نسبة الإرجاع" value={`${overall.returnRate}%`} color="#F45B69" />
+        <StatCard icon={Sparkles} label="الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#3B82F6" />
       </div>
 
       <div style={styles.chartCard}>
@@ -1729,12 +1923,7 @@ function StatsView({ orders, pages, conversations }) {
                 <span>{p.name}</span>
               </div>
               <div style={styles.barChartTrack}>
-                <div
-                  style={{
-                    ...styles.barChartFill,
-                    width: `${(p.revenue / maxRevenue) * 100}%`,
-                  }}
-                />
+                <div style={{ ...styles.barChartFill, width: `${(p.revenue / maxRevenue) * 100}%` }} />
               </div>
               <div style={styles.barChartValue}>{p.revenue.toLocaleString()} د.ع</div>
             </div>
@@ -2041,75 +2230,66 @@ const PERMISSIONS_LIST = [
   { id: 'users_manage', label: 'إدارة المستخدمين' },
 ];
 
-function UsersView({ users, setUsers }) {
+function AdminView({ users, setUsers, orders, conversations, onViewConversation, onContactWhatsApp }) {
+  const [adminTab, setAdminTab] = useState('managers'); // managers | warehouse | fulfillment
   const [showAdd, setShowAdd] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ name: '', code: '', role: 'limited', permissions: [] });
+  const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const openAdd = () => {
-    setForm({ name: '', code: '', role: 'limited', permissions: [] });
-    setEditingUser(null);
-    setFormError('');
-    setShowAdd(true);
-  };
+  const managers = users.filter((u) => u.role === 'admin' || u.role === 'manager');
+  const warehouse = users.filter((u) => u.role === 'warehouse');
 
+  const openAddManager = () => {
+    setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+    setEditingUser(null); setFormError(''); setShowAdd(true);
+  };
+  const openAddWarehouse = () => {
+    setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '' });
+    setEditingUser(null); setFormError(''); setShowAdd(true);
+  };
   const openEdit = (user) => {
-    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions });
-    setEditingUser(user);
-    setFormError('');
-    setShowAdd(true);
+    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '' });
+    setEditingUser(user); setFormError(''); setShowAdd(true);
   };
 
   const togglePermission = (permId) => {
     setForm((prev) => ({
       ...prev,
-      permissions: prev.permissions.includes(permId)
-        ? prev.permissions.filter((p) => p !== permId)
-        : [...prev.permissions, permId],
+      permissions: prev.permissions.includes(permId) ? prev.permissions.filter((p) => p !== permId) : [...prev.permissions, permId],
     }));
   };
 
   const saveUser = async () => {
-    if (!form.name.trim() || !form.code.trim() || saving) return;
+    if (!form.name.trim() || saving) return;
+    const code = form.code.trim();
+    if (form.role === 'warehouse') {
+      if (!/^\d{4}$/.test(code)) { setFormError('رمز موظف المخزن يجب أن يكون 4 أرقام'); return; }
+    } else if (!code) { setFormError('أدخل رمز الدخول'); return; }
 
-    // تحقق أن الرمز فريد (غير مستخدم من مستخدم آخر)
-    const codeTaken = users.some((u) => u.code === form.code.trim() && u.id !== editingUser?.id);
-    if (codeTaken) {
-      setFormError('هذا الرمز مستخدم من قبل مستخدم آخر');
-      return;
-    }
+    const codeTaken = users.some((u) => u.code === code && u.id !== editingUser?.id);
+    if (codeTaken) { setFormError('هذا الرمز مستخدم من قبل'); return; }
 
-    setSaving(true);
-    setFormError('');
-
+    setSaving(true); setFormError('');
     try {
+      const payload = {
+        name: form.name.trim(), code, role: form.role,
+        permissions: form.role === 'admin' ? ['all'] : form.permissions,
+        job_title: form.jobTitle || null, whatsapp: form.whatsapp || null,
+      };
       if (editingUser) {
-        const [updated] = await sbUpdate('alfhd_users', editingUser.id, {
-          name: form.name.trim(),
-          code: form.code.trim(),
-          role: form.role,
-          permissions: form.permissions,
-        });
+        const [updated] = await sbUpdate('alfhd_users', editingUser.id, payload);
         setUsers((prev) => prev.map((u) => u.id === editingUser.id ? mapUserFromDb(updated) : u));
       } else {
-        const [created] = await sbInsert('alfhd_users', {
-          name: form.name.trim(),
-          code: form.code.trim(),
-          role: form.role,
-          permissions: form.permissions,
-          active: true,
-        });
+        const [created] = await sbInsert('alfhd_users', { ...payload, active: true });
         setUsers((prev) => [...prev, mapUserFromDb(created)]);
       }
       setShowAdd(false);
     } catch (e) {
-      console.error('Failed to save user:', e);
+      console.error('save user error:', e);
       setFormError('خطأ: ' + e.message);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const toggleActive = async (id) => {
@@ -2117,171 +2297,343 @@ function UsersView({ users, setUsers }) {
     if (!target) return;
     const newActive = !target.active;
     setUsers((prev) => prev.map((u) => u.id === id ? { ...u, active: newActive } : u));
-    try {
-      await sbUpdate('alfhd_users', id, { active: newActive });
-    } catch (e) {
-      console.error('Failed to toggle user active state:', e);
-    }
+    try { await sbUpdate('alfhd_users', id, { active: newActive }); } catch (e) { console.error(e); }
   };
 
   const deleteUser = async (id) => {
+    if (!window.confirm('حذف هذا الموظف نهائياً؟')) return;
     setUsers((prev) => prev.filter((u) => u.id !== id));
-    try {
-      await sbDelete('alfhd_users', id);
-    } catch (e) {
-      console.error('Failed to delete user:', e);
-    }
+    try { await sbDelete('alfhd_users', id); } catch (e) { console.error(e); }
   };
+
+  // طلبات التجهيز: المجهّزة والمرفوضة
+  const fulfillmentOrders = useMemo(() => {
+    return orders.filter((o) => o.prepStatus === 'done' || o.prepStatus === 'rejected')
+      .sort((a, b) => new Date(b.prepAt || 0) - new Date(a.prepAt || 0));
+  }, [orders]);
+
+  const ADMIN_TABS = [
+    { id: 'managers', label: 'المدراء', icon: ShieldCheck },
+    { id: 'warehouse', label: 'موظفي المخزن', icon: Package },
+    { id: 'fulfillment', label: 'متابعة التجهيز', icon: CheckCircle2 },
+  ];
+
+  function UserCard({ u, isWarehouse }) {
+    return (
+      <div style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }} className="alfhd-order-card">
+        <div style={styles.userCardTop}>
+          <div style={{ ...styles.userCardAvatar, background: u.role === 'admin' ? 'linear-gradient(135deg,#60A5FA,#1D4ED8)' : '#222C42', color: u.role === 'admin' ? '#fff' : '#3B82F6' }}>
+            {u.name[0]}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={styles.userCardName}>{u.name}</div>
+            <div style={styles.userCardRole}>
+              {u.role === 'admin' ? <><ShieldCheck size={12} color="#4ADE80" /> مدير عام</>
+                : u.role === 'warehouse' ? <><Package size={12} color="#F0A868" /> {u.jobTitle || 'موظف مخزن'}</>
+                : <><Shield size={12} color="#3B82F6" /> مدير ({(u.permissions || []).length} صلاحية)</>}
+            </div>
+          </div>
+          <div style={{ ...styles.activeDot, background: u.active ? '#4ADE80' : '#5E6986' }} />
+        </div>
+
+        <div style={styles.userCardMetaRow}>
+          <span style={styles.userCodeTag}>الرمز: {u.code}</span>
+          {isWarehouse && u.whatsapp && <span style={styles.userCodeTag}>واتساب: {u.whatsapp}</span>}
+        </div>
+
+        {u.role === 'manager' && (u.permissions || []).length > 0 && (
+          <div style={styles.userPermsList}>
+            {u.permissions.map((pId) => {
+              const perm = PERMISSIONS_LIST.find((p) => p.id === pId);
+              return perm ? <span key={pId} style={styles.permTag}>{perm.label}</span> : null;
+            })}
+          </div>
+        )}
+
+        <div style={styles.userCardActions}>
+          <button onClick={() => openEdit(u)} style={styles.userActionBtn}><Edit3 size={13} /> تعديل</button>
+          <button onClick={() => toggleActive(u.id)} style={styles.userActionBtn}>
+            {u.active ? <EyeOff size={13} /> : <Eye size={13} />} {u.active ? 'تعطيل' : 'تفعيل'}
+          </button>
+          {u.role !== 'admin' && (
+            <button onClick={() => deleteUser(u.id)} style={{ ...styles.userActionBtn, color: '#F45B69' }}><Trash2 size={13} /> حذف</button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.viewWrap}>
       <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
-          <h2 style={styles.viewTitle}>إدارة المستخدمين</h2>
-          <p style={styles.viewSubtitle}>تحكم كامل بصلاحيات الوصول لفريقك</p>
+          <h2 style={styles.viewTitle}>الإدارة العامة</h2>
+          <p style={styles.viewSubtitle}>المدراء، موظفو المخزن، ومتابعة تجهيز الطلبات</p>
         </div>
-        <button onClick={openAdd} style={styles.addBtn}>
-          <UserPlus size={16} />
-          إضافة مستخدم
-        </button>
+        {adminTab === 'managers' && <button onClick={openAddManager} style={styles.addBtn}><UserPlus size={16} /> إضافة مدير</button>}
+        {adminTab === 'warehouse' && <button onClick={openAddWarehouse} style={styles.addBtn}><UserPlus size={16} /> إضافة موظف مخزن</button>}
       </div>
 
-      <div style={styles.usersGrid} className="alfhd-users-grid">
-        {users.map((u) => (
-          <div key={u.id} style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }} className="alfhd-order-card">
-            <div style={styles.userCardTop}>
-              <div style={{
-                ...styles.userCardAvatar,
-                background: u.role === 'admin' ? 'linear-gradient(135deg,#60A5FA,#1D4ED8)' : '#222C42',
-                color: u.role === 'admin' ? '#0A0E17' : '#3B82F6',
-              }}>
-                {u.name[0]}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={styles.userCardName}>{u.name}</div>
-                <div style={styles.userCardRole}>
-                  {u.role === 'admin' ? (
-                    <><ShieldCheck size={12} color="#4ADE80" /> صلاحية كاملة</>
-                  ) : (
-                    <><Shield size={12} color="#3B82F6" /> صلاحية محددة ({u.permissions.length})</>
-                  )}
-                </div>
-              </div>
-              <div style={{
-                ...styles.activeDot,
-                background: u.active ? '#4ADE80' : '#5E6986',
-              }} />
-            </div>
+      <div style={styles.sectionTabs}>
+        {ADMIN_TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ ...styles.sectionTab, ...(adminTab === t.id ? styles.sectionTabActive : {}) }}>
+              <Icon size={14} /> {t.label}
+            </button>
+          );
+        })}
+      </div>
 
-            {u.role !== 'admin' && (
-              <div style={styles.userPermsList}>
-                {u.permissions.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#5E6986' }}>لا توجد صلاحيات مفعّلة</span>
-                ) : (
-                  u.permissions.map((pId) => {
-                    const perm = PERMISSIONS_LIST.find((p) => p.id === pId);
-                    return perm ? (
-                      <span key={pId} style={styles.permTag}>{perm.label}</span>
-                    ) : null;
-                  })
-                )}
-              </div>
-            )}
+      {adminTab === 'managers' && (
+        <div style={styles.usersGrid} className="alfhd-users-grid">
+          {managers.map((u) => <UserCard key={u.id} u={u} />)}
+        </div>
+      )}
 
-            <div style={styles.userCardActions}>
-              <button onClick={() => openEdit(u)} style={styles.userActionBtn}>
-                <Edit3 size={13} /> تعديل
-              </button>
-              <button onClick={() => toggleActive(u.id)} style={styles.userActionBtn}>
-                {u.active ? <EyeOff size={13} /> : <Eye size={13} />}
-                {u.active ? 'تعطيل' : 'تفعيل'}
-              </button>
-              {u.role !== 'admin' && (
-                <button onClick={() => deleteUser(u.id)} style={{ ...styles.userActionBtn, color: '#F45B69' }}>
-                  <Trash2 size={13} /> حذف
-                </button>
-              )}
-            </div>
+      {adminTab === 'warehouse' && (
+        warehouse.length === 0 ? (
+          <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا يوجد موظفو مخزن بعد</p></div>
+        ) : (
+          <div style={styles.usersGrid} className="alfhd-users-grid">
+            {warehouse.map((u) => <UserCard key={u.id} u={u} isWarehouse />)}
           </div>
-        ))}
-      </div>
+        )
+      )}
+
+      {adminTab === 'fulfillment' && (
+        <FulfillmentList orders={fulfillmentOrders} users={users} onViewConversation={onViewConversation} onContactWhatsApp={onContactWhatsApp} />
+      )}
 
       {showAdd && (
         <div style={styles.modalOverlay} onClick={() => setShowAdd(false)}>
           <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>{editingUser ? 'تعديل المستخدم' : 'إضافة مستخدم جديد'}</h3>
+              <h3 style={styles.modalTitle}>
+                {editingUser ? 'تعديل' : (form.role === 'warehouse' ? 'إضافة موظف مخزن' : 'إضافة مدير')}
+              </h3>
               <button onClick={() => setShowAdd(false)} style={styles.modalClose}><X size={18} /></button>
             </div>
-
             <div style={styles.modalBody}>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>الاسم</label>
-                <input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  style={styles.formInput}
-                  placeholder="اسم الموظف"
-                />
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={styles.formInput} placeholder="اسم الموظف" />
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>رمز الدخول الخاص به</label>
-                <input
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  style={styles.formInput}
-                  placeholder="رمز رقمي"
-                />
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>نوع الصلاحية</label>
-                <div style={styles.roleToggle}>
-                  <button
-                    onClick={() => setForm({ ...form, role: 'admin' })}
-                    style={{ ...styles.roleBtn, ...(form.role === 'admin' ? styles.roleBtnActive : {}) }}
-                  >
-                    <ShieldCheck size={14} /> كاملة
-                  </button>
-                  <button
-                    onClick={() => setForm({ ...form, role: 'limited' })}
-                    style={{ ...styles.roleBtn, ...(form.role === 'limited' ? styles.roleBtnActive : {}) }}
-                  >
-                    <Shield size={14} /> محددة
-                  </button>
-                </div>
-              </div>
-
-              {form.role === 'limited' && (
-                <div style={styles.formGroup}>
-                  <label style={styles.formLabel}>الصلاحيات المحددة</label>
-                  <div style={styles.permsGrid}>
-                    {PERMISSIONS_LIST.map((perm) => (
-                      <label key={perm.id} style={styles.permCheckRow}>
-                        <input
-                          type="checkbox"
-                          checked={form.permissions.includes(perm.id)}
-                          onChange={() => togglePermission(perm.id)}
-                          style={styles.checkbox}
-                        />
-                        <span>{perm.label}</span>
-                      </label>
-                    ))}
+              {form.role === 'warehouse' && (
+                <>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>المسمى الوظيفي</label>
+                    <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} style={styles.formInput} placeholder="مثال: مسؤول تجهيز" />
                   </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>رقم واتساب</label>
+                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} style={styles.formInput} placeholder="07XXXXXXXXX" />
+                  </div>
+                </>
+              )}
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>{form.role === 'warehouse' ? 'رمز الدخول (4 أرقام)' : 'رمز الدخول'}</label>
+                <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} style={styles.formInput} placeholder={form.role === 'warehouse' ? '1234' : 'رمز رقمي'} inputMode="numeric" />
+              </div>
+
+              {form.role !== 'warehouse' && (
+                <>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>نوع المدير</label>
+                    <div style={styles.roleToggle}>
+                      <button onClick={() => setForm({ ...form, role: 'admin' })} style={{ ...styles.roleBtn, ...(form.role === 'admin' ? styles.roleBtnActive : {}) }}>
+                        <ShieldCheck size={14} /> مدير عام
+                      </button>
+                      <button onClick={() => setForm({ ...form, role: 'manager' })} style={{ ...styles.roleBtn, ...(form.role === 'manager' ? styles.roleBtnActive : {}) }}>
+                        <Shield size={14} /> صلاحية محددة
+                      </button>
+                    </div>
+                  </div>
+
+                  {form.role === 'manager' && (
+                    <div style={styles.formGroup}>
+                      <label style={styles.formLabel}>الصلاحيات</label>
+                      <div style={styles.permsGrid}>
+                        {PERMISSIONS_LIST.map((perm) => (
+                          <label key={perm.id} style={styles.permCheckRow}>
+                            <input type="checkbox" checked={form.permissions.includes(perm.id)} onChange={() => togglePermission(perm.id)} style={styles.checkbox} />
+                            <span>{perm.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {form.role === 'warehouse' && (
+                <div style={styles.warehouseNote}>
+                  <AlertCircle size={14} color="#F0A868" />
+                  <span>موظف المخزن يرى فقط الطلبات المثبتة من كل الصفحات، ويعلّمها "تم التجهيز" أو "لم يتم" بدون صلاحية تعديل أو حذف.</span>
                 </div>
               )}
 
-              {formError && (
-                <p style={{ color: '#F45B69', fontSize: 12, margin: 0 }}>{formError}</p>
-              )}
+              {formError && <p style={{ color: '#F45B69', fontSize: 12, margin: 0 }}>{formError}</p>}
             </div>
-
             <div style={styles.modalFooter}>
               <button onClick={() => setShowAdd(false)} style={styles.modalCancelBtn}>إلغاء</button>
-              <button onClick={saveUser} style={styles.modalSaveBtn} disabled={saving}>
-                {saving ? 'جارٍ الحفظ...' : 'حفظ'}
-              </button>
+              <button onClick={saveUser} style={styles.modalSaveBtn} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp }) {
+  const [filter, setFilter] = useState('all'); // all | done | rejected
+  const shown = orders.filter((o) => filter === 'all' || o.prepStatus === filter);
+
+  if (orders.length === 0) {
+    return <div style={styles.emptyState}><CheckCircle2 size={32} color="#39425C" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
+  }
+
+  return (
+    <div>
+      <div style={styles.filterChips} className="alfhd-no-print">
+        {[['all', 'الكل'], ['done', 'تم التجهيز'], ['rejected', 'لم يتم']].map(([id, label]) => (
+          <button key={id} onClick={() => setFilter(id)} style={{ ...styles.chip, ...(filter === id ? styles.chipActive : {}) }}>{label}</button>
+        ))}
+      </div>
+      <div style={{ ...styles.ordersGrid, marginTop: 14 }}>
+        {shown.map((o) => {
+          const prepUser = users.find((u) => u.id === o.prepBy);
+          const isDone = o.prepStatus === 'done';
+          return (
+            <div key={o.id} style={styles.orderCard} className="alfhd-order-card">
+              <div style={styles.orderTicketHead}>
+                <div style={{ ...styles.orderTicketAvatar, background: isDone ? 'rgba(74,222,128,0.15)' : 'rgba(244,91,105,0.15)', color: isDone ? '#4ADE80' : '#F45B69', border: 'none' }}>
+                  {isDone ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.orderCardCustomer}>{o.customer} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                  <div style={styles.orderTicketPage}>المجهّز: {o.prepByName || prepUser?.name || 'غير معروف'}</div>
+                </div>
+                <div style={{ ...styles.orderStatusPill, color: isDone ? '#4ADE80' : '#F45B69', background: isDone ? 'rgba(74,222,128,0.12)' : 'rgba(244,91,105,0.12)' }}>
+                  {isDone ? 'تم التجهيز' : 'لم يتم'}
+                </div>
+              </div>
+
+              {!isDone && o.prepReason && (
+                <div style={styles.rejectReasonBox}>
+                  <span style={styles.rejectReasonLabel}>سبب عدم التجهيز:</span>
+                  <span>{o.prepReason}</span>
+                </div>
+              )}
+
+              {o.items && <div style={{ ...styles.orderTicketItems, margin: '0 16px 12px' }}>{o.items}</div>}
+
+              {!isDone && (
+                <div style={styles.orderCardActions}>
+                  {prepUser?.whatsapp && (
+                    <button onClick={() => onContactWhatsApp?.(prepUser.whatsapp)} style={styles.orderActionBtn} title="اتصال بالمجهّز عبر واتساب">
+                      <Phone size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>المجهّز</span>
+                    </button>
+                  )}
+                  {o.conversationId ? (
+                    <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="مراسلة الزبون">
+                      <MessageSquare size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>الزبون</span>
+                    </button>
+                  ) : o.phone ? (
+                    <button onClick={() => onContactWhatsApp?.(o.phone)} style={styles.orderActionBtn} title="الاتصال بالزبون">
+                      <Phone size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>الزبون</span>
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// واجهة موظف المخزن المبسطة — يرى فقط الطلبات المثبتة ويعلّمها تم/لم يتم
+function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
+  const [rejectOrder, setRejectOrder] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // الطلبات المثبتة (المصدر chat) التي لم تُجهَّز بعد، من كل الصفحات
+  const pendingPrep = useMemo(() => {
+    return orders.filter((o) => o.source === 'chat' && !o.converted && !o.prepStatus)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [orders]);
+
+  async function markDone(o) {
+    setSaving(true);
+    const patch = { prep_status: 'done', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
+    setOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, prepStatus: 'done', prepBy: currentUser.id, prepByName: currentUser.name, prepAt: patch.prep_at } : x));
+    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
+    setSaving(false);
+  }
+
+  async function confirmReject() {
+    if (!rejectReason.trim()) { alert('اكتب سبب عدم التجهيز'); return; }
+    setSaving(true);
+    const o = rejectOrder;
+    const patch = { prep_status: 'rejected', prep_reason: rejectReason.trim(), prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
+    setOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, prepStatus: 'rejected', prepReason: rejectReason.trim(), prepBy: currentUser.id, prepByName: currentUser.name, prepAt: patch.prep_at } : x));
+    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
+    setRejectOrder(null); setRejectReason(''); setSaving(false);
+  }
+
+  return (
+    <div style={styles.warehouseWrap}>
+      <div style={styles.warehouseHeader}>
+        <div>
+          <h2 style={styles.viewTitle}>طلبات التجهيز</h2>
+          <p style={styles.viewSubtitle}>أهلاً {currentUser.name} — {pendingPrep.length} طلب بانتظار التجهيز</p>
+        </div>
+        <button onClick={onLogout} style={styles.mobileLogoutBtn} title="خروج"><LogOut size={18} /></button>
+      </div>
+
+      {pendingPrep.length === 0 ? (
+        <div style={styles.emptyStateLg}><CheckCircle2 size={40} color="#4ADE80" /><p>كل الطلبات مُجهّزة! 🎉</p></div>
+      ) : (
+        <div style={styles.warehouseGrid}>
+          {pendingPrep.map((o) => (
+            <div key={o.id} style={styles.warehouseCard}>
+              <div style={styles.warehouseCardNo}>#{o.orderNo}</div>
+              <div style={styles.warehouseCardCustomer}>{o.customer}</div>
+              {o.orderType && <div style={styles.warehouseCardType}>{o.orderType}</div>}
+              {o.items && <div style={styles.warehouseCardItems}>{o.items}</div>}
+              {o.address && <div style={styles.warehouseCardSub}><MapPin size={12} /> {o.address}</div>}
+              <div style={styles.warehouseActions}>
+                <button onClick={() => markDone(o)} disabled={saving} style={styles.warehouseDoneBtn}>
+                  <CheckCircle2 size={20} /> تم التجهيز
+                </button>
+                <button onClick={() => { setRejectOrder(o); setRejectReason(''); }} disabled={saving} style={styles.warehouseRejectBtn}>
+                  <XCircle size={20} /> لم يتم
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {rejectOrder && (
+        <div style={styles.modalOverlay} onClick={() => setRejectOrder(null)}>
+          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>سبب عدم تجهيز الطلب #{rejectOrder.orderNo}</h3>
+              <button onClick={() => setRejectOrder(null)} style={styles.modalClose}><X size={18} /></button>
+            </div>
+            <div style={styles.modalBody}>
+              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} style={{ ...styles.formInput, minHeight: 100, resize: 'vertical' }} placeholder="اكتب السبب بوضوح (مثال: المنتج غير متوفر بالمخزن)" autoFocus />
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setRejectOrder(null)} style={styles.modalCancelBtn}>إلغاء</button>
+              <button onClick={confirmReject} style={{ ...styles.modalSaveBtn, background: 'linear-gradient(135deg,#F45B69,#C0143C)' }} disabled={saving}>{saving ? '...' : 'تأكيد'}</button>
             </div>
           </div>
         </div>
@@ -2297,6 +2649,7 @@ export default function AlFhdApp() {
   const [activeView, setActiveView] = useState('conversations');
   const [pendingOpenConvId, setPendingOpenConvId] = useState(null);
   const [pendingNewOrderFromConv, setPendingNewOrderFromConv] = useState(null);
+  const [pendingOpenOrderId, setPendingOpenOrderId] = useState(null);
 
   const goToConversation = useCallback((convId) => {
     setPendingOpenConvId(convId);
@@ -2305,6 +2658,11 @@ export default function AlFhdApp() {
 
   const goToNewOrderFromConversation = useCallback((conv) => {
     setPendingNewOrderFromConv(conv);
+    setActiveView('orders');
+  }, []);
+
+  const goToOrderDetails = useCallback((order) => {
+    setPendingOpenOrderId(order.id);
     setActiveView('orders');
   }, []);
 
@@ -2332,6 +2690,30 @@ export default function AlFhdApp() {
       console.error('Supabase conversations load error:', e);
     }
   }, []);
+
+  const knownOrderIdsRef = React.useRef(null);
+  const refreshOrders = useCallback(async () => {
+    try {
+      const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
+      if (!dbOrders) return;
+      const mapped = dbOrders.map(mapOrderFromDb);
+      // كشف طلب جديد مثبّت من المحادثات لتشغيل صوت الإشعار
+      if (knownOrderIdsRef.current) {
+        const newChatOrder = mapped.find((o) => o.source === 'chat' && !knownOrderIdsRef.current.has(o.id));
+        if (newChatOrder) playNotificationSound();
+      }
+      knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
+      setOrders(mapped);
+    } catch (e) {
+      console.error('orders refresh error:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return undefined;
+    const interval = setInterval(refreshOrders, 10000);
+    return () => clearInterval(interval);
+  }, [storageReady, refreshOrders]);
 
   // تحميل البيانات الحقيقية من Supabase (لا يمنع عرض الواجهة أبداً)
   useEffect(() => {
@@ -2414,12 +2796,39 @@ export default function AlFhdApp() {
     return authedUser.permissions?.includes(permId);
   };
 
+  // فتح واتساب برقم عراقي منسّق
+  const contactWhatsApp = useCallback((rawPhone) => {
+    if (!rawPhone) { alert('لا يوجد رقم متاح'); return; }
+    let digits = String(rawPhone).replace(/[^0-9]/g, '');
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    else if (digits.startsWith('0')) digits = '964' + digits.slice(1);
+    else if (!digits.startsWith('964')) digits = '964' + digits;
+    window.open(`https://wa.me/${digits}`, '_blank');
+  }, []);
+
   // ── شاشة الدخول ──
   if (!authedUser) {
     return (
       <>
         <GlobalStyles />
         <LoginScreen users={users} onLogin={handleLogin} />
+      </>
+    );
+  }
+
+  // ── واجهة موظف المخزن المبسطة (لا يرى بقية التطبيق) ──
+  if (authedUser.role === 'warehouse') {
+    return (
+      <>
+        <GlobalStyles />
+        <div style={styles.appWrap} className="alfhd-app-wrap">
+          <WarehouseView
+            orders={orders}
+            setOrders={setOrders}
+            currentUser={authedUser}
+            onLogout={handleLogout}
+          />
+        </div>
       </>
     );
   }
@@ -2445,6 +2854,7 @@ export default function AlFhdApp() {
               pendingOpenConvId={pendingOpenConvId}
               clearPendingOpenConvId={() => setPendingOpenConvId(null)}
               onCreateOrderFromConv={goToNewOrderFromConversation}
+              onOpenOrderDetails={goToOrderDetails}
             />
           )}
           {activeView === 'orders' && (
@@ -2454,16 +2864,26 @@ export default function AlFhdApp() {
               setOrders={setOrders}
               conversations={conversations}
               setConversations={setConversations}
+              pendingOpenOrderId={pendingOpenOrderId}
+              clearPendingOpenOrderId={() => setPendingOpenOrderId(null)}
               onViewConversation={goToConversation}
               pendingNewOrderFromConv={pendingNewOrderFromConv}
               clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
+              currentUser={authedUser}
             />
           )}
           {activeView === 'stats' && (
             <StatsView orders={orders} pages={pages} conversations={conversations} />
           )}
-          {activeView === 'users' && authedUser.role === 'admin' && (
-            <UsersView users={users} setUsers={setUsers} />
+          {activeView === 'users' && (authedUser.role === 'admin' || (authedUser.permissions || []).includes('users_manage')) && (
+            <AdminView
+              users={users}
+              setUsers={setUsers}
+              orders={orders}
+              conversations={conversations}
+              onViewConversation={goToConversation}
+              onContactWhatsApp={contactWhatsApp}
+            />
           )}
           {activeView === 'pages' && (
             <PagesView pages={pages} setPages={setPages} />
@@ -2522,6 +2942,11 @@ function GlobalStyles() {
         from { transform: translateY(12px); opacity: 0; }
         to { transform: translateY(0); opacity: 1; }
       }
+      @keyframes unreadPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(244,20,60,0.6); }
+        50% { box-shadow: 0 0 0 6px rgba(244,20,60,0); }
+      }
+      .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
       input:focus, select:focus, textarea:focus { outline: none; }
       button {
         font-family: 'Cairo', sans-serif; cursor: pointer;
@@ -2571,9 +2996,12 @@ function GlobalStyles() {
           grid-template-columns: 1fr !important;
         }
         .alfhd-conv-list {
-          max-height: 360px !important;
+          max-height: none !important;
         }
         .alfhd-conv-list-hidden-mobile {
+          display: none !important;
+        }
+        .alfhd-conv-detail-empty {
           display: none !important;
         }
         .alfhd-conv-detail-active-mobile {
@@ -2840,6 +3268,18 @@ const styles = {
     background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700,
   },
   convTabCountActive: { background: 'rgba(59,130,246,0.3)', color: '#93C5FD' },
+  unreadPulse: {
+    position: 'absolute', top: -6, left: -6, minWidth: 18, height: 18, padding: '0 5px',
+    borderRadius: 20, background: '#F4143C', color: '#fff', fontSize: 10, fontWeight: 800,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '2px solid #0A0E17',
+  },
+  markAllReadBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%',
+    padding: '9px', marginBottom: 8, background: 'rgba(59,130,246,0.1)',
+    border: '1px solid rgba(59,130,246,0.22)', borderRadius: 11, color: '#60A5FA',
+    fontSize: 12, fontWeight: 700,
+  },
 
   convLayout: { display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, minHeight: 500 },
   convList: {
@@ -2877,7 +3317,8 @@ const styles = {
 
   convDetail: {
     background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 24, display: 'flex', flexDirection: 'column', minHeight: 560, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+    padding: 24, display: 'flex', flexDirection: 'column', minHeight: 560, minWidth: 0, overflow: 'hidden',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   detailHeader: { display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 14 },
   convBackBtn: {
@@ -2897,19 +3338,21 @@ const styles = {
     borderRadius: 11, color: '#60A5FA', fontSize: 12, fontWeight: 700, flexShrink: 0,
   },
   chatScroll: {
-    flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column',
+    flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
     padding: '8px 2px', minHeight: 240, maxHeight: 480,
   },
   msgBubbleIn: {
     background: '#1E2740', borderRadius: '18px 6px 18px 18px', padding: '10px 14px',
-    fontSize: 13, color: '#EAF0FB', maxWidth: '74%', lineHeight: 1.6,
+    fontSize: 13, color: '#EAF0FB', maxWidth: '78%', lineHeight: 1.6,
     display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
   },
   msgBubbleOut: {
     background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
     borderRadius: '6px 18px 18px 18px', padding: '10px 14px',
-    fontSize: 13, color: '#ffffff', maxWidth: '74%', lineHeight: 1.6,
+    fontSize: 13, color: '#ffffff', maxWidth: '78%', lineHeight: 1.6,
     display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 12px -2px rgba(59,130,246,0.45)',
+    overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
   },
   msgImage: { width: '100%', maxWidth: 220, borderRadius: 12, display: 'block' },
   msgAudio: { width: 220, maxWidth: '100%', height: 36 },
@@ -2943,6 +3386,12 @@ const styles = {
   linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   linkedOrderLabel: { fontSize: 12, color: '#5E6986' },
   linkedOrderValue: { fontSize: 13, color: '#EAF0FB', fontWeight: 600 },
+  linkedOrderDetailBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%',
+    marginTop: 12, padding: '10px', background: 'rgba(59,130,246,0.12)',
+    border: '1px solid rgba(59,130,246,0.3)', borderRadius: 11, color: '#60A5FA',
+    fontSize: 12.5, fontWeight: 700,
+  },
 
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '50px 20px', color: '#5E6986', fontSize: 13 },
   emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: '#5E6986', fontSize: 14 },
@@ -3024,10 +3473,6 @@ const styles = {
   orderCardTotal: { fontSize: 19, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.02em' },
   orderCurrency: { fontSize: 12, fontWeight: 600, color: '#5E6986' },
   orderTicketMeta: { display: 'flex', gap: 5, alignItems: 'center', fontSize: 10.5, color: '#5E6986', marginTop: 3 },
-  convertedBadge: {
-    background: 'rgba(91,141,239,0.14)', color: '#5B8DEF', border: '1px solid rgba(91,141,239,0.3)',
-    borderRadius: 20, padding: '2px 9px', fontSize: 10, fontWeight: 700,
-  },
   printedBadge: {
     display: 'inline-flex', alignItems: 'center', gap: 3,
     background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)',
@@ -3061,13 +3506,11 @@ const styles = {
     background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
     padding: 24, marginBottom: 20, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
   },
-  dailyStatsCard: {
-    background: 'linear-gradient(160deg, rgba(59,130,246,0.07), rgba(14,16,22,0.4))',
-    border: '1px solid rgba(59,130,246,0.18)', borderRadius: 16, padding: 22, marginBottom: 24,
-  },
-  dailyStatsHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 16, flexWrap: 'wrap', gap: 10,
+  timeFilterBar: { display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' },
+  customDateRow: { display: 'flex', gap: 10, marginBottom: 20 },
+  customDateSelect: {
+    background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 11,
+    padding: '10px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif", flex: 1,
   },
   chartTitle: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', margin: '0 0 18px' },
   barChartArea: { display: 'flex', flexDirection: 'column', gap: 16 },
@@ -3163,6 +3606,57 @@ const styles = {
     padding: '8px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
     borderRadius: 8, color: '#8B96AD', fontSize: 11, fontWeight: 600,
   },
+  userCardMetaRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
+  userCodeTag: {
+    fontSize: 11, color: '#8B96AD', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 8, padding: '4px 10px', fontFamily: 'monospace',
+  },
+  warehouseNote: {
+    display: 'flex', gap: 9, alignItems: 'flex-start', background: 'rgba(240,168,104,0.08)',
+    border: '1px solid rgba(240,168,104,0.22)', borderRadius: 11, padding: 12,
+    fontSize: 12, color: '#C4CEE0', lineHeight: 1.6,
+  },
+  rejectReasonBox: {
+    margin: '0 16px 12px', padding: '10px 12px', background: 'rgba(244,91,105,0.08)',
+    border: '1px solid rgba(244,91,105,0.2)', borderRadius: 11, fontSize: 12.5, color: '#EAF0FB',
+    display: 'flex', flexDirection: 'column', gap: 3,
+  },
+  rejectReasonLabel: { fontSize: 11, color: '#F45B69', fontWeight: 700 },
+
+  // ── واجهة موظف المخزن ──
+  warehouseWrap: { flex: 1, overflow: 'auto', padding: '24px 18px', maxWidth: 760, margin: '0 auto', width: '100%' },
+  warehouseHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 12,
+    paddingTop: 'env(safe-area-inset-top, 0px)',
+  },
+  warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 14 },
+  warehouseCard: {
+    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: 18, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5)',
+  },
+  warehouseCardNo: { fontSize: 12, fontWeight: 700, color: '#5E6986', fontFamily: 'monospace', marginBottom: 4 },
+  warehouseCardCustomer: { fontSize: 18, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
+  warehouseCardType: {
+    display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: '#93C5FD',
+    background: 'rgba(59,130,246,0.12)', borderRadius: 20, padding: '3px 11px',
+  },
+  warehouseCardItems: {
+    fontSize: 14, color: '#C4CEE0', background: 'rgba(255,255,255,0.03)', borderRadius: 12,
+    padding: '12px 14px', marginTop: 12, lineHeight: 1.6, border: '1px solid rgba(255,255,255,0.05)',
+    overflowWrap: 'anywhere', whiteSpace: 'pre-wrap',
+  },
+  warehouseCardSub: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#8B96AD', marginTop: 10 },
+  warehouseActions: { display: 'flex', gap: 10, marginTop: 16 },
+  warehouseDoneBtn: {
+    flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '15px',
+    background: 'linear-gradient(135deg,#4ADE80,#16A34A)', border: 'none', borderRadius: 13,
+    color: '#06210F', fontSize: 15, fontWeight: 800, boxShadow: '0 3px 14px -3px rgba(74,222,128,0.5)',
+  },
+  warehouseRejectBtn: {
+    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '15px',
+    background: 'rgba(244,91,105,0.12)', border: '1px solid rgba(244,91,105,0.3)', borderRadius: 13,
+    color: '#F45B69', fontSize: 14, fontWeight: 700,
+  },
 
   // ── Modal ──
   modalOverlay: {
@@ -3205,5 +3699,16 @@ const styles = {
     flex: 1, padding: '11px', background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
     border: 'none', borderRadius: 9, color: '#ffffff', fontSize: 13, fontWeight: 700,
     boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
+  },
+  detailGridRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.05)',
+  },
+  detailGridLabel: { fontSize: 12.5, color: '#5E6986', flexShrink: 0 },
+  detailGridValue: { fontSize: 13.5, color: '#EAF0FB', fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
+  detailActionBtn: {
+    flex: 1, minWidth: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '11px 10px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 10, color: '#C4CEE0', fontSize: 12.5, fontWeight: 700,
   },
 };
