@@ -19,7 +19,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // ──────────────────────────────────────────────
 const FB_APP_ID = '1011276044687764';
 const FB_REDIRECT_URI = 'https://alfhd-app.vercel.app/';
-const FB_OAUTH_SCOPE = 'pages_show_list,public_profile,business_management';
+const FB_OAUTH_SCOPE = 'pages_show_list,pages_messaging,pages_manage_metadata,public_profile,business_management';
 const FB_EXCHANGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/dynamic-processor`;
 const FB_SUBSCRIBE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-subscribe-page`;
 
@@ -997,6 +997,8 @@ function PagesView({ pages, setPages }) {
       });
       setPages((prev) => [...prev, mapPageFromDb(created)]);
       setFbCandidates((prev) => prev.filter((c) => c.fb_page_id !== candidate.fb_page_id));
+      // تفعيل استقبال الرسائل تلقائياً فور ربط الصفحة، بدون انتظار ضغطة زر إضافية
+      await subscribePage(created.id);
     } catch (e) {
       console.error('Failed to add page:', e);
       alert('تعذّر حفظ الصفحة، حاول مجدداً');
