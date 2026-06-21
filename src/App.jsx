@@ -27,6 +27,7 @@ const FB_EXCHANGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/dynamic-processor
 const FB_SUBSCRIBE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-subscribe-page`;
 const FB_SEND_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-send-message`;
 const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-from-image`;
+const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
 
 function startFacebookLogin() {
   const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
@@ -137,6 +138,9 @@ function mapOrderFromDb(row) {
     converted: !!row.converted,
     convertedAt: row.converted_at || null,
     createdAt: row.created_at || row.order_date,
+    printed: !!row.printed,
+    printBatchId: row.print_batch_id || null,
+    printedAt: row.printed_at || null,
   };
 }
 
@@ -159,6 +163,7 @@ function mapConversationFromDb(row) {
     customerPsid: row.customer_psid,
     avatar: row.avatar || '👤',
     avatarUrl: row.avatar_url || null,
+    platform: row.source || 'facebook',
     lastMsg: row.last_message || '',
     time: row.last_message_time
       ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
@@ -187,7 +192,7 @@ function mapMessageFromDb(row) {
 // ثوابت التصميم
 // ──────────────────────────────────────────────
 const STATUS_CONFIG = {
-  pending:   { label: 'قيد التوصيل', color: '#D4A655', bg: 'rgba(212,166,85,0.12)', icon: Truck },
+  pending:   { label: 'قيد التوصيل', color: '#2F8EFF', bg: 'rgba(47,142,255,0.12)', icon: Truck },
   returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
   delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 },
 };
@@ -249,8 +254,8 @@ function FahdLogo({ size = 56 }) {
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
       <defs>
         <linearGradient id="fahdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#E8C277" />
-          <stop offset="100%" stopColor="#B8843A" />
+          <stop offset="0%" stopColor="#6FB6FF" />
+          <stop offset="100%" stopColor="#1A5FB4" />
         </linearGradient>
       </defs>
       <circle cx="50" cy="50" r="48" stroke="url(#fahdGrad)" strokeWidth="1.5" opacity="0.4" />
@@ -459,28 +464,53 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
 // ──────────────────────────────────────────────
 // تلوين الأفاتار حسب اسم العميل (نمط تيليجرام) + عرضه
 // ──────────────────────────────────────────────
-const AVATAR_PALETTE = ['#D4A655', '#5B8DEF', '#4ADE80', '#F45B69', '#A78BFA', '#34D9C5', '#F0A868', '#E879B9'];
+const AVATAR_PALETTE = ['#A78BFA', '#34D9C5', '#4ADE80', '#F45B69', '#F0A868', '#E879B9', '#5B8DEF', '#FACC15'];
 function avatarColorFromName(name = '') {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
 
+function PlatformBadge({ platform, size = 'md' }) {
+  const isWhatsApp = platform === 'whatsapp';
+  const dim = size === 'lg' ? 17 : 14;
+  return (
+    <div style={{
+      position: 'absolute', bottom: -2, left: -2, width: dim, height: dim,
+      borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: isWhatsApp ? '#25D366' : '#006AFF',
+      border: '2px solid #0B0D12', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+    }}>
+      {isWhatsApp ? (
+        <svg width={dim * 0.55} height={dim * 0.55} viewBox="0 0 24 24" fill="white">
+          <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
+        </svg>
+      ) : (
+        <svg width={dim * 0.55} height={dim * 0.55} viewBox="0 0 24 24" fill="white">
+          <path d="M12 2C6.48 2 2 6.15 2 11.27c0 2.91 1.44 5.5 3.7 7.21V22l3.38-1.86c.9.25 1.86.38 2.92.38 5.52 0 10-4.15 10-9.25S17.52 2 12 2zm1.01 12.46-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 function ConvAvatar({ conv, size = 'md' }) {
   const color = avatarColorFromName(conv?.customer || '');
   const wrapStyle = size === 'lg' ? styles.convAvatarLg : styles.convAvatar;
-  if (conv?.avatarUrl) {
-    return (
-      <img
-        src={conv.avatarUrl}
-        alt={conv.customer || ''}
-        style={{ ...wrapStyle, objectFit: 'cover', background: '#1C1F28' }}
-      />
-    );
-  }
   return (
-    <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
-      {conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
+    <div style={{ position: 'relative', width: wrapStyle.width, height: wrapStyle.height, flexShrink: 0 }}>
+      {conv?.avatarUrl ? (
+        <img
+          src={conv.avatarUrl}
+          alt={conv.customer || ''}
+          style={{ ...wrapStyle, objectFit: 'cover', background: '#1C1F28' }}
+        />
+      ) : (
+        <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
+          {conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
+        </div>
+      )}
+      <PlatformBadge platform={conv?.platform || 'facebook'} size={size} />
     </div>
   );
 }
@@ -488,7 +518,7 @@ function ConvAvatar({ conv, size = 'md' }) {
 // ──────────────────────────────────────────────
 // عرض المحادثات
 // ──────────────────────────────────────────────
-function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId }) {
+function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv }) {
   const [activeTab, setActiveTab] = useState('normal');
   const [selectedPage, setSelectedPage] = useState('all');
   const [search, setSearch] = useState('');
@@ -618,7 +648,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       await loadMessages(selectedConv.id);
     } catch (e) {
       console.error('send text error:', e);
-      alert('تعذّر إرسال الرسالة، حاول مرة أخرى');
+      alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
     } finally {
       setSendingMsg(false);
     }
@@ -702,7 +732,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           <p style={styles.viewSubtitle}>إدارة محادثات صفحاتك في مكان واحد</p>
         </div>
         <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#D4A655" />
+          <Facebook size={15} color="#2F8EFF" />
           <select
             value={selectedPage}
             onChange={(e) => setSelectedPage(e.target.value)}
@@ -812,12 +842,22 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                     {pages.find((p) => p.id === selectedConv.pageId)?.name}
                   </div>
                 </div>
+                {!selectedConv.orderId && (
+                  <button
+                    onClick={() => onCreateOrderFromConv?.(selectedConv)}
+                    style={styles.pinOrderBtn}
+                    title="تثبيت طلب من هذه المحادثة"
+                  >
+                    <Pin size={14} />
+                    تثبيت طلب
+                  </button>
+                )}
               </div>
 
               {linkedOrder && (
                 <div style={styles.linkedOrderCard}>
                   <div style={styles.linkedOrderHeader}>
-                    <Pin size={14} color="#D4A655" />
+                    <Pin size={14} color="#2F8EFF" />
                     <span>طلب مثبّت بهذه المحادثة</span>
                   </div>
                   <div style={styles.linkedOrderBody}>
@@ -835,7 +875,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                     </div>
                     <div style={styles.linkedOrderRow}>
                       <span style={styles.linkedOrderLabel}>المبلغ</span>
-                      <span style={{ ...styles.linkedOrderValue, color: '#D4A655', fontWeight: 700 }}>
+                      <span style={{ ...styles.linkedOrderValue, color: '#2F8EFF', fontWeight: 700 }}>
                         {linkedOrder.total.toLocaleString()} د.ع
                       </span>
                     </div>
@@ -956,7 +996,7 @@ function StatusPill({ status }) {
 // ──────────────────────────────────────────────
 // عرض الطلبات
 // ──────────────────────────────────────────────
-function OrdersView({ orders, pages, setOrders, conversations, onViewConversation }) {
+function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv }) {
   const [selectedPage, setSelectedPage] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -964,6 +1004,26 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
   const [saving, setSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const ocrInputRef = React.useRef(null);
+  const [section, setSection] = useState('ready');
+  const [printTarget, setPrintTarget] = useState(null);
+
+  useEffect(() => {
+    if (!pendingNewOrderFromConv) return;
+    const conv = pendingNewOrderFromConv;
+    setEditingOrder({
+      id: null,
+      pageId: conv.pageId || pages[0]?.id || '',
+      customer: conv.customer || '',
+      phone: '',
+      address: '',
+      items: '',
+      total: '',
+      status: 'pending',
+      conversationId: conv.id || '',
+    });
+    clearPendingNewOrderFromConv?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNewOrderFromConv]);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -1061,6 +1121,18 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
     }
   }
 
+  async function pinConversationToOrder(conversationId, orderId) {
+    if (!conversationId) return;
+    setConversations?.((prev) => prev.map((c) => (
+      c.id === conversationId ? { ...c, tab: 'pinned', orderId } : c
+    )));
+    try {
+      await sbUpdate('alfhd_conversations', conversationId, { tab: 'pinned', order_id: orderId });
+    } catch (e) {
+      console.error('pin conversation to order error:', e);
+    }
+  }
+
   async function handleSaveOrder() {
     if (!editingOrder.customer.trim()) { alert('أدخل اسم العميل'); return; }
     if (!editingOrder.pageId) { alert('اختر الصفحة المرتبطة بالطلب'); return; }
@@ -1086,6 +1158,9 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
           status: editingOrder.status, conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (o.source || 'manual'),
         } : o)));
+        if (editingOrder.conversationId) {
+          await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
+        }
       } else {
         const payload = {
           order_no: String(Date.now()).slice(-6),
@@ -1102,7 +1177,12 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
           source: editingOrder.conversationId ? 'chat' : 'manual',
         };
         const created = await sbInsert('alfhd_orders', payload);
-        if (created?.[0]) setOrders((prev) => [mapOrderFromDb(created[0]), ...prev]);
+        if (created?.[0]) {
+          setOrders((prev) => [mapOrderFromDb(created[0]), ...prev]);
+          if (editingOrder.conversationId) {
+            await pinConversationToOrder(editingOrder.conversationId, created[0].id);
+          }
+        }
       }
       setEditingOrder(null);
     } catch (e) {
@@ -1150,7 +1230,120 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
     }
   }
 
-  const handlePrint = () => window.print();
+  function groupByBatch(printedOrders) {
+    const batches = new Map();
+    for (const o of printedOrders) {
+      const key = o.printBatchId || 'unknown';
+      if (!batches.has(key)) batches.set(key, []);
+      batches.get(key).push(o);
+    }
+    return Array.from(batches.entries())
+      .map(([batchId, batchOrders]) => ({
+        batchId,
+        orders: batchOrders,
+        printedAt: batchOrders[0]?.printedAt || null,
+      }))
+      .sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
+  }
+
+  async function markOrdersPrinted(ids) {
+    if (ids.length === 0) return;
+    const batchId = `batch-${Date.now()}`;
+    const printedAt = new Date().toISOString();
+    setOrders((prev) => prev.map((o) => (
+      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt } : o
+    )));
+    try {
+      await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
+        printed: true, print_batch_id: batchId, printed_at: printedAt,
+      })));
+    } catch (e) {
+      console.error('mark printed error:', e);
+    }
+  }
+
+  function triggerPrint(target, idsToMark) {
+    setPrintTarget(target);
+    setTimeout(() => {
+      window.print();
+      setPrintTarget(null);
+      if (idsToMark?.length) markOrdersPrinted(idsToMark);
+    }, 60);
+  }
+
+  function handlePrintReady() {
+    const ids = readyOrders.map((o) => o.id);
+    if (ids.length === 0) { alert('لا توجد طلبات جاهزة للطباعة حالياً'); return; }
+    triggerPrint('ready', ids);
+  }
+
+  function handleReprintBatch(batchId) {
+    triggerPrint(batchId, null);
+  }
+
+  const readyOrders = filtered.filter((o) => !o.printed);
+  const deliveryOrders = filtered.filter((o) => o.printed);
+  const batches = useMemo(() => groupByBatch(deliveryOrders), [deliveryOrders]);
+
+  function renderOrderCard(o) {
+    const page = pages.find((p) => p.id === o.pageId);
+    return (
+      <div key={o.id} style={styles.orderCard} className="alfhd-order-card">
+        <div style={styles.orderCardTop}>
+          <span style={styles.orderCardPageTag}>{page?.avatar} {page?.name || 'بدون صفحة'}</span>
+          <span style={styles.orderCardNo}>#{o.orderNo}</span>
+        </div>
+
+        <div style={styles.orderCardCustomer}>{o.customer}</div>
+        {o.phone && <div style={styles.orderCardSub}>{o.phone}</div>}
+        {o.address && <div style={styles.orderCardSub}>{o.address}</div>}
+
+        <div style={styles.orderCardItems}>{o.items}</div>
+
+        <div style={styles.orderCardBottomRow}>
+          <span style={styles.orderCardTotal}>{Number(o.total).toLocaleString()} د.ع</span>
+          <select
+            value={o.status}
+            onChange={(e) => updateStatus(o.id, e.target.value)}
+            style={{
+              ...styles.statusSelect,
+              color: STATUS_CONFIG[o.status].color,
+              borderColor: STATUS_CONFIG[o.status].color + '44',
+              background: STATUS_CONFIG[o.status].bg,
+            }}
+          >
+            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+              <option key={key} value={key}>{cfg.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={styles.orderCardMeta}>
+          <span>{o.date}</span>
+          <span style={{ fontFamily: 'monospace' }}>{o.fahdRef}</span>
+          {o.printed && <span style={styles.printedBadge}><Printer size={10} /> مطبوعة</span>}
+          {o.converted && <span style={styles.convertedBadge}>محوّلة</span>}
+        </div>
+
+        <div style={styles.orderCardActions} className="alfhd-no-print">
+          <button onClick={() => startEditOrder(o)} style={styles.orderActionBtn} title="تعديل">
+            <Edit3 size={14} />
+          </button>
+          <button onClick={() => handleDelete(o)} style={{ ...styles.orderActionBtn, color: '#F45B69' }} title="حذف">
+            <Trash2 size={14} />
+          </button>
+          <button onClick={() => handleShare(o)} style={styles.orderActionBtn} title="مشاركة تفاصيل الطلب">
+            <Send size={14} />
+          </button>
+          {o.conversationId && (
+            <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
+              <MessageSquare size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.viewWrap}>
@@ -1169,23 +1362,46 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
             <Plus size={15} />
             إضافة طلب
           </button>
-          <button onClick={handlePrint} style={styles.printBtn}>
-            <Printer size={15} />
-            طباعة الآن
-          </button>
+          {section === 'ready' && (
+            <button onClick={handlePrintReady} style={styles.printBtn}>
+              <Printer size={15} />
+              طباعة الآن
+            </button>
+          )}
         </div>
       </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row alfhd-no-print">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={stats.total} color="#D4A655" />
-        <StatCard icon={Truck} label="قيد التوصيل" value={stats.pending} color="#D4A655" />
+        <StatCard icon={Package} label="إجمالي الطلبات" value={stats.total} color="#2F8EFF" />
+        <StatCard icon={Truck} label="قيد التوصيل" value={stats.pending} color="#2F8EFF" />
         <StatCard icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#4ADE80" />
         <StatCard icon={XCircle} label="راجعة" value={stats.returned} color="#F45B69" />
       </div>
 
+      <div style={styles.sectionTabs} className="alfhd-no-print">
+        <button
+          onClick={() => setSection('ready')}
+          style={{ ...styles.sectionTab, ...(section === 'ready' ? styles.sectionTabActive : {}) }}
+        >
+          جاهزة للطباعة
+          <span style={{ ...styles.convTabCount, ...(section === 'ready' ? styles.convTabCountActive : {}) }}>
+            {orders.filter((o) => !o.printed && (selectedPage === 'all' || o.pageId === selectedPage)).length}
+          </span>
+        </button>
+        <button
+          onClick={() => setSection('delivery')}
+          style={{ ...styles.sectionTab, ...(section === 'delivery' ? styles.sectionTabActive : {}) }}
+        >
+          لدى شركة التوصيل
+          <span style={{ ...styles.convTabCount, ...(section === 'delivery' ? styles.convTabCountActive : {}) }}>
+            {orders.filter((o) => o.printed && (selectedPage === 'all' || o.pageId === selectedPage)).length}
+          </span>
+        </button>
+      </div>
+
       <div style={styles.ordersToolbar} className="alfhd-no-print">
         <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#D4A655" />
+          <Facebook size={15} color="#2F8EFF" />
           <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} style={styles.pageSelect}>
             <option value="all">كل الصفحات</option>
             {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1193,17 +1409,19 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
           <ChevronDown size={14} color="#6B6760" />
         </div>
 
-        <div style={styles.filterChips}>
-          {['all', 'pending', 'delivered', 'returned'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}
-            >
-              {s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
-            </button>
-          ))}
-        </div>
+        {section === 'delivery' && (
+          <div style={styles.filterChips}>
+            {['all', 'pending', 'delivered', 'returned'].map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}
+              >
+                {s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div style={styles.searchBox}>
           <Search size={15} color="#6B6760" />
@@ -1216,73 +1434,54 @@ function OrdersView({ orders, pages, setOrders, conversations, onViewConversatio
         </div>
       </div>
 
-      <div style={styles.ordersGrid} className="alfhd-orders-grid alfhd-print-area">
-        {filtered.length === 0 ? (
-          <div style={styles.emptyState}>
-            <Package size={32} color="#3A372F" />
-            <p>لا توجد طلبات مطابقة</p>
-          </div>
-        ) : (
-          filtered.map((o) => {
-            const page = pages.find((p) => p.id === o.pageId);
-            return (
-              <div key={o.id} style={styles.orderCard} className="alfhd-order-card">
-                <div style={styles.orderCardTop}>
-                  <span style={styles.orderCardPageTag}>{page?.avatar} {page?.name || 'بدون صفحة'}</span>
-                  <span style={styles.orderCardNo}>#{o.orderNo}</span>
-                </div>
-
-                <div style={styles.orderCardCustomer}>{o.customer}</div>
-                {o.phone && <div style={styles.orderCardSub}>{o.phone}</div>}
-                {o.address && <div style={styles.orderCardSub}>{o.address}</div>}
-
-                <div style={styles.orderCardItems}>{o.items}</div>
-
-                <div style={styles.orderCardBottomRow}>
-                  <span style={styles.orderCardTotal}>{Number(o.total).toLocaleString()} د.ع</span>
-                  <select
-                    value={o.status}
-                    onChange={(e) => updateStatus(o.id, e.target.value)}
-                    style={{
-                      ...styles.statusSelect,
-                      color: STATUS_CONFIG[o.status].color,
-                      borderColor: STATUS_CONFIG[o.status].color + '44',
-                      background: STATUS_CONFIG[o.status].bg,
-                    }}
-                  >
-                    {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                      <option key={key} value={key}>{cfg.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={styles.orderCardMeta}>
-                  <span>{o.date}</span>
-                  <span style={{ fontFamily: 'monospace' }}>{o.fahdRef}</span>
-                  {o.converted && <span style={styles.convertedBadge}>محوّلة</span>}
-                </div>
-
-                <div style={styles.orderCardActions} className="alfhd-no-print">
-                  <button onClick={() => startEditOrder(o)} style={styles.orderActionBtn} title="تعديل">
-                    <Edit3 size={14} />
+      {section === 'ready' ? (
+        <div
+          style={styles.ordersGrid}
+          className={`alfhd-orders-grid${printTarget === 'ready' ? ' alfhd-print-area' : ''}`}
+        >
+          {readyOrders.length === 0 ? (
+            <div style={styles.emptyState}>
+              <Package size={32} color="#3A372F" />
+              <p>لا توجد طلبات جاهزة للطباعة حالياً</p>
+            </div>
+          ) : readyOrders.map(renderOrderCard)}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          {batches.length === 0 ? (
+            <div style={styles.emptyState}>
+              <Truck size={32} color="#3A372F" />
+              <p>لا توجد طلبات لدى شركة التوصيل بعد</p>
+            </div>
+          ) : (
+            batches.map((batch) => (
+              <div key={batch.batchId} style={styles.batchBlock}>
+                <div style={styles.batchHeader} className="alfhd-no-print">
+                  <div style={styles.batchHeaderInfo}>
+                    <Printer size={14} color="#2F8EFF" />
+                    <span>دفعة طباعة — {batch.orders.length} طلب</span>
+                    {batch.printedAt && (
+                      <span style={styles.batchHeaderTime}>
+                        {new Date(batch.printedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </span>
+                    )}
+                  </div>
+                  <button onClick={() => handleReprintBatch(batch.batchId)} style={styles.secondaryBtn}>
+                    <Printer size={14} />
+                    إعادة طباعة
                   </button>
-                  <button onClick={() => handleDelete(o)} style={{ ...styles.orderActionBtn, color: '#F45B69' }} title="حذف">
-                    <Trash2 size={14} />
-                  </button>
-                  <button onClick={() => handleShare(o)} style={styles.orderActionBtn} title="مشاركة تفاصيل الطلب">
-                    <Send size={14} />
-                  </button>
-                  {o.conversationId && (
-                    <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
-                      <MessageSquare size={14} />
-                    </button>
-                  )}
+                </div>
+                <div
+                  style={styles.ordersGrid}
+                  className={`alfhd-orders-grid${printTarget === batch.batchId ? ' alfhd-print-area' : ''}`}
+                >
+                  {batch.orders.map(renderOrderCard)}
                 </div>
               </div>
-            );
-          })
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
 
       {editingOrder && (
         <div style={styles.modalOverlay} onClick={() => !saving && setEditingOrder(null)}>
@@ -1474,7 +1673,7 @@ function StatsView({ orders, pages, conversations }) {
           </div>
         </div>
         <div style={styles.statsRow} className="alfhd-stats-row">
-          <StatCard icon={Package} label="إجمالي الطلبات بالفترة" value={dailyBreakdown.total} color="#D4A655" />
+          <StatCard icon={Package} label="إجمالي الطلبات بالفترة" value={dailyBreakdown.total} color="#2F8EFF" />
           <StatCard icon={MessageSquare} label="من المحادثات" value={dailyBreakdown.fromChat} color="#5B8DEF" />
           <StatCard icon={Edit3} label="مضافة يدوياً" value={dailyBreakdown.manual} color="#4ADE80" />
           <StatCard icon={Send} label="طلبات محوّلة" value={dailyBreakdown.converted} color="#A78BFA" />
@@ -1482,10 +1681,10 @@ function StatsView({ orders, pages, conversations }) {
       </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={overall.total} color="#D4A655" />
+        <StatCard icon={Package} label="إجمالي الطلبات" value={overall.total} color="#2F8EFF" />
         <StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#4ADE80" />
         <StatCard icon={XCircle} label="نسبة الإرجاع" value={overall.total ? `${Math.round((overall.returned / overall.total) * 100)}%` : '0%'} color="#F45B69" />
-        <StatCard icon={Sparkles} label="إجمالي الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#D4A655" />
+        <StatCard icon={Sparkles} label="إجمالي الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#2F8EFF" />
       </div>
 
       <div style={styles.chartCard}>
@@ -1518,7 +1717,7 @@ function StatsView({ orders, pages, conversations }) {
             <DonutChart
               data={[
                 { label: 'مستلم', value: overall.delivered, color: '#4ADE80' },
-                { label: 'قيد التوصيل', value: overall.pending, color: '#D4A655' },
+                { label: 'قيد التوصيل', value: overall.pending, color: '#2F8EFF' },
                 { label: 'راجع', value: overall.returned, color: '#F45B69' },
               ]}
             />
@@ -1763,11 +1962,11 @@ function PagesView({ pages, setPages }) {
               <div style={styles.pageCardName}>{p.name}</div>
               <div style={{
                 ...styles.pageCardStatus,
-                color: p.connected ? '#4ADE80' : '#D4A655',
+                color: p.connected ? '#4ADE80' : '#2F8EFF',
               }}>
                 <div style={{
                   width: 6, height: 6, borderRadius: '50%',
-                  background: p.connected ? '#4ADE80' : '#D4A655',
+                  background: p.connected ? '#4ADE80' : '#2F8EFF',
                 }} />
                 {p.connected ? 'متصلة فعلياً بفيسبوك' : 'بانتظار ربط Access Token'}
               </div>
@@ -1921,8 +2120,8 @@ function UsersView({ users, setUsers }) {
             <div style={styles.userCardTop}>
               <div style={{
                 ...styles.userCardAvatar,
-                background: u.role === 'admin' ? 'linear-gradient(135deg,#E8C277,#B8843A)' : '#1C1F28',
-                color: u.role === 'admin' ? '#0B0D12' : '#D4A655',
+                background: u.role === 'admin' ? 'linear-gradient(135deg,#6FB6FF,#1A5FB4)' : '#1C1F28',
+                color: u.role === 'admin' ? '#0B0D12' : '#2F8EFF',
               }}>
                 {u.name[0]}
               </div>
@@ -1932,7 +2131,7 @@ function UsersView({ users, setUsers }) {
                   {u.role === 'admin' ? (
                     <><ShieldCheck size={12} color="#4ADE80" /> صلاحية كاملة</>
                   ) : (
-                    <><Shield size={12} color="#D4A655" /> صلاحية محددة ({u.permissions.length})</>
+                    <><Shield size={12} color="#2F8EFF" /> صلاحية محددة ({u.permissions.length})</>
                   )}
                 </div>
               </div>
@@ -2065,10 +2264,16 @@ function UsersView({ users, setUsers }) {
 export default function AlFhdApp() {
   const [activeView, setActiveView] = useState('conversations');
   const [pendingOpenConvId, setPendingOpenConvId] = useState(null);
+  const [pendingNewOrderFromConv, setPendingNewOrderFromConv] = useState(null);
 
   const goToConversation = useCallback((convId) => {
     setPendingOpenConvId(convId);
     setActiveView('conversations');
+  }, []);
+
+  const goToNewOrderFromConversation = useCallback((conv) => {
+    setPendingNewOrderFromConv(conv);
+    setActiveView('orders');
   }, []);
 
 
@@ -2124,6 +2329,25 @@ export default function AlFhdApp() {
     const interval = setInterval(refreshConversations, 8000);
     return () => clearInterval(interval);
   }, [refreshConversations]);
+
+  // سحب فعّال للرسائل الجديدة من فيسبوك مباشرة كل 7 ثواني طالما التطبيق مفتوح
+  // (إضافة لمهمة الـ Cron الخارجية، لتقليل وقت وصول الرسائل بشكل كبير)
+  const pollFacebookNow = useCallback(async () => {
+    try {
+      await fetch(FB_POLL_FUNCTION_URL, { method: 'GET' });
+    } catch (e) {
+      console.error('active poll error:', e);
+    } finally {
+      refreshConversations();
+    }
+  }, [refreshConversations]);
+
+  useEffect(() => {
+    if (!storageReady) return undefined;
+    pollFacebookNow();
+    const interval = setInterval(pollFacebookNow, 7000);
+    return () => clearInterval(interval);
+  }, [storageReady, pollFacebookNow]);
 
   // استرجاع الجلسة المحفوظة محلياً (الجلسة فقط، مو البيانات نفسها)
   useEffect(() => {
@@ -2188,6 +2412,7 @@ export default function AlFhdApp() {
               setConversations={setConversations}
               pendingOpenConvId={pendingOpenConvId}
               clearPendingOpenConvId={() => setPendingOpenConvId(null)}
+              onCreateOrderFromConv={goToNewOrderFromConversation}
             />
           )}
           {activeView === 'orders' && (
@@ -2196,7 +2421,10 @@ export default function AlFhdApp() {
               pages={pages}
               setOrders={setOrders}
               conversations={conversations}
+              setConversations={setConversations}
               onViewConversation={goToConversation}
+              pendingNewOrderFromConv={pendingNewOrderFromConv}
+              clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
             />
           )}
           {activeView === 'stats' && (
@@ -2371,13 +2599,13 @@ const styles = {
   },
   loginBgPattern: {
     position: 'absolute', inset: 0,
-    backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(212,166,85,0.06) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(212,166,85,0.04) 0%, transparent 40%)',
+    backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(47,142,255,0.06) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(47,142,255,0.04) 0%, transparent 40%)',
     pointerEvents: 'none',
   },
   loginCard: {
     position: 'relative', zIndex: 1,
     background: 'linear-gradient(180deg, #161A24 0%, #11141C 100%)',
-    border: '1px solid rgba(212,166,85,0.15)',
+    border: '1px solid rgba(47,142,255,0.15)',
     borderRadius: 22, padding: '50px 38px 42px', width: '100%', maxWidth: 400,
     display: 'flex', flexDirection: 'column', alignItems: 'center',
     boxShadow: '0 24px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)',
@@ -2385,12 +2613,12 @@ const styles = {
   },
   loginCardAccent: {
     position: 'absolute', top: 0, right: 0, left: 0, height: 3,
-    background: 'linear-gradient(90deg, transparent, #E8C277, transparent)',
+    background: 'linear-gradient(90deg, transparent, #6FB6FF, transparent)',
   },
   loginLogoArea: { position: 'relative', marginBottom: 4 },
   logoGlow: {
     position: 'absolute', inset: -20, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(212,166,85,0.25) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(47,142,255,0.25) 0%, transparent 70%)',
     filter: 'blur(8px)',
   },
   loginTitle: {
@@ -2398,35 +2626,23 @@ const styles = {
     letterSpacing: '0.02em', fontFamily: "'Cairo', sans-serif",
   },
   loginSubtitle: { fontSize: 13, color: '#6B6760', letterSpacing: '0.03em', margin: 0 },
-  inputGroup: { width: '100%', marginBottom: 18 },
   inputLabel: { display: 'block', fontSize: 12, color: '#9A958C', marginBottom: 14, fontWeight: 600, textAlign: 'center' },
   pinBoxesWrap: { position: 'relative', display: 'flex', gap: 9, justifyContent: 'center', cursor: 'text' },
   pinBox: {
     width: 42, height: 52, borderRadius: 12, background: '#0B0D12',
-    border: '1.5px solid rgba(212,166,85,0.18)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: 22, color: '#E8C277', fontWeight: 700,
+    border: '1.5px solid rgba(47,142,255,0.18)', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', fontSize: 22, color: '#6FB6FF', fontWeight: 700,
     transition: 'border-color 0.15s, transform 0.12s, background 0.15s',
   },
-  pinBoxActive: { borderColor: '#D4A655', transform: 'translateY(-2px)' },
-  pinBoxFilled: { borderColor: 'rgba(212,166,85,0.55)', background: 'rgba(212,166,85,0.07)' },
+  pinBoxActive: { borderColor: '#2F8EFF', transform: 'translateY(-2px)' },
+  pinBoxFilled: { borderColor: 'rgba(47,142,255,0.55)', background: 'rgba(47,142,255,0.07)' },
   pinBoxError: { borderColor: '#F45B69' },
   pinHiddenInput: {
     position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%',
     border: 'none', padding: 0, margin: 0, cursor: 'text',
   },
-  codeInput: {
-    width: '100%', background: '#0B0D12', border: '1.5px solid',
-    borderRadius: 10, padding: '14px 16px', fontSize: 20, color: '#E8E6E1',
-    textAlign: 'center', letterSpacing: '0.3em', transition: 'border-color 0.2s',
-  },
   errorText: { color: '#F45B69', fontSize: 12, marginTop: 14, textAlign: 'center' },
-  rememberRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22, cursor: 'pointer' },
-  checkbox: { width: 16, height: 16, accentColor: '#D4A655', cursor: 'pointer' },
-  loginBtn: {
-    width: '100%', background: 'linear-gradient(135deg,#E8C277,#B8843A)',
-    border: 'none', borderRadius: 10, padding: '14px', fontSize: 15,
-    fontWeight: 700, color: '#0B0D12', transition: 'opacity 0.2s, transform 0.15s',
-  },
+  checkbox: { width: 16, height: 16, accentColor: '#2F8EFF', cursor: 'pointer' },
   loginFooter: { marginTop: 28, fontSize: 11, color: '#3A372F', position: 'relative', zIndex: 1 },
 
   // ── App layout ──
@@ -2449,13 +2665,13 @@ const styles = {
     transition: 'all 0.15s',
   },
   navItemActive: {
-    background: 'rgba(212,166,85,0.1)', color: '#E8C277', fontWeight: 700,
+    background: 'rgba(47,142,255,0.1)', color: '#6FB6FF', fontWeight: 700,
   },
-  navActiveDot: { position: 'absolute', left: 10, width: 5, height: 5, borderRadius: '50%', background: '#D4A655' },
+  navActiveDot: { position: 'absolute', left: 10, width: 5, height: 5, borderRadius: '50%', background: '#2F8EFF' },
   sidebarFooter: { paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)' },
   userBadge: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px', marginBottom: 8 },
   userAvatar: {
-    width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#E8C277,#B8843A)',
+    width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6FB6FF,#1A5FB4)',
     color: '#0B0D12', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontWeight: 700, fontSize: 14, flexShrink: 0,
   },
@@ -2491,7 +2707,7 @@ const styles = {
     background: 'transparent', border: 'none', color: '#6B6760', padding: '6px 8px',
     flex: 1, minWidth: 0,
   },
-  bottomNavItemActive: { color: '#E8C277' },
+  bottomNavItemActive: { color: '#6FB6FF' },
   bottomNavLabel: { fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
   mainArea: { flex: 1, overflow: 'auto', padding: '32px 36px' },
@@ -2517,12 +2733,12 @@ const styles = {
     color: '#9A958C', fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
   },
   convTabActive: {
-    background: 'rgba(212,166,85,0.1)', borderColor: 'rgba(212,166,85,0.3)', color: '#E8C277',
+    background: 'rgba(47,142,255,0.1)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF',
   },
   convTabCount: {
     background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700,
   },
-  convTabCountActive: { background: 'rgba(212,166,85,0.25)', color: '#E8C277' },
+  convTabCountActive: { background: 'rgba(47,142,255,0.25)', color: '#6FB6FF' },
 
   convLayout: { display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, minHeight: 500 },
   convList: {
@@ -2541,9 +2757,9 @@ const styles = {
     display: 'flex', gap: 10, padding: 12, background: 'transparent', border: 'none',
     borderRadius: 12, textAlign: 'right', alignItems: 'flex-start', transition: 'background 0.15s',
   },
-  convItemActive: { background: 'rgba(212,166,85,0.08)' },
+  convItemActive: { background: 'rgba(47,142,255,0.08)' },
   convAvatar: {
-    width: 40, height: 40, borderRadius: 12, background: '#1C1F28', color: '#D4A655',
+    width: 40, height: 40, borderRadius: 12, background: '#1C1F28', color: '#2F8EFF',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0,
   },
   convItemTop: { display: 'flex', justifyContent: 'space-between', marginBottom: 3 },
@@ -2552,7 +2768,7 @@ const styles = {
   convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
   convLastMsg: { fontSize: 12, color: '#6B6760', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
   unreadBadge: {
-    background: '#D4A655', color: '#0B0D12', borderRadius: 20, fontSize: 10, fontWeight: 800,
+    background: '#2F8EFF', color: '#0B0D12', borderRadius: 20, fontSize: 10, fontWeight: 800,
     padding: '1px 6px', minWidth: 16, textAlign: 'center', flexShrink: 0,
   },
   convPageTag: { fontSize: 10, color: '#3A372F', marginTop: 4 },
@@ -2568,12 +2784,16 @@ const styles = {
     justifyContent: 'center', flexShrink: 0,
   },
   convAvatarLg: {
-    width: 48, height: 48, borderRadius: 14, background: '#1C1F28', color: '#D4A655',
+    width: 48, height: 48, borderRadius: 14, background: '#1C1F28', color: '#2F8EFF',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, flexShrink: 0,
   },
   detailName: { fontSize: 16, fontWeight: 700, color: '#E8E6E1' },
   detailPage: { fontSize: 12, color: '#6B6760' },
-  detailMsgArea: { flex: 1, marginBottom: 18 },
+  pinOrderBtn: {
+    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+    background: 'rgba(47,142,255,0.1)', border: '1px solid rgba(47,142,255,0.3)',
+    borderRadius: 9, color: '#2F8EFF', fontSize: 12, fontWeight: 700, flexShrink: 0,
+  },
   chatScroll: {
     flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column',
     padding: '6px 2px', minHeight: 240, maxHeight: 480,
@@ -2584,7 +2804,7 @@ const styles = {
     display: 'flex', flexDirection: 'column', gap: 4,
   },
   msgBubbleOut: {
-    background: 'rgba(212,166,85,0.16)', border: '1px solid rgba(212,166,85,0.22)',
+    background: 'rgba(47,142,255,0.16)', border: '1px solid rgba(47,142,255,0.22)',
     borderRadius: '4px 16px 16px 16px', padding: '10px 14px',
     fontSize: 13, color: '#F3E6C8', maxWidth: '72%', lineHeight: 1.6,
     display: 'flex', flexDirection: 'column', gap: 4,
@@ -2608,15 +2828,15 @@ const styles = {
     fontSize: 13, padding: '6px 4px', fontFamily: "'Cairo', sans-serif",
   },
   composerSendBtn: {
-    width: 36, height: 36, borderRadius: 10, background: '#D4A655',
-    border: 'none', color: '#0B0D12', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0,
+    width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #6FB6FF, #2F8EFF)',
+    border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 10px rgba(47,142,255,0.35)',
   },
   linkedOrderCard: {
-    background: 'rgba(212,166,85,0.06)', border: '1px solid rgba(212,166,85,0.2)',
+    background: 'rgba(47,142,255,0.06)', border: '1px solid rgba(47,142,255,0.2)',
     borderRadius: 14, padding: 16, marginBottom: 14,
   },
-  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#D4A655', marginBottom: 12 },
+  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#2F8EFF', marginBottom: 12 },
   linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 9 },
   linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   linkedOrderLabel: { fontSize: 12, color: '#6B6760' },
@@ -2628,8 +2848,8 @@ const styles = {
   // ── Orders ──
   printBtn: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: '#14171F', border: '1px solid rgba(212,166,85,0.25)', borderRadius: 10,
-    color: '#D4A655', fontSize: 13, fontWeight: 700,
+    background: '#14171F', border: '1px solid rgba(47,142,255,0.25)', borderRadius: 10,
+    color: '#2F8EFF', fontSize: 13, fontWeight: 700,
   },
   secondaryBtn: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px',
@@ -2645,13 +2865,20 @@ const styles = {
   statValue: { fontSize: 20, fontWeight: 800, color: '#E8E6E1', lineHeight: 1.2 },
   statLabel: { fontSize: 11, color: '#6B6760', marginTop: 2 },
 
+  sectionTabs: { display: 'flex', gap: 8, marginBottom: 18 },
+  sectionTab: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
+    background: '#0E1016', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11,
+    color: '#9A958C', fontSize: 13, fontWeight: 700,
+  },
+  sectionTabActive: { background: 'rgba(47,142,255,0.1)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF' },
   ordersToolbar: { display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' },
   filterChips: { display: 'flex', gap: 6 },
   chip: {
     padding: '8px 14px', background: '#14171F', border: '1px solid rgba(255,255,255,0.06)',
     borderRadius: 9, color: '#9A958C', fontSize: 12, fontWeight: 600,
   },
-  chipActive: { background: 'rgba(212,166,85,0.12)', borderColor: 'rgba(212,166,85,0.3)', color: '#E8C277' },
+  chipActive: { background: 'rgba(47,142,255,0.12)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF' },
 
   ordersGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16,
@@ -2663,8 +2890,8 @@ const styles = {
   },
   orderCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   orderCardPageTag: {
-    fontSize: 11, fontWeight: 700, color: '#D4A655', background: 'rgba(212,166,85,0.08)',
-    border: '1px solid rgba(212,166,85,0.18)', borderRadius: 20, padding: '3px 10px',
+    fontSize: 11, fontWeight: 700, color: '#2F8EFF', background: 'rgba(47,142,255,0.08)',
+    border: '1px solid rgba(47,142,255,0.18)', borderRadius: 20, padding: '3px 10px',
   },
   orderCardNo: { fontSize: 12, fontWeight: 700, color: '#6B6760', fontFamily: 'monospace' },
   orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#E8E6E1' },
@@ -2674,12 +2901,25 @@ const styles = {
     padding: '8px 10px', marginTop: 4, lineHeight: 1.5,
   },
   orderCardBottomRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  orderCardTotal: { fontSize: 15, fontWeight: 800, color: '#D4A655' },
-  orderCardMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#3A372F', marginTop: 2 },
+  orderCardTotal: { fontSize: 15, fontWeight: 800, color: '#2F8EFF' },
+  orderCardMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#3A372F', marginTop: 2, flexWrap: 'wrap', gap: 6 },
   convertedBadge: {
     background: 'rgba(91,141,239,0.14)', color: '#5B8DEF', border: '1px solid rgba(91,141,239,0.3)',
     borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700,
   },
+  printedBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: 3,
+    background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)',
+    borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700,
+  },
+  batchBlock: {
+    background: '#0E1016', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: 18,
+  },
+  batchHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10,
+  },
+  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#E8E6E1' },
+  batchHeaderTime: { fontSize: 11, color: '#6B6760', fontWeight: 500 },
   orderCardActions: {
     display: 'flex', gap: 6, marginTop: 8, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)',
   },
@@ -2699,8 +2939,8 @@ const styles = {
     padding: 24, marginBottom: 20,
   },
   dailyStatsCard: {
-    background: 'linear-gradient(160deg, rgba(212,166,85,0.07), rgba(14,16,22,0.4))',
-    border: '1px solid rgba(212,166,85,0.18)', borderRadius: 16, padding: 22, marginBottom: 24,
+    background: 'linear-gradient(160deg, rgba(47,142,255,0.07), rgba(14,16,22,0.4))',
+    border: '1px solid rgba(47,142,255,0.18)', borderRadius: 16, padding: 22, marginBottom: 24,
   },
   dailyStatsHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -2711,8 +2951,8 @@ const styles = {
   barChartRow: { display: 'grid', gridTemplateColumns: '180px 1fr 120px', gap: 14, alignItems: 'center' },
   barChartLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#C8C4BB', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
   barChartTrack: { height: 10, background: '#14171F', borderRadius: 6, overflow: 'hidden' },
-  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#B8843A,#E8C277)', borderRadius: 6, transition: 'width 0.5s ease' },
-  barChartValue: { fontSize: 12, fontWeight: 700, color: '#D4A655', textAlign: 'left' },
+  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1A5FB4,#6FB6FF)', borderRadius: 6, transition: 'width 0.5s ease' },
+  barChartValue: { fontSize: 12, fontWeight: 700, color: '#2F8EFF', textAlign: 'left' },
 
   statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
   donutWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0' },
@@ -2726,24 +2966,12 @@ const styles = {
   // ── Pages ──
   addBtn: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: 'linear-gradient(135deg,#E8C277,#B8843A)', border: 'none', borderRadius: 10,
-    color: '#0B0D12', fontSize: 13, fontWeight: 700,
-  },
-  addPageCard: {
-    display: 'flex', gap: 10, marginBottom: 18, background: '#0E1016',
-    border: '1px solid rgba(212,166,85,0.2)', borderRadius: 12, padding: 12,
-  },
-  addPageInput: {
-    flex: 1, background: '#14171F', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
-    padding: '10px 14px', color: '#E8E6E1', fontSize: 13, fontFamily: "'Cairo', sans-serif",
+    background: 'linear-gradient(135deg,#6FB6FF,#1A5FB4)', border: 'none', borderRadius: 10,
+    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 10px rgba(47,142,255,0.3)',
   },
   confirmBtn: {
-    background: '#D4A655', border: 'none', borderRadius: 8, padding: '0 18px',
-    color: '#0B0D12', fontWeight: 700, fontSize: 13,
-  },
-  cancelBtn: {
-    background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
-    padding: '0 12px', color: '#9A958C',
+    background: '#2F8EFF', border: 'none', borderRadius: 8, padding: '0 18px',
+    color: '#ffffff', fontWeight: 700, fontSize: 13,
   },
   fbErrorBox: {
     display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
@@ -2751,11 +2979,11 @@ const styles = {
     borderRadius: 12, padding: '12px 16px', color: '#F45B69', fontSize: 13, lineHeight: 1.6,
   },
   fbExchangingBox: {
-    marginBottom: 16, background: 'rgba(212,166,85,0.08)', border: '1px solid rgba(212,166,85,0.2)',
-    borderRadius: 12, padding: '12px 16px', color: '#D4A655', fontSize: 13,
+    marginBottom: 16, background: 'rgba(47,142,255,0.08)', border: '1px solid rgba(47,142,255,0.2)',
+    borderRadius: 12, padding: '12px 16px', color: '#2F8EFF', fontSize: 13,
   },
   fbCandidatesWrap: {
-    marginBottom: 20, background: '#0E1016', border: '1px solid rgba(212,166,85,0.2)',
+    marginBottom: 20, background: '#0E1016', border: '1px solid rgba(47,142,255,0.2)',
     borderRadius: 14, padding: 16,
   },
   fbCandidatesTitle: { fontSize: 13, fontWeight: 700, color: '#E8E6E1', marginBottom: 12 },
@@ -2802,7 +3030,7 @@ const styles = {
   activeDot: { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
   userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.05)' },
   permTag: {
-    background: 'rgba(212,166,85,0.1)', color: '#D4A655', fontSize: 10, fontWeight: 600,
+    background: 'rgba(47,142,255,0.1)', color: '#2F8EFF', fontSize: 10, fontWeight: 600,
     padding: '4px 9px', borderRadius: 7,
   },
   userCardActions: { display: 'flex', gap: 8 },
@@ -2818,7 +3046,7 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
   },
   modal: {
-    background: '#13161F', border: '1px solid rgba(212,166,85,0.15)', borderRadius: 18,
+    background: '#13161F', border: '1px solid rgba(47,142,255,0.15)', borderRadius: 18,
     width: '100%', maxWidth: 440, maxHeight: '85vh', overflow: 'auto', direction: 'rtl',
   },
   modalHeader: {
@@ -2840,7 +3068,7 @@ const styles = {
     padding: '10px', background: '#0B0D12', border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 9, color: '#9A958C', fontSize: 12, fontWeight: 600,
   },
-  roleBtnActive: { background: 'rgba(212,166,85,0.12)', borderColor: 'rgba(212,166,85,0.3)', color: '#E8C277' },
+  roleBtnActive: { background: 'rgba(47,142,255,0.12)', borderColor: 'rgba(47,142,255,0.3)', color: '#6FB6FF' },
   permsGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
   permCheckRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#C8C4BB', padding: '6px 0', cursor: 'pointer' },
   modalFooter: { display: 'flex', gap: 10, padding: '18px 22px', borderTop: '1px solid rgba(255,255,255,0.05)' },
@@ -2849,7 +3077,8 @@ const styles = {
     borderRadius: 9, color: '#9A958C', fontSize: 13, fontWeight: 600,
   },
   modalSaveBtn: {
-    flex: 1, padding: '11px', background: 'linear-gradient(135deg,#E8C277,#B8843A)',
-    border: 'none', borderRadius: 9, color: '#0B0D12', fontSize: 13, fontWeight: 700,
+    flex: 1, padding: '11px', background: 'linear-gradient(135deg,#6FB6FF,#1A5FB4)',
+    border: 'none', borderRadius: 9, color: '#ffffff', fontSize: 13, fontWeight: 700,
+    boxShadow: '0 2px 10px rgba(47,142,255,0.3)',
   },
 };
