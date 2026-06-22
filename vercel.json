@@ -1,8 +1,1 @@
-{
-  "rewrites": [
-    {
-      "source": "/v2/push/update-status",
-      "destination": "https://wqfuovvebgipiowaarbo.supabase.co/functions/v1/smart-action"
-    }
-  ]
-}
+
