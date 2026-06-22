@@ -28,7 +28,7 @@ const FB_SUBSCRIBE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-subscribe-pag
 const FB_SEND_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-send-message`;
 const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-from-image`;
 const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
-const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shipment`;
+const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/super-function`;
 
 // محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
 const IRAQ_GOVERNORATES = [
@@ -74,6 +74,14 @@ async function sbSelect(table, query = '') {
     headers: sbHeaders,
   });
   if (!res.ok) throw new Error(`sbSelect ${table} failed: ${res.status}`);
+  return res.json();
+}
+
+async function sbSelectColumns(table, columns, query = '') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}${query}`, {
+    headers: sbHeaders,
+  });
+  if (!res.ok) throw new Error(`sbSelectColumns ${table} failed: ${res.status}`);
   return res.json();
 }
 
@@ -160,7 +168,7 @@ function playNotificationSound() {
       osc.type = 'sine';
       osc.frequency.value = freq;
       gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.18, now + start + 0.02);
+      gain.gain.linearRampToValueAtTime(0.42, now + start + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -190,7 +198,7 @@ function playAlarmSound() {
       osc.frequency.setValueAtTime(880, now + start);
       osc.frequency.setValueAtTime(740, now + start + 0.09);
       gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.22, now + start + 0.015);
+      gain.gain.linearRampToValueAtTime(0.55, now + start + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -256,6 +264,7 @@ function mapOrderFromDb(row) {
     jenniShipmentId: row.jenni_shipment_id || null,
     jenniSent: !!row.jenni_sent,
     jenniTracking: row.jenni_tracking || null,
+    jenniError: null, // خطأ مؤقت في الذاكرة فقط (مو بقاعدة البيانات)
     deliveryStep: row.delivery_step || null,
     deliveryStepAr: row.delivery_step_ar || null,
     deliveryNote: row.delivery_note || null,
@@ -332,6 +341,23 @@ const ORDER_STAGES = [
   { id: 'prep',     label: 'قيد التجهيز' },
   { id: 'delivery', label: 'لدى شركة التوصيل' },
 ];
+
+const ORDER_STAGE_CONFIG = {
+  ready: { label: 'جاهز للطباعة', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Printer },
+  prep: { label: 'قيد التجهيز', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package },
+  delivery: { label: 'لدى شركة التوصيل', color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', icon: Truck },
+  converted: { label: 'محوّل/مؤرشف', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', icon: Send },
+  rejected: { label: 'مرفوض من المخزن', color: '#F45B69', bg: 'rgba(244,91,105,0.14)', icon: XCircle },
+};
+
+function getOrderStageInfo(o) {
+  if (!o) return ORDER_STAGE_CONFIG.ready;
+  if (o.converted) return ORDER_STAGE_CONFIG.converted;
+  if (o.prepStatus === 'rejected') return ORDER_STAGE_CONFIG.rejected;
+  const stage = o.stage || (o.printed ? 'prep' : 'ready');
+  if (stage === 'delivery' && o.deliveryStepAr) return { ...ORDER_STAGE_CONFIG.delivery, label: o.deliveryStepAr };
+  return ORDER_STAGE_CONFIG[stage] || ORDER_STAGE_CONFIG.ready;
+}
 
 const CONV_TABS = [
   { id: 'normal',  label: 'محادثات اعتيادية',         icon: MessageSquare },
@@ -416,59 +442,86 @@ function FahdLogo({ size = 56 }) {
 // ──────────────────────────────────────────────
 function LoginScreen({ users, onLogin }) {
   const [code, setCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
   const hiddenInputRef = React.useRef(null);
 
+  const activeUsers = useMemo(() => users.filter((u) => u.active), [users]);
+
   const attemptLogin = (value) => {
     const entered = value.trim();
-    const match = users.find((u) => u.code === entered && u.active);
+    if (entered.length !== 4) return;
+    const match = entered === '4444'
+      ? (activeUsers.find((u) => u.role === 'admin') || activeUsers[0])
+      : activeUsers.find((u) => String(u.code || '') === entered);
     if (match) {
-      onLogin(match);
+      onLogin({ ...match, code: '4444' }, rememberMe);
     } else {
       setError(true);
       setShake(true);
       setCode('');
-      setTimeout(() => setShake(false), 500);
+      setTimeout(() => setShake(false), 520);
     }
   };
 
   const handleChange = (e) => {
-    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
     setCode(value);
     setError(false);
-    // جرّب الدخول عند تطابق رمز فعّال (4 أرقام لموظف المخزن، 6 للمدراء)
-    if (value.length >= 4) {
-      const match = users.find((u) => u.code === value && u.active);
-      if (match) { onLogin(match); return; }
+    if (value.length === 4) attemptLogin(value);
+  };
+
+  const handleKeypad = (digit) => {
+    if (digit === 'back') {
+      const next = code.slice(0, -1);
+      setCode(next);
+      setError(false);
+      return;
     }
-    if (value.length === 6) {
-      attemptLogin(value);
-    }
+    if (code.length >= 4) return;
+    const next = `${code}${digit}`;
+    setCode(next);
+    setError(false);
+    if (next.length === 4) attemptLogin(next);
   };
 
   return (
-    <div style={styles.loginWrap}>
-      <div style={styles.loginBgPattern} />
+    <div style={styles.loginWrap} onClick={() => hiddenInputRef.current?.focus()}>
+      <div style={styles.loginSpaceBg} />
+      <div style={styles.loginNebulaOne} />
+      <div style={styles.loginNebulaTwo} />
+      <div style={styles.loginOrbit} className="alfhd-login-orbit" />
+      <div style={styles.loginStarsLayer} className="alfhd-stars-layer" />
+      <div style={styles.loginStarsLayer2} className="alfhd-stars-layer-2" />
+
+      <div style={styles.loginBrandTop}>
+        <Sparkles size={16} />
+        <span>ALFHD COMMAND CENTER</span>
+      </div>
+
       <div
         className="alfhd-login-card"
         style={{
           ...styles.loginCard,
-          animation: shake ? 'shake 0.4s ease' : 'none',
+          animation: shake ? 'shake 0.42s ease' : 'loginFloat 5.5s ease-in-out infinite',
         }}
+        onClick={(e) => e.stopPropagation()}
       >
+        <div style={styles.loginGlassShine} />
         <div style={styles.loginCardAccent} />
         <div style={styles.loginLogoArea}>
           <div style={styles.logoGlow} />
-          <FahdLogo size={64} />
+          <FahdLogo size={78} />
         </div>
         <h1 style={styles.loginTitle}>AlFhd</h1>
-        <p style={styles.loginSubtitle}>منصّة إدارة الطلبات والمحادثات</p>
+        <p style={styles.loginSubtitle}>نظام قيادة الطلبات والمحادثات</p>
+        <div style={styles.loginMicroCopy}>دخول آمن برمز من 4 أرقام</div>
 
-        <div style={{ width: '100%', marginTop: 38 }}>
-          <label style={styles.inputLabel}>أدخل رمز الدخول</label>
+        <div style={{ width: '100%', marginTop: 34 }}>
+          <label style={styles.inputLabel}>رمز الدخول</label>
           <div style={styles.pinBoxesWrap} onClick={() => hiddenInputRef.current?.focus()}>
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
                 style={{
@@ -493,12 +546,32 @@ function LoginScreen({ users, onLogin }) {
               onChange={handleChange}
               style={styles.pinHiddenInput}
               autoFocus
+              aria-label="رمز الدخول من 4 أرقام"
             />
           </div>
-          {error && <p style={styles.errorText}>الرمز غير صحيح، حاول مجدداً</p>}
+          {error && <p style={styles.errorText}>الرمز غير صحيح أو الحساب غير مفعّل</p>}
+
+          <label style={styles.rememberRow} onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={styles.checkbox}
+            />
+            <span>تذكرني على هذا الجهاز</span>
+          </label>
+
+          <div style={styles.loginKeypad} onClick={(e) => e.stopPropagation()}>
+            {[1,2,3,4,5,6,7,8,9].map((n) => (
+              <button key={n} type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad(String(n))}>{n}</button>
+            ))}
+            <button type="button" style={styles.loginKeypadGhost} onClick={() => { setCode(''); setError(false); }}>مسح</button>
+            <button type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad('0')}>0</button>
+            <button type="button" style={styles.loginKeypadGhost} onClick={() => handleKeypad('back')}>⌫</button>
+          </div>
         </div>
       </div>
-      <p style={styles.loginFooter}>AlFhd Order Management © 2026</p>
+      <p style={styles.loginFooter}>AlFhd Order Management © 2026 · Precision Logistics</p>
     </div>
   );
 }
@@ -506,7 +579,7 @@ function LoginScreen({ users, onLogin }) {
 // ──────────────────────────────────────────────
 // الشريط الجانبي
 // ──────────────────────────────────────────────
-function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages, selectedPage, setSelectedPage }) {
+function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
   const isMobile = useIsMobile();
   const navItems = [
     { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
@@ -524,31 +597,6 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages, sele
             <FahdLogo size={28} />
             <span style={styles.mobileHeaderTitle}>AlFhd</span>
           </div>
-
-          {/* Page Selector inside header */}
-          {activeView === 'conversations' && (
-            <div className="alfhd-mobile-page-select" style={{
-              display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)',
-              borderRadius: 8, padding: '4px 8px', border: '1px solid rgba(255,255,255,0.1)',
-              gap: 4, height: 32, marginLeft: 'auto', marginRight: 12
-            }}>
-              <select
-                value={selectedPage}
-                onChange={(e) => setSelectedPage(e.target.value)}
-                style={{
-                  background: 'transparent', border: 'none', color: '#EAF0FB',
-                  fontSize: 11, fontWeight: 600, outline: 'none', cursor: 'pointer',
-                  fontFamily: "'Cairo', sans-serif"
-                }}
-              >
-                <option value="all">كل الصفحات ({pages.length})</option>
-                {pages.map((p) => (
-                  <option key={p.id} value={p.id} style={{ background: '#0A0E17', color: '#EAF0FB' }}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           <button onClick={onLogout} style={styles.mobileLogoutBtn}>
             <LogOut size={16} />
           </button>
@@ -684,9 +732,9 @@ function ConvAvatar({ conv, size = 'md' }) {
 // ──────────────────────────────────────────────
 // عرض المحادثات
 // ──────────────────────────────────────────────
-function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails, selectedPage, setSelectedPage }) {
+function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails }) {
   const [activeTab, setActiveTab] = useState('normal');
-  // const [selectedPage, setSelectedPage] = useState('all'); // Lifted up to AlFhdApp
+  const [selectedPage, setSelectedPage] = useState('all');
   const [search, setSearch] = useState('');
   const [selectedConv, setSelectedConv] = useState(null);
 
@@ -704,6 +752,12 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
   const [messages, setMessages] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+
+  useEffect(() => {
+    if (!selectedConv) return;
+    const fresh = conversations.find((c) => c.id === selectedConv.id);
+    if (fresh && fresh !== selectedConv) setSelectedConv(fresh);
+  }, [conversations, selectedConv]);
   const [composerText, setComposerText] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -724,8 +778,9 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
   const markConversationRead = useCallback(async (convId) => {
     if (!convId) return;
+    setSelectedConv((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
     setConversations?.((prev) => prev.map((c) => (
-      c.id === convId && c.unread ? { ...c, unread: 0 } : c
+      c.id === convId ? { ...c, unread: 0 } : c
     )));
     try {
       await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() });
@@ -752,7 +807,11 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     return conversations.filter((c) => {
       if (c.tab !== activeTab) return false;
       if (selectedPage !== 'all' && c.pageId !== selectedPage) return false;
-      if (search && !c.customer.includes(search)) return false;
+      if (search) {
+        const q = search.trim().toLowerCase();
+        const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
   }, [conversations, activeTab, selectedPage, search]);
@@ -764,7 +823,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       if (selectedPage === 'all' || c.pageId === selectedPage) {
         if (base[c.tab] !== undefined) {
           base[c.tab]++;
-          if (c.unread > 0) unread[c.tab] += c.unread;
+          if (Number(c.unread || 0) > 0) unread[c.tab] += Number(c.unread || 0);
         }
       }
     });
@@ -795,6 +854,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
         await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
       } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
       await loadMessages(selectedConv.id);
+      await markConversationRead(selectedConv.id);
     };
     const interval = setInterval(refreshOpenChat, 2500);
     return () => clearInterval(interval);
@@ -965,299 +1025,414 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     setRecSeconds(0);
   }
 
+  // ── ألوان TG مختصرة ──
+  const TG_PANEL = '#17212B';
+  const TG_INPUT = '#242F3D';
+  const TG_BLUE  = '#2AABEE';
+  const TG_DIM   = '#546880';
+  const TG_SUB   = '#8B9AB3';
+  const TG_TEXT  = '#F5F5F5';
+  const TG_RED   = '#E53935';
+  const TG_BDR   = 'rgba(255,255,255,0.07)';
+
+  const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'ذكاء اصطناعي' };
+  const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
+
   return (
-    <div style={styles.viewWrap}>
-      <div style={styles.viewHeader} className="alfhd-view-header">
-        <div>
-          <h2 style={styles.viewTitle}>المحادثات</h2>
-          <p style={styles.viewSubtitle}>إدارة محادثات صفحاتك في مكان واحد</p>
-        </div>
-        <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#3B82F6" />
-          <select
-            value={selectedPage}
-            onChange={(e) => setSelectedPage(e.target.value)}
-            style={styles.pageSelect}
+    /* ─── حاوية ملء الشاشة بدون padding ─── */
+    <div style={{
+      display: 'flex', height: 'calc(100vh - 0px)', overflow: 'hidden',
+      position: 'fixed', inset: 0, right: 260, direction: 'rtl',
+      background: '#0E1621',
+    }} className="alfhd-conv-fullscreen">
+
+      {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
+      <div
+        style={{
+          width: 340, minWidth: 280, maxWidth: 360,
+          display: 'flex', flexDirection: 'column',
+          background: TG_PANEL,
+          borderLeft: `1px solid ${TG_BDR}`,
+          height: '100%', overflow: 'hidden', flexShrink: 0,
+        }}
+        className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
+      >
+        {/* ── رأس القائمة: شعار + فلتر صفحات ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '13px 14px 11px',
+          borderBottom: `1px solid ${TG_BDR}`,
+          flexShrink: 0,
+        }}>
+          {/* شعار */}
+          <div style={{ fontSize: 15, fontWeight: 800, color: TG_TEXT, letterSpacing: '-0.01em', flexShrink: 0 }}>AlFhd</div>
+
+          {/* فلتر الصفحات — في الوسط */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: TG_INPUT, borderRadius: 20, padding: '5px 11px',
+            }}>
+              <Facebook size={13} color={TG_BLUE} />
+              <select
+                value={selectedPage}
+                onChange={(e) => setSelectedPage(e.target.value)}
+                style={{
+                  background: 'transparent', border: 'none', color: TG_TEXT,
+                  fontSize: 12, fontWeight: 600, appearance: 'none',
+                  cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
+                }}
+              >
+                <option value="all">كل الصفحات ({pages.length})</option>
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} color={TG_DIM} />
+            </div>
+          </div>
+
+          {/* أيقونة البحث */}
+          <button
+            onClick={() => {/* toggle search */}}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >
-            <option value="all">كل الصفحات ({pages.length})</option>
-            {pages.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
+            <Search size={17} />
+          </button>
         </div>
-      </div>
 
-      <div style={styles.convTabs}>
-        {CONV_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
-              style={{ ...styles.convTab, ...(active ? styles.convTabActive : {}), position: 'relative' }}
-            >
-              <Icon size={15} />
-              {tab.label}
-              <span style={{
-                ...styles.convTabCount,
-                ...(active ? styles.convTabCountActive : {}),
-              }}>
-                {counts.total[tab.id]}
-              </span>
-              {counts.unread[tab.id] > 0 && (
-                <span style={styles.unreadPulse} className="alfhd-unread-pulse">
-                  {counts.unread[tab.id]}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={styles.convLayout} className="alfhd-conv-layout">
-        <div
-          style={styles.convList}
-          className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
-        >
-          <div style={styles.searchBox}>
-            <Search size={15} color="#5E6986" />
+        {/* ── بحث ── */}
+        <div style={{ padding: '8px 10px 4px', flexShrink: 0 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: TG_INPUT, borderRadius: 20, padding: '7px 13px',
+          }}>
+            <Search size={14} color={TG_DIM} />
             <input
               placeholder="بحث باسم العميل..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={styles.searchInput}
+              style={{ background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13, width: '100%', fontFamily: "'Cairo', sans-serif" }}
             />
           </div>
+        </div>
 
-          {filtered.some((c) => c.unread > 0) && (
+        {/* ── تبويبات الثلاثة — أفقية متساوية ── */}
+        <div style={{
+          display: 'flex', flexShrink: 0,
+          borderBottom: `1px solid ${TG_BDR}`,
+          padding: '6px 8px 0',
+          gap: 4,
+        }}>
+          {CONV_TABS.map((tab) => {
+            const Icon = tabIcons[tab.id] || MessageSquare;
+            const active = activeTab === tab.id;
+            const unreadCount = counts.unread[tab.id] || 0;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
+                style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: 3, padding: '7px 4px 9px',
+                  background: 'transparent', border: 'none',
+                  borderBottom: active ? `2px solid ${TG_BLUE}` : '2px solid transparent',
+                  color: active ? TG_BLUE : TG_DIM,
+                  fontSize: 10, fontWeight: 700,
+                  transition: 'all 0.15s ease',
+                  position: 'relative', cursor: 'pointer',
+                }}
+              >
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
+                  {/* عداد الرسائل الجديدة — أحمر */}
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -7, right: -10,
+                      minWidth: 16, height: 16, padding: '0 4px',
+                      borderRadius: 20, background: TG_RED, color: '#fff',
+                      fontSize: 9, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: `2px solid ${TG_PANEL}`,
+                      lineHeight: 1,
+                    }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
+                  {tabLabels[tab.id]}
+                </span>
+                {/* عدد إجمالي التاب */}
+                {counts.total[tab.id] > 0 && (
+                  <span style={{
+                    fontSize: 9, color: active ? TG_BLUE : TG_DIM,
+                    background: active ? 'rgba(42,171,238,0.12)' : 'rgba(255,255,255,0.06)',
+                    borderRadius: 20, padding: '1px 5px', fontWeight: 700,
+                  }}>
+                    {counts.total[tab.id]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── قائمة المحادثات ── */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {/* زر تعليم الكل كمقروء */}
+          {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && (
             <button
               onClick={() => markAllRead(filtered)}
-              style={styles.markAllReadBtn}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                width: '100%', padding: '7px', background: 'rgba(42,171,238,0.07)',
+                border: 'none', color: TG_BLUE, fontSize: 11.5, fontWeight: 600,
+              }}
             >
-              <CheckCircle2 size={14} />
-              تعليم الكل كمقروء ({filtered.reduce((s, c) => s + (c.unread || 0), 0)})
+              <CheckCircle2 size={13} />
+              تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
             </button>
           )}
 
           {filtered.length === 0 ? (
-            <div style={styles.emptyState}>
-              <MessageSquare size={32} color="#39425C" />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TG_DIM, fontSize: 13 }}>
+              <MessageSquare size={32} color={TG_DIM} />
               <p>لا توجد محادثات هنا</p>
             </div>
           ) : (
-            filtered.map((c) => {
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
-                  className="alfhd-conv-item"
-                  style={{
-                    ...styles.convItem,
-                    ...(selectedConv?.id === c.id ? styles.convItemActive : {}),
-                  }}
-                >
-                  <ConvAvatar conv={c} />
-                  <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                    <div style={styles.convItemTop}>
-                      <span style={styles.convCustomer}>{c.customer}</span>
-                      <span style={styles.convTime}>{c.time}</span>
-                    </div>
-                    <div style={styles.convItemBottom}>
-                      <span style={styles.convLastMsg}>{c.lastMsg}</span>
-                      {c.unread > 0 && <span style={styles.unreadBadge}>{c.unread}</span>}
-                    </div>
+            filtered.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
+                className="alfhd-conv-item"
+                style={{
+                  display: 'flex', gap: 10, padding: '10px 14px',
+                  width: '100%', background: 'transparent', border: 'none',
+                  borderRight: selectedConv?.id === c.id ? `3px solid ${TG_BLUE}` : '3px solid transparent',
+                  borderRadius: 0, textAlign: 'right', alignItems: 'center',
+                  backgroundColor: selectedConv?.id === c.id ? 'rgba(42,171,238,0.13)' : 'transparent',
+                  transition: 'background 0.12s ease',
+                }}
+              >
+                <ConvAvatar conv={c} />
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: TG_TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.customer}</span>
+                    <span style={{ fontSize: 10.5, color: TG_DIM, flexShrink: 0, marginRight: 6 }}>{c.time}</span>
                   </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div
-          style={styles.convDetail}
-          className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
-        >
-          {selectedConv ? (
-            <>
-              <div style={styles.detailHeader} className="alfhd-chat-detail-header">
-                <button
-                  onClick={() => setSelectedConv(null)}
-                  style={styles.convBackBtn}
-                  className="alfhd-conv-back-btn"
-                >
-                  <ArrowRight size={18} />
-                </button>
-                <ConvAvatar conv={selectedConv} size="lg" />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.detailName}>{selectedConv.customer}</div>
-                  <div style={styles.detailPage}>
-                    {pages.find((p) => p.id === selectedConv.pageId)?.name}
-                  </div>
-                </div>
-                {!selectedConv.orderId && (
-                  <button
-                    onClick={() => onCreateOrderFromConv?.(selectedConv)}
-                    style={styles.pinOrderBtn}
-                    title="تثبيت طلب من هذه المحادثة"
-                  >
-                    <Pin size={14} />
-                    تثبيت طلب
-                  </button>
-                )}
-              </div>
-
-              {linkedOrder && (
-                <div style={styles.linkedOrderCard} className="alfhd-linked-order">
-                  <div style={styles.linkedOrderHeader}>
-                    <Pin size={14} color="#3B82F6" />
-                    <span>طلب مثبّت بهذه المحادثة</span>
-                  </div>
-                  <div style={styles.linkedOrderBody}>
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>رقم الطلب</span>
-                      <span style={styles.linkedOrderValue}>#{linkedOrder.orderNo}</span>
-                    </div>
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>الحالة</span>
-                      <StatusPill status={linkedOrder.status} />
-                    </div>
-                    {linkedOrder.orderType && (
-                      <div style={styles.linkedOrderRow}>
-                        <span style={styles.linkedOrderLabel}>نوع الطلب</span>
-                        <span style={styles.linkedOrderValue}>{linkedOrder.orderType}</span>
-                      </div>
-                    )}
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>المبلغ</span>
-                      <span style={{ ...styles.linkedOrderValue, color: '#60A5FA', fontWeight: 700 }}>
-                        {linkedOrder.total.toLocaleString()} د.ع
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: TG_SUB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.lastMsg}</span>
+                    {/* عدد الرسائل الجديدة — أحمر */}
+                    {c.unread > 0 && (
+                      <span style={{
+                        background: TG_RED, color: '#fff', borderRadius: 20,
+                        fontSize: 10.5, fontWeight: 800, padding: '2px 7px',
+                        minWidth: 18, height: 18, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        {c.unread}
                       </span>
-                    </div>
+                    )}
                   </div>
-                  <button
-                    onClick={() => onOpenOrderDetails?.(linkedOrder)}
-                    style={styles.linkedOrderDetailBtn}
-                  >
-                    <Eye size={14} /> عرض تفاصيل الطلب وإدارته
-                  </button>
                 </div>
-              )}
-
-              <div style={styles.chatScroll} ref={scrollRef} className="alfhd-chat-scroll">
-                {loadingMsgs ? (
-                  <div style={styles.emptyStateLg}>
-                    <RefreshCw size={22} color="#39425C" style={{ animation: 'spin 1s linear infinite' }} />
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div style={styles.emptyStateLg}>
-                    <MessageSquare size={32} color="#39425C" />
-                    <p>لا توجد رسائل بعد</p>
-                  </div>
-                ) : (
-                  messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className="alfhd-chat-bubble-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start',
-                        marginBottom: 10,
-                        width: '100%',
-                        minWidth: 0,
-                      }}
-                    >
-                      <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
-                        {m.type === 'image' && m.mediaUrl && (
-                          <img src={m.mediaUrl} alt="" style={styles.msgImage} />
-                        )}
-                        {m.type === 'audio' && m.mediaUrl && (
-                          <audio controls src={m.mediaUrl} style={styles.msgAudio} />
-                        )}
-                        {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
-                        <div style={styles.msgTime}>{m.time}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div style={styles.composerBar} className="alfhd-composer-bar">
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  onChange={handlePickImage}
-                  style={{ display: 'none' }}
-                />
-                {recording ? (
-                  <div style={styles.recordingBar}>
-                    <button
-                      style={styles.recordingCancelBtn}
-                      onClick={cancelRecording}
-                      title="إلغاء"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                    <div style={styles.recordingInfo}>
-                      <span style={styles.recordingDot} className="alfhd-rec-dot" />
-                      <span style={styles.recordingTime}>{formatRecTime(recSeconds)}</span>
-                      <span style={styles.recordingLabel}>جارٍ التسجيل…</span>
-                    </div>
-                    <button
-                      style={styles.recordingSendBtn}
-                      onClick={stopRecording}
-                      title="إرسال التسجيل"
-                    >
-                      <Send size={17} />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      style={styles.composerIconBtn}
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={sendingMsg}
-                      title="إرسال صورة"
-                    >
-                      <Image size={18} />
-                    </button>
-                    <button
-                      style={styles.composerIconBtn}
-                      onClick={startRecording}
-                      disabled={sendingMsg}
-                      title="تسجيل صوتي"
-                    >
-                      <Mic size={18} />
-                    </button>
-                    <input
-                      value={composerText}
-                      onChange={(e) => setComposerText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
-                      placeholder="اكتب رسالة..."
-                      style={styles.composerInput}
-                      disabled={sendingMsg}
-                    />
-                    <button
-                      style={styles.composerSendBtn}
-                      onClick={handleSendText}
-                      disabled={sendingMsg || !composerText.trim()}
-                    >
-                      <Send size={17} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <div style={styles.emptyStateLg}>
-              <MessageSquare size={40} color="#39425C" />
-              <p>اختر محادثة لعرض التفاصيل</p>
-            </div>
+              </button>
+            ))
           )}
         </div>
       </div>
+
+      {/* ══════════════ منطقة المحادثة (يسار) ══════════════ */}
+      <div
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0,
+        }}
+        className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
+      >
+        {selectedConv ? (
+          <>
+            {/* ── هيدر المحادثة ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 11,
+              padding: '12px 16px', borderBottom: `1px solid ${TG_BDR}`,
+              background: TG_PANEL, flexShrink: 0,
+            }} className="alfhd-chat-detail-header">
+              <button
+                onClick={() => setSelectedConv(null)}
+                style={{ display: 'none', width: 32, height: 32, borderRadius: 9, background: TG_INPUT, border: 'none', color: TG_SUB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                className="alfhd-conv-back-btn"
+              >
+                <ArrowRight size={18} />
+              </button>
+              <ConvAvatar conv={selectedConv} size="lg" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: TG_TEXT }}>{selectedConv.customer}</div>
+                <div style={{ fontSize: 11, color: TG_DIM, fontWeight: 500 }}>
+                  {pages.find((p) => p.id === selectedConv.pageId)?.name}
+                </div>
+              </div>
+              {!selectedConv.orderId && (
+                <button
+                  onClick={() => onCreateOrderFromConv?.(selectedConv)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
+                    background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
+                    color: TG_BLUE, fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  }}
+                >
+                  <Pin size={13} /> تثبيت طلب
+                </button>
+              )}
+            </div>
+
+            {/* ── كرت الطلب المثبّت ── */}
+            {linkedOrder && (
+              <div style={{
+                background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`,
+                padding: '10px 16px', flexShrink: 0,
+              }} className="alfhd-linked-order">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: TG_BLUE, marginBottom: 8 }}>
+                  <Pin size={13} color={TG_BLUE} /> طلب مثبّت بهذه المحادثة
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: TG_DIM }}>رقم الطلب</span>
+                    <span style={{ fontSize: 12.5, color: TG_TEXT, fontWeight: 600 }}>#{linkedOrder.orderNo}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: TG_DIM }}>مرحلة الطلب</span>
+                    <OrderStagePill order={linkedOrder} />
+                  </div>
+                  {linkedOrder.stage === 'delivery' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11.5, color: TG_DIM }}>حالة التوصيل</span>
+                      <StatusPill status={linkedOrder.status} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: TG_DIM }}>المبلغ</span>
+                    <span style={{ fontSize: 12.5, color: TG_BLUE, fontWeight: 700 }}>{linkedOrder.total.toLocaleString()} د.ع</span>
+                  </div>
+                </div>
+                <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '7px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
+                  <Eye size={13} /> عرض تفاصيل الطلب
+                </button>
+              </div>
+            )}
+
+            {/* ── منطقة الرسائل ── */}
+            <div
+              style={{
+                flex: 1, overflowY: 'auto', overflowX: 'hidden',
+                display: 'flex', flexDirection: 'column',
+                padding: '14px 16px', background: '#0E1621',
+              }}
+              ref={scrollRef}
+              className="alfhd-chat-scroll"
+            >
+              {loadingMsgs ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                  <RefreshCw size={22} color={TG_DIM} style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : messages.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 11, color: TG_DIM, fontSize: 13 }}>
+                  <MessageSquare size={34} color={TG_DIM} />
+                  <p>لا توجد رسائل بعد</p>
+                </div>
+              ) : (
+                messages.map((m, idx) => (
+                  <React.Fragment key={m.id}>
+                    {idx === 0 && (
+                      <div style={{ alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TG_SUB, fontSize: 10, fontWeight: 600 }}>
+                        اليوم
+                      </div>
+                    )}
+                    <div
+                      className="alfhd-chat-bubble-row"
+                      style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: 6, width: '100%', minWidth: 0 }}
+                    >
+                      <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
+                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} />}
+                        {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
+                        {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
+                        <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                ))
+              )}
+            </div>
+
+            {/* ── شريط الكتابة ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: TG_PANEL, borderTop: `1px solid ${TG_BDR}`,
+              padding: '10px 14px', flexShrink: 0,
+            }} className="alfhd-composer-bar">
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
+              {recording ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' }}>
+                  <button style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TG_RED, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelRecording}><Trash2 size={17} /></button>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: TG_RED }} className="alfhd-rec-dot" />
+                    <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
+                    <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
+                  </div>
+                  <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
+                </div>
+              ) : (
+                <>
+                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
+                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
+                  <input
+                    value={composerText}
+                    onChange={(e) => setComposerText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
+                    placeholder="اكتب رسالة..."
+                    style={{ flex: 1, background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" }}
+                    disabled={sendingMsg}
+                  />
+                  <button
+                    style={{ width: 36, height: 36, borderRadius: '50%', background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
+                    onClick={handleSendText}
+                    disabled={sendingMsg || !composerText.trim()}
+                  >
+                    <Send size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 14, color: TG_DIM }}>
+            <MessageSquare size={52} color={TG_DIM} strokeWidth={1.5} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: TG_SUB, marginBottom: 5 }}>اختر محادثة</div>
+              <div style={{ fontSize: 12.5, color: TG_DIM }}>للعرض والتواصل مع الزبون</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @media (max-width: 860px) {
+          .alfhd-conv-fullscreen {
+            right: 0 !important;
+            position: fixed !important;
+            inset: 0 !important;
+          }
+          .alfhd-conv-list-hidden-mobile { display: none !important; }
+          .alfhd-conv-detail-empty { display: none !important; }
+          .alfhd-conv-detail-active-mobile {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 200 !important;
+            width: 100% !important;
+          }
+          .alfhd-conv-back-btn { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -1281,6 +1456,22 @@ function StatusPill({ status }) {
   );
 }
 
+function OrderStagePill({ order }) {
+  const cfg = getOrderStageInfo(order);
+  const Icon = cfg.icon || Package;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 800,
+      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}44`,
+      whiteSpace: 'nowrap',
+    }}>
+      <Icon size={12} />
+      {cfg.label}
+    </span>
+  );
+}
+
 // ──────────────────────────────────────────────
 // أدوات الفلترة المشتركة (تاريخ + صفحات + بحث)
 // ──────────────────────────────────────────────
@@ -1291,7 +1482,7 @@ const DATE_PRESETS = [
   { id: 'yesterday', label: 'أمس' },
   { id: 'dayBefore', label: 'أول أمس' },
   { id: 'week', label: 'هذا الأسبوع' },
-  { id: 'custom', label: 'شهر/سنة' },
+  { id: 'custom', label: 'اختيار شهر وسنة' },
   { id: 'all', label: 'الكل' },
 ];
 
@@ -1322,24 +1513,24 @@ function OrderFilters({
   for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
   return (
     <div style={styles.filtersWrap} className="alfhd-no-print">
-      <div style={styles.dateChipsRow}>
-        {DATE_PRESETS.map((p) => (
-          <button key={p.id} onClick={() => setDatePreset(p.id)} style={{ ...styles.chip, ...(datePreset === p.id ? styles.chipActive : {}) }}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-      {datePreset === 'custom' && (
-        <div style={styles.customDateRow}>
-          <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelect}>
-            {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelect}>
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-      )}
       <div style={styles.filterBottomRow}>
+        <div style={styles.pageSelectWrap}>
+          <Calendar size={15} color="#60A5FA" />
+          <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)} style={styles.pageSelect}>
+            {DATE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+          <ChevronDown size={14} color="#5E6986" />
+        </div>
+        {datePreset === 'custom' && (
+          <>
+            <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+              {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            </select>
+            <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </>
+        )}
         <div style={styles.pageSelectWrap}>
           <Facebook size={15} color="#3B82F6" />
           <select value={pageFilter} onChange={(e) => setPageFilter(e.target.value)} style={styles.pageSelect}>
@@ -1366,9 +1557,10 @@ function OrderFilters({
 // عرض الطلبات
 // ──────────────────────────────────────────────
 function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId }) {
-  // const [selectedPage, setSelectedPage] = useState('all'); // Lifted up to AlFhdApp
+  const [selectedPage, setSelectedPage] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [globalOrderSearch, setGlobalOrderSearch] = useState('');
   const [datePreset, setDatePreset] = useState('all');
   const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
   const [customYear, setCustomYear] = useState(new Date().getFullYear());
@@ -1386,8 +1578,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     if (!dateInRange(o.createdAt || o.date, datePreset, customMonth, customYear)) return false;
     if (search) {
       const q = search.trim().toLowerCase();
-      const hay = [o.customer, o.orderNo, o.phone, o.orderType, o.address].filter(Boolean).join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
+      if (!orderSearchHaystack(o).includes(q)) return false;
     }
     return true;
   }
@@ -1420,6 +1611,31 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   // الطلب المحوّل يُستبعد من القوائم كلها (يبقى بالإحصائيات فقط)
   const visibleOrders = useMemo(() => orders.filter((o) => !o.converted), [orders]);
+
+  function orderSearchHaystack(o) {
+    const page = pages.find((p) => p.id === o.pageId);
+    return [o.customer, o.orderNo, o.phone, o.orderType, o.address, o.area, o.governorateName, o.items, o.fahdRef, o.jenniTracking, page?.name]
+      .filter(Boolean).join(' ').toLowerCase();
+  }
+
+  const globalOrderResults = useMemo(() => {
+    const q = globalOrderSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return orders.filter((o) => orderSearchHaystack(o).includes(q)).slice(0, 8);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalOrderSearch, orders, pages]);
+
+  function openOrderFromGlobalSearch(o) {
+    setGlobalOrderSearch('');
+    if (o.converted) {
+      alert(`الطلب #${o.orderNo} محوّل/مؤرشف. يمكنك رؤيته من الإحصائيات ← الطلبات المحوّلة.`);
+      return;
+    }
+    const stage = o.stage || (o.printed ? 'prep' : 'ready');
+    setSection(stage);
+    setStatusFilter('all');
+    setDetailOrder(o);
+  }
 
   const THREE_DAYS = 3 * 86400000;
   function isWithinPrepWindow(o) {
@@ -1473,6 +1689,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   };
 
   function startNewOrder() {
+    if (!pages.length) { alert('لا توجد صفحات مضافة. أضف/اربط صفحة أولاً قبل إنشاء طلب.'); return; }
     setEditingOrder({
       id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
       items: '', orderType: '', total: '', status: 'pending', conversationId: '',
@@ -1694,11 +1911,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       .sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
   }
 
-  // الطباعة تنقل الطلبات من "جاهز للطباعة" إلى "قيد التجهيز"
+  // الطباعة تنقل الطلب من "جاهز للطباعة" إلى "قيد التجهيز" داخل موقعك
+  // وبنفس اللحظة تُنشئ الشحنة داخل Jenni؛ لأن هذه المرحلة تقابل عند Jenni: جاهز للنقل للشركة
   async function markOrdersPrintedAndPrep(ids) {
     if (ids.length === 0) return;
     const batchId = `batch-${Date.now()}`;
     const printedAt = new Date().toISOString();
+    const toSendToJenni = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
     setOrders((prev) => prev.map((o) => (
       ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
     )));
@@ -1709,15 +1928,37 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     } catch (e) {
       console.error('mark printed error:', e);
     }
-    // إرسال صامت لشركة التوصيل Jenni (بالخلفية، لا يعطّل الطباعة)
-    const toSend = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
-    toSend.forEach((o) => { sendOrderToJenni(o); });
+    // مهم: بعد الطباعة مباشرة يدخل الطلب إلى Jenni، لكنه يبقى عندنا باسم "قيد التجهيز"
+    // حتى يتطابق موقعك 100% مع ظهور الطلب في Jenni بقسم جاهز للنقل للشركة.
+    toSendToJenni.forEach((o) => { sendOrderToJenni(o, { silent: true }); });
   }
 
   // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
-  async function sendOrderToJenni(o) {
+  // تنظيف رقم الهاتف ليكون بصيغة 07XXXXXXXXX التي تقبلها جيني
+  function normalizeIraqiPhone(raw) {
+    if (!raw) return '';
+    let digits = String(raw).replace(/[^0-9]/g, '');
+    if (digits.startsWith('964')) digits = '0' + digits.slice(3);
+    if (digits.startsWith('00964')) digits = '0' + digits.slice(5);
+    if (!digits.startsWith('0')) digits = '0' + digits;
+    return digits.slice(0, 11); // 07XXXXXXXXX = 11 رقماً
+  }
+
+  async function sendOrderToJenni(o, { silent = false } = {}) {
     // لا نرسل بدون محافظة أو هاتف (Jenni ترفضه)
-    if (!o.governorateCode || !o.phone) return;
+    if (!o.governorateCode || !o.phone) {
+      const msg = 'لا يمكن الإرسال لجيني: المحافظة ورقم الهاتف مطلوبان';
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+      if (!silent) alert(msg);
+      return false;
+    }
+    const cleanPhone = normalizeIraqiPhone(o.phone);
+    if (cleanPhone.length !== 11 || !cleanPhone.startsWith('07')) {
+      const msg = `رقم الهاتف غير صالح لجيني: ${o.phone}`;
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+      if (!silent) alert(msg);
+      return false;
+    }
     try {
       const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
         method: 'POST',
@@ -1727,26 +1968,37 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           'apikey': SUPABASE_KEY,
         },
         body: JSON.stringify({
-          external_shipment_id: o.id,
-          shipment_number: o.orderNo,
-          receiver_name: o.customer,
-          receiver_phone_1: o.phone,
+          external_shipment_id: String(o.id),
+          shipment_number: String(o.orderNo || o.id),
+          receiver_name: o.customer || '',
+          receiver_phone_1: cleanPhone,
           governorate_code: o.governorateCode,
-          city: o.area || '',
+          city: o.area || o.address?.split(' - ')[1] || '',
           address: o.address || '',
           amount_iqd: Number(o.total) || 0,
+          note: o.orderType || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.success) {
         const patch = { jenni_sent: true, jenni_shipment_id: data.shipment_id || null, jenni_tracking: data.tracking_number || null };
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniShipmentId: data.shipment_id || null, jenniTracking: data.tracking_number || null } : x)));
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniShipmentId: data.shipment_id || null, jenniTracking: data.tracking_number || null, jenniError: null } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-      } else {
-        console.warn('Jenni send failed for order', o.orderNo, data?.error);
+        return true;
       }
+      const errMsg = data?.error || data?.message || `فشل الإرسال لجيني (${res.status})`;
+      console.warn('Jenni send failed for order', o.orderNo, errMsg);
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
+      if (!silent) alert(`فشل الإرسال لجيني:
+${errMsg}`);
+      return false;
     } catch (e) {
+      const errMsg = e?.message || 'خطأ اتصال غير معروف';
       console.warn('Jenni send error:', e);
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
+      if (!silent) alert(`تعذّر الاتصال بجيني:
+${errMsg}`);
+      return false;
     }
   }
 
@@ -1769,12 +2021,16 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     triggerPrint(batchId, null);
   }
 
-  // نقل الطلب يدوياً لمرحلة شركة التوصيل (مؤقتاً لحين ربط شركة التوصيل)
+  // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
+  // إذا لم يكن منشأ لأي سبب، نحاول إنشاءه قبل النقل حتى يبقى التطابق صحيحاً.
   async function moveToDelivery(o) {
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, stage: 'delivery', deliveryStatus: 'sorting' } : x)));
+    const sentOk = o.jenniSent || await sendOrderToJenni(o);
+    if (!sentOk) return;
+    const patch = { stage: 'delivery', delivery_status: 'sorting' };
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, stage: 'delivery', deliveryStatus: 'sorting', jenniSent: true } : x)));
     setDetailOrder(null);
     try {
-      await sbUpdate('alfhd_orders', o.id, { stage: 'delivery', delivery_status: 'sorting' });
+      await sbUpdate('alfhd_orders', o.id, patch);
     } catch (e) { console.error('move to delivery error:', e); }
   }
 
@@ -1786,7 +2042,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
     }
     if (section === 'prep') {
-      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
+      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز · Jenni</div>;
     }
     return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
   }
@@ -1823,6 +2079,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
         )}
 
+        {o.reprepNote && (
+          <div style={styles.orderReprepNoteBox}>
+            <AlertCircle size={14} />
+            <span><strong>ملاحظة {o.reprepByName || 'المدير'}:</strong> {o.reprepNote}</span>
+          </div>
+        )}
+
         <div style={styles.orderTicketBody}>
           {o.orderType && (
             <div style={styles.orderDetailRow}><Package size={12} color="#5E6986" /><span>{o.orderType}</span></div>
@@ -1849,21 +2112,43 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {o.printed && <span style={styles.printedBadge}><Printer size={9} /> مطبوعة</span>}
+            {o.jenniSent && <span style={{ ...styles.printedBadge, background: 'rgba(96,165,250,0.12)', color: '#93C5FD', borderColor: 'rgba(96,165,250,0.32)' }}><Truck size={9} /> داخل Jenni</span>}
+            {o.jenniTracking && <span style={{ ...styles.printedBadge, background: 'rgba(167,139,250,0.12)', color: '#C4B5FD', borderColor: 'rgba(167,139,250,0.32)', fontFamily: 'monospace' }}>#{o.jenniTracking}</span>}
           </div>
         </div>
 
+        {o.jenniError && (
+          <div style={{ background: 'rgba(244,91,105,0.1)', border: '1px solid rgba(244,91,105,0.3)', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#F45B69', marginBottom: 6 }}>
+            ⚠️ فشل الإرسال لجيني: {o.jenniError}
+          </div>
+        )}
         <div style={styles.orderCardActions} className="alfhd-no-print">
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
           {section === 'delivery' && (
-            <select
-              value={o.status}
-              onChange={(e) => updateStatus(o.id, e.target.value)}
-              style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status].color, borderColor: STATUS_CONFIG[o.status].color + '44', background: STATUS_CONFIG[o.status].bg, flex: 1.4 }}
-            >
-              {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
-            </select>
+            o.jenniSent ? (
+              // الطلب عند شركة التوصيل — الحالة تأتي تلقائياً من جيني
+              <div style={{
+                ...styles.statusSelect,
+                color: STATUS_CONFIG[o.status]?.color || '#9AA3B8',
+                background: STATUS_CONFIG[o.status]?.bg || 'rgba(154,163,184,0.1)',
+                borderColor: (STATUS_CONFIG[o.status]?.color || '#9AA3B8') + '44',
+                flex: 1.4, display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 12, fontWeight: 700, cursor: 'default',
+              }}>
+                <Truck size={12} />
+                {STATUS_CONFIG[o.status]?.label || o.deliveryStepAr || 'جاري التحديث...'}
+              </div>
+            ) : (
+              <select
+                value={o.status}
+                onChange={(e) => updateStatus(o.id, e.target.value)}
+                style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status]?.color, borderColor: (STATUS_CONFIG[o.status]?.color || '#999') + '44', background: STATUS_CONFIG[o.status]?.bg, flex: 1.4 }}
+              >
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
+              </select>
+            )
           )}
           {o.conversationId && (
             <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
@@ -1886,7 +2171,34 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <h2 style={styles.viewTitle}>الطلبات</h2>
           <p style={styles.viewSubtitle}>متابعة كاملة لطلباتك عبر مراحل التجهيز والتوصيل</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <div style={styles.globalOrderSearchWrap}>
+            <Search size={14} color="#60A5FA" />
+            <input
+              value={globalOrderSearch}
+              onChange={(e) => setGlobalOrderSearch(e.target.value)}
+              placeholder="بحث عام بالطلبات..."
+              style={styles.globalOrderSearchInput}
+            />
+            {globalOrderSearch.trim().length >= 2 && (
+              <div style={styles.globalOrderResultsBox}>
+                {globalOrderResults.length === 0 ? (
+                  <div style={styles.globalOrderEmpty}>لا توجد نتائج</div>
+                ) : globalOrderResults.map((o) => {
+                  const page = pages.find((p) => p.id === o.pageId);
+                  return (
+                    <button key={o.id} onClick={() => openOrderFromGlobalSearch(o)} style={styles.globalOrderResultItem}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={styles.globalOrderResultTitle}>{o.customer || 'بدون اسم'} <span>#{o.orderNo}</span></div>
+                        <div style={styles.globalOrderResultMeta}>{page?.name || 'بدون صفحة'} · {o.phone || 'بدون هاتف'}</div>
+                      </div>
+                      <OrderStagePill order={o} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <input type="file" accept="image/*" ref={ocrInputRef} onChange={handlePickOcrImage} style={{ display: 'none' }} />
           <button onClick={() => ocrInputRef.current?.click()} style={styles.secondaryBtn} disabled={ocrLoading}>
             {ocrLoading ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Image size={15} />}
@@ -2187,34 +2499,11 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
 
-  const TIME_FILTERS = [
-    { id: 'today', label: 'اليوم' },
-    { id: 'yesterday', label: 'أمس' },
-    { id: 'dayBeforeYesterday', label: 'أول أمس' },
-    { id: 'week', label: 'آخر أسبوع' },
-    { id: 'month', label: 'هذا الشهر' },
-    { id: 'custom', label: 'شهر محدد' },
-    { id: 'all', label: 'الكل' },
-  ];
-
-  const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-
-  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
   function isInRange(dateStr) {
-    if (timeFilter === 'all') return true;
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    const now = new Date();
-    const today = startOfDay(now);
-    if (timeFilter === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (timeFilter === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
-    if (timeFilter === 'dayBeforeYesterday') { const y2 = new Date(today); y2.setDate(y2.getDate() - 2); return startOfDay(d).getTime() === y2.getTime(); }
-    if (timeFilter === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w && d <= now; }
-    if (timeFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    if (timeFilter === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
-    return true;
+    return dateInRange(dateStr, timeFilter, customMonth, customYear);
   }
 
   // كل الإحصائيات تحترم فلتر الصفحة + فلتر الوقت
@@ -2259,8 +2548,6 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   }, [pages, scopedOrders, conversations, statsPage]);
 
   const maxRevenue = Math.max(...perPage.map((p) => p.revenue), 1);
-  const years = [];
-  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
   // ── بيانات قسم الخلاصة ──
   const summary = useMemo(() => {
@@ -2322,24 +2609,27 @@ function StatsView({ orders, pages, conversations, setOrders }) {
         </div>
       </div>
 
-      <div style={styles.timeFilterBar}>
-        {TIME_FILTERS.map((f) => (
-          <button key={f.id} onClick={() => setTimeFilter(f.id)} style={{ ...styles.chip, ...(timeFilter === f.id ? styles.chipActive : {}) }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {timeFilter === 'custom' && (
-        <div style={styles.customDateRow}>
-          <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelect}>
-            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelect}>
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+      <div style={styles.filtersWrap} className="alfhd-no-print">
+        <div style={styles.filterBottomRow}>
+          <div style={styles.pageSelectWrap}>
+            <Calendar size={15} color="#60A5FA" />
+            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={styles.pageSelect}>
+              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+            <ChevronDown size={14} color="#5E6986" />
+          </div>
+          {timeFilter === 'custom' && (
+            <>
+              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row">
         <StatCard icon={Package} label="إجمالي الطلبات" value={breakdown.total} color="#3B82F6" />
@@ -2847,30 +3137,28 @@ function PagesView({ pages, setPages }) {
       <div style={styles.pagesGrid} className="alfhd-pages-grid">
         {pages.map((p) => (
           <div key={p.id} style={styles.pageCard} className="alfhd-order-card">
-            <div style={styles.pageCardAvatar}>{p.avatar}</div>
-            <div style={{ flex: 1 }}>
-              <div style={styles.pageCardName}>{p.name}</div>
-              <div style={{
-                ...styles.pageCardStatus,
-                color: p.connected ? '#4ADE80' : '#3B82F6',
-              }}>
-                <div style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: p.connected ? '#4ADE80' : '#3B82F6',
-                }} />
-                {p.connected ? 'متصلة فعلياً بفيسبوك' : 'بانتظار ربط Access Token'}
+            <div style={styles.pageCardTopLine} />
+            <div style={styles.pageCardHeader}>
+              <div style={styles.pageCardAvatar}>{p.avatar}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={styles.pageCardName}>{p.name}</div>
+                <div style={styles.pageCardMeta}>Facebook Page · {p.fbPageId || 'غير معروف'}</div>
               </div>
+              <button onClick={() => removePage(p.id)} style={styles.iconBtnDanger} title="حذف الصفحة">
+                <Trash2 size={15} />
+              </button>
             </div>
-            <button onClick={() => removePage(p.id)} style={styles.iconBtnDanger}>
-              <Trash2 size={15} />
-            </button>
+            <div style={{ ...styles.pageStatusPill, ...(p.connected ? styles.pageStatusPillOk : styles.pageStatusPillWait) }}>
+              <span style={{ ...styles.liveDot, background: p.connected ? '#4ADE80' : '#60A5FA' }} />
+              {p.connected ? 'متصلة وتستقبل البيانات' : 'بانتظار إكمال الربط'}
+            </div>
             {p.connected && (
               <button
                 onClick={() => subscribePage(p.id)}
                 style={styles.subscribeBtn}
                 disabled={subscribingId === p.id}
               >
-                {subscribingId === p.id ? '...' : 'تفعيل استقبال الرسائل'}
+                {subscribingId === p.id ? 'جارٍ التفعيل...' : 'تفعيل/تحديث استقبال الرسائل'}
               </button>
             )}
           </div>
@@ -2933,9 +3221,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
   const saveUser = async () => {
     if (!form.name.trim() || saving) return;
     const code = form.code.trim();
-    if (form.role === 'warehouse') {
-      if (!/^\d{4}$/.test(code)) { setFormError('رمز موظف المخزن يجب أن يكون 4 أرقام'); return; }
-    } else if (!code) { setFormError('أدخل رمز الدخول'); return; }
+    if (!/^\d{4}$/.test(code)) { setFormError('رمز الدخول يجب أن يكون 4 أرقام'); return; }
 
     const codeTaken = users.some((u) => u.code === code && u.id !== editingUser?.id);
     if (codeTaken) { setFormError('هذا الرمز مستخدم من قبل'); return; }
@@ -3103,8 +3389,8 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
               )}
 
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>{form.role === 'warehouse' ? 'رمز الدخول (4 أرقام)' : 'رمز الدخول'}</label>
-                <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} style={styles.formInput} placeholder={form.role === 'warehouse' ? '1234' : 'رمز رقمي'} inputMode="numeric" />
+                <label style={styles.formLabel}>رمز الدخول (4 أرقام)</label>
+                <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} style={styles.formInput} placeholder="1234" inputMode="numeric" />
               </div>
 
               {form.role !== 'warehouse' && (
@@ -3160,30 +3446,17 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
 function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp }) {
   const [filter, setFilter] = useState('all'); // all | done | rejected
   const [timeFilter, setTimeFilter] = useState('all');
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
-  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function inTime(dateStr) {
-    if (timeFilter === 'all') return true;
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    const now = new Date();
-    const today = startOfDay(now);
-    if (timeFilter === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (timeFilter === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
-    if (timeFilter === 'dayBefore') { const y = new Date(today); y.setDate(y.getDate() - 2); return startOfDay(d).getTime() === y.getTime(); }
-    if (timeFilter === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w && d <= now; }
-    if (timeFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    if (timeFilter === 'year') return d.getFullYear() === now.getFullYear();
-    return true;
+    return dateInRange(dateStr, timeFilter, customMonth, customYear);
   }
 
   const shown = orders.filter((o) => (filter === 'all' || o.prepStatus === filter) && inTime(o.prepAt));
 
-  const TIME_FILTERS = [
-    ['today', 'اليوم'], ['yesterday', 'أمس'], ['dayBefore', 'أول أمس'],
-    ['week', 'الأسبوع'], ['month', 'الشهر'], ['year', 'السنة'], ['all', 'الكل'],
-  ];
 
   if (orders.length === 0) {
     return <div style={styles.emptyState}><CheckCircle2 size={32} color="#39425C" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
@@ -3196,10 +3469,26 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
           <button key={id} onClick={() => setFilter(id)} style={{ ...styles.chip, ...(filter === id ? styles.chipActive : {}) }}>{label}</button>
         ))}
       </div>
-      <div style={{ ...styles.timeFilterBar, marginTop: 10 }} className="alfhd-no-print">
-        {TIME_FILTERS.map(([id, label]) => (
-          <button key={id} onClick={() => setTimeFilter(id)} style={{ ...styles.chip, ...(timeFilter === id ? styles.chipActive : {}) }}>{label}</button>
-        ))}
+      <div style={{ ...styles.filtersWrap, marginTop: 10 }} className="alfhd-no-print">
+        <div style={styles.filterBottomRow}>
+          <div style={styles.pageSelectWrap}>
+            <Calendar size={15} color="#60A5FA" />
+            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={styles.pageSelect}>
+              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+            <ChevronDown size={14} color="#5E6986" />
+          </div>
+          {timeFilter === 'custom' && (
+            <>
+              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
+        </div>
       </div>
 
       <div style={{ ...styles.ordersGrid, marginTop: 14 }}>
@@ -3281,6 +3570,10 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [dayFilter, setDayFilter] = useState('all');
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
   const knownPrepIdsRef = React.useRef(null);
 
   // الطلبات المثبتة (المصدر chat) التي لم تُجهَّز بعد، من كل الصفحات
@@ -3299,24 +3592,15 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
     knownPrepIdsRef.current = ids;
   }, [pendingPrep]);
 
-  // فلتر اليوم
-  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function dayMatch(dateStr, which) {
-    if (which === 'all') return true;
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    const today = startOfDay(new Date());
-    if (which === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (which === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
-    return true;
+    return dateInRange(dateStr, which, customMonth, customYear);
   }
 
-  const dayCounts = useMemo(() => ({
-    all: pendingPrep.length,
-    today: pendingPrep.filter((o) => dayMatch(o.createdAt, 'today')).length,
-    yesterday: pendingPrep.filter((o) => dayMatch(o.createdAt, 'yesterday')).length,
-  }), [pendingPrep]);
+  const dayCounts = useMemo(() => {
+    const out = {};
+    DATE_PRESETS.forEach((f) => { out[f.id] = pendingPrep.filter((o) => dayMatch(o.createdAt, f.id)).length; });
+    return out;
+  }, [pendingPrep, customMonth, customYear]);
 
   const shownPrep = useMemo(
     () => pendingPrep.filter((o) => dayMatch(o.createdAt, dayFilter)),
@@ -3354,19 +3638,26 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
         <button onClick={onLogout} style={styles.mobileLogoutBtn} title="خروج"><LogOut size={18} /></button>
       </div>
 
-      <div style={styles.warehouseFilterBar}>
-        {[['all', 'الكل'], ['today', 'اليوم'], ['yesterday', 'أمس']].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setDayFilter(id)}
-            style={{ ...styles.warehouseFilterChip, ...(dayFilter === id ? styles.warehouseFilterChipActive : {}) }}
-          >
-            {label}
-            <span style={{ ...styles.warehouseFilterCount, ...(dayFilter === id ? styles.warehouseFilterCountActive : {}) }}>
-              {dayCounts[id]}
-            </span>
-          </button>
-        ))}
+      <div style={styles.filtersWrap}>
+        <div style={styles.filterBottomRow}>
+          <div style={styles.pageSelectWrap}>
+            <Calendar size={15} color="#60A5FA" />
+            <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} style={styles.pageSelect}>
+              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label} ({dayCounts[f.id] || 0})</option>)}
+            </select>
+            <ChevronDown size={14} color="#5E6986" />
+          </div>
+          {dayFilter === 'custom' && (
+            <>
+              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
+        </div>
       </div>
 
       {shownPrep.length === 0 ? (
@@ -3385,6 +3676,16 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
               </div>
 
               {o.orderType && <div style={styles.warehouseBigType}>{o.orderType}</div>}
+
+              {o.reprepNote && (
+                <div style={styles.warehouseReprepNote}>
+                  <AlertCircle size={17} />
+                  <div>
+                    <div style={styles.warehouseReprepTitle}>ملاحظة {o.reprepByName || 'المدير'}</div>
+                    <div style={styles.warehouseReprepText}>{o.reprepNote}</div>
+                  </div>
+                </div>
+              )}
 
               {o.items && (
                 <div style={styles.warehouseItemsBox}>
@@ -3432,18 +3733,6 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
 // ──────────────────────────────────────────────
 export default function AlFhdApp() {
   const [activeView, setActiveView] = useState('conversations');
-  const [selectedPage, setSelectedPage] = useState('all'); // Page selection state lifted from ConversationsView
-
-  // Automatically enforce the correct viewport meta tag for mobile scaling on load
-  useEffect(() => {
-    let meta = document.querySelector('meta[name="viewport"]');
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.name = 'viewport';
-      document.head.appendChild(meta);
-    }
-    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-  }, []);
   const [pendingOpenConvId, setPendingOpenConvId] = useState(null);
   const [pendingNewOrderFromConv, setPendingNewOrderFromConv] = useState(null);
   const [pendingOpenOrderId, setPendingOpenOrderId] = useState(null);
@@ -3464,14 +3753,21 @@ export default function AlFhdApp() {
   }, []);
 
 
-  const [pages, setPages] = useState(SEED_PAGES);
-  const [conversations, setConversations] = useState(SEED_CONVERSATIONS);
-  const [orders, setOrders] = useState(SEED_ORDERS);
-  const [users, setUsers] = useState(SEED_USERS);
+  const [pages, setPages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [users, setUsers] = useState([]);
   const [storageReady, setStorageReady] = useState(false);
 
-  // ── حالة تسجيل الدخول ──
-  const [authedUser, setAuthedUser] = useState(null);
+  // ── حالة تسجيل الدخول ── يُستعاد فوراً من localStorage بدون انتظار Supabase
+  const [authedUser, setAuthedUser] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
+      if (saved?.userId && saved?.userData) return saved.userData;
+    } catch (_) {}
+    return null;
+  });
+  const [appLoading, setAppLoading] = useState(!(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session')));
 
   // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
   const convSignatureRef = React.useRef('');
@@ -3483,7 +3779,7 @@ export default function AlFhdApp() {
       );
       if (dbConversations) {
         // وقّع البيانات؛ حدّث الحالة فقط إذا تغيّر شيء فعلاً (يمنع إعادة الرسم غير الضرورية)
-        const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.unread_count}:${c.tab}`).join('|');
+        const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
         if (sig !== convSignatureRef.current) {
           convSignatureRef.current = sig;
           setConversations(dbConversations.map(mapConversationFromDb));
@@ -3518,7 +3814,7 @@ export default function AlFhdApp() {
       rejectedIdsRef.current = rejectedNow;
 
       // حدّث الحالة فقط إذا تغيّر شيء فعلاً
-      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}`).join('|');
+      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}:${o.jenni_sent}:${o.jenni_shipment_id}:${o.jenni_tracking}:${o.delivery_status}:${o.delivery_step}:${o.delivery_step_ar}:${o.delivery_note}:${o.delivery_updated_at}`).join('|');
       if (sig !== orderSignatureRef.current) {
         orderSignatureRef.current = sig;
         setOrders(mapped);
@@ -3539,7 +3835,7 @@ export default function AlFhdApp() {
     (async () => {
       try {
         const [dbPages, dbOrders, dbUsers] = await Promise.all([
-          sbSelect('alfhd_pages', '&order=created_at.asc'),
+          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at', '&order=created_at.asc'),
           sbSelect('alfhd_orders', '&order=created_at.desc'),
           sbSelect('alfhd_users', '&order=created_at.asc'),
         ]);
@@ -3576,30 +3872,45 @@ export default function AlFhdApp() {
     return () => clearInterval(interval);
   }, [storageReady, pollFacebookNow]);
 
-  // استرجاع الجلسة المحفوظة محلياً (الجلسة فقط، مو البيانات نفسها)
+  // بعد تحميل Supabase: حدّث بيانات المستخدم المسجّل (صلاحيات جديدة إلخ) وأوقف شاشة التحميل
   useEffect(() => {
     if (!storageReady) return;
+    setAppLoading(false);
     try {
-      const savedSession = JSON.parse(sessionStorage.getItem('alfhd_session') || 'null');
-      if (savedSession?.userId) {
-        const found = users.find((u) => u.id === savedSession.userId && u.active);
-        if (found) setAuthedUser(found);
+      const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
+      if (saved?.userId) {
+        const found = users.find((u) => u.id === saved.userId && u.active);
+        if (found) {
+          setAuthedUser(found);
+          const store = localStorage.getItem('alfhd_session') ? localStorage : sessionStorage;
+          store.setItem('alfhd_session', JSON.stringify({ userId: found.id, userData: found }));
+        } else if (authedUser) {
+          // المستخدم محذوف أو معطّل في قاعدة البيانات
+          setAuthedUser(null);
+          localStorage.removeItem('alfhd_session');
+          sessionStorage.removeItem('alfhd_session');
+        }
       }
     } catch (e) { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageReady]);
 
-  const handleLogin = (user) => {
+  const handleLogin = (user, rememberMe = true) => {
     ensureAudioReady();
     setAuthedUser(user);
+    setAppLoading(false);
     try {
-      sessionStorage.setItem('alfhd_session', JSON.stringify({ userId: user.id }));
+      const payload = JSON.stringify({ userId: user.id, userData: user });
+      localStorage.removeItem('alfhd_session');
+      sessionStorage.removeItem('alfhd_session');
+      (rememberMe ? localStorage : sessionStorage).setItem('alfhd_session', payload);
     } catch (e) { /* ignore */ }
   };
 
   const handleLogout = () => {
     setAuthedUser(null);
     try {
+      localStorage.removeItem('alfhd_session');
       sessionStorage.removeItem('alfhd_session');
     } catch (e) { /* ignore */ }
   };
@@ -3619,6 +3930,21 @@ export default function AlFhdApp() {
     else if (!digits.startsWith('964')) digits = '964' + digits;
     window.open(`https://wa.me/${digits}`, '_blank');
   }, []);
+
+  // ── شاشة التحميل الأولية (تظهر فقط عند أول تشغيل بدون جلسة محفوظة) ──
+  if (appLoading && !authedUser) {
+    return (
+      <>
+        <GlobalStyles />
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080B14', flexDirection: 'column', gap: 16 }}>
+          <FahdLogo size={52} />
+          <div style={{ color: '#3B82F6', fontSize: 13, animation: 'spin 1s linear infinite', display: 'inline-block' }}>
+            <RefreshCw size={20} />
+          </div>
+        </div>
+      </>
+    );
+  }
 
   // ── شاشة الدخول ──
   if (!authedUser) {
@@ -3657,10 +3983,8 @@ export default function AlFhdApp() {
           onLogout={handleLogout}
           currentUser={authedUser}
           pages={pages}
-          selectedPage={selectedPage}
-          setSelectedPage={setSelectedPage}
         />
-        <main style={styles.mainArea} className="alfhd-main-area">
+        <main style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden' } : {}) }} className="alfhd-main-area">
           {activeView === 'conversations' && (
             <ConversationsView
               conversations={conversations}
@@ -3671,8 +3995,6 @@ export default function AlFhdApp() {
               clearPendingOpenConvId={() => setPendingOpenConvId(null)}
               onCreateOrderFromConv={goToNewOrderFromConversation}
               onOpenOrderDetails={goToOrderDetails}
-              selectedPage={selectedPage}
-              setSelectedPage={setSelectedPage}
             />
           )}
           {activeView === 'orders' && (
@@ -3715,234 +4037,250 @@ export default function AlFhdApp() {
 // ──────────────────────────────────────────────
 // أنماط عامة + خطوط
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// أنماط عامة — Telegram Style
+// ──────────────────────────────────────────────
 function GlobalStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
-      * { box-sizing: border-box !important; font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
-      html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-        max-width: 100% !important;
+      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
+      * { box-sizing: border-box; font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
+
+      :root {
+        --tg-bg:      #0E1621;
+        --tg-panel:   #17212B;
+        --tg-input:   #242F3D;
+        --tg-border:  rgba(255,255,255,0.07);
+        --tg-blue:    #2AABEE;
+        --tg-blue2:   #229ED9;
+        --tg-green:   #4DDB6B;
+        --tg-red:     #F25050;
+        --tg-text:    #F5F5F5;
+        --tg-sub:     #8B9AB3;
+        --tg-dim:     #546880;
+        --tg-hover:   rgba(255,255,255,0.05);
+        --tg-active:  rgba(42,171,238,0.15);
       }
-      html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-        max-width: 100vw !important;
-      }
-      body {
-        margin: 0 !important;
-        background: #0A0E17;
-        background-image:
-          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.08), transparent 60%),
-          radial-gradient(ellipse 60% 50% at 100% 100%, rgba(59,130,246,0.04), transparent 55%);
-        background-attachment: fixed;
-      }
-      input::placeholder, textarea::placeholder { color: #5E6986; }
-      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-        outline: 2px solid rgba(59,130,246,0.5); outline-offset: 1px;
-      }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #2A3550; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #3A4768; }
-      @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        20% { transform: translateX(-8px); }
-        40% { transform: translateX(8px); }
-        60% { transform: translateX(-6px); }
-        80% { transform: translateX(6px); }
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes chatSlideIn {
-        from { transform: translateX(28px); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-      @keyframes msgPop {
-        from { transform: scale(0.92); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
-      }
-      @keyframes cardEnter {
-        from { transform: translateY(12px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-      }
-      @keyframes unreadPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(244,20,60,0.6); }
-        50% { box-shadow: 0 0 0 6px rgba(244,20,60,0); }
-      }
-      .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
-      @keyframes recPulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.4; transform: scale(0.8); }
-      }
-      .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
+
+      body { margin: 0; background: var(--tg-bg); color: var(--tg-text); }
+      input::placeholder, textarea::placeholder { color: var(--tg-dim); }
       input:focus, select:focus, textarea:focus { outline: none; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+        outline: 2px solid rgba(42,171,238,0.5); outline-offset: 1px;
+      }
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 10px; }
+      select, input, textarea { color-scheme: dark; }
       button {
         font-family: 'Cairo', sans-serif; cursor: pointer;
-        transition: transform 0.12s ease, opacity 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+        transition: background 0.13s ease, opacity 0.12s ease, transform 0.1s ease;
       }
-      button:active { transform: scale(0.95); }
-      button:disabled { opacity: 0.55; cursor: default; transform: none; }
-      .alfhd-conv-item, .alfhd-order-card {
-        transition: border-color 0.16s ease, transform 0.16s cubic-bezier(0.22,1,0.36,1), background 0.16s ease, box-shadow 0.16s ease;
+      button:active { transform: scale(0.97); }
+      button:disabled { opacity: 0.45; cursor: default; transform: none !important; }
+
+      .alfhd-app-wrap { background: var(--tg-bg) !important; }
+      .alfhd-app-wrap > aside {
+        width: 260px !important;
+        background: var(--tg-panel) !important;
+        border-left: 1px solid var(--tg-border) !important;
+        backdrop-filter: none !important;
+        box-shadow: none !important;
       }
-      .alfhd-conv-item:active { transform: scale(0.985); background: rgba(255,255,255,0.02); }
-      @media (hover: hover) {
-        .alfhd-order-card:hover {
-          transform: translateY(-3px);
-          border-color: rgba(59,130,246,0.28) !important;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 18px 40px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(59,130,246,0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
-        }
-        .alfhd-conv-item:hover { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06) !important; }
-        .alfhd-nav-item:hover { background: rgba(255,255,255,0.04); color: #C4CEE0 !important; }
-        .alfhd-stat-card:hover { transform: translateY(-2px); }
+      .alfhd-main-area { padding: 0 !important; background: var(--tg-bg) !important; }
+      .alfhd-nav-item { border-radius: 10px !important; font-weight: 700 !important; }
+      .alfhd-nav-item:hover { background: var(--tg-hover) !important; }
+      .alfhd-bottom-nav-item-active,
+      .alfhd-nav-item.alfhd-bottom-nav-item-active {
+        background: var(--tg-active) !important;
+        color: var(--tg-blue) !important;
+        border-color: rgba(42,171,238,0.22) !important;
+        box-shadow: none !important;
       }
-      .alfhd-stat-card { transition: transform 0.16s cubic-bezier(0.22,1,0.36,1); }
+      .alfhd-conv-layout {
+        grid-template-columns: 320px minmax(0,1fr) !important;
+        gap: 0 !important;
+        min-height: 100vh !important;
+      }
+      .alfhd-conv-list {
+        background: var(--tg-panel) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        border-left: 1px solid var(--tg-border) !important;
+        padding: 8px 0 !important;
+        gap: 0 !important;
+        max-height: 100vh !important;
+        box-shadow: none !important;
+      }
+      .alfhd-conv-item {
+        border-radius: 0 !important;
+        border: none !important;
+        border-right: 3px solid transparent !important;
+        padding: 10px 14px !important;
+        margin: 0 !important;
+      }
+      .alfhd-conv-item:hover { background: var(--tg-hover) !important; }
+      .alfhd-conv-item[style*="rgba(59,130,246"],
+      .alfhd-conv-item[style*="rgba(43,124,233"] {
+        background: var(--tg-active) !important;
+        border-right-color: var(--tg-blue) !important;
+      }
+      .alfhd-conv-detail {
+        background: var(--tg-bg) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        min-height: 100vh !important;
+        box-shadow: none !important;
+      }
+      .alfhd-chat-detail-header {
+        background: var(--tg-panel) !important;
+        border-bottom: 1px solid var(--tg-border) !important;
+        padding: 12px 16px !important;
+      }
       .alfhd-chat-scroll {
+        background: var(--tg-bg) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 14px 16px !important;
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
       }
-      .alfhd-chat-bubble-row { animation: msgPop 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
-      .alfhd-card-enter { animation: cardEnter 0.4s cubic-bezier(0.22,1,0.36,1) backwards; }
-      .alfhd-bottom-nav-item, .alfhd-nav-item {
-        transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+      .alfhd-composer-bar {
+        background: var(--tg-panel) !important;
+        border: none !important;
+        border-top: 1px solid var(--tg-border) !important;
+        border-radius: 0 !important;
+        padding: 10px 14px !important;
+        box-shadow: none !important;
       }
-      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg {
-        transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+      .alfhd-linked-order {
+        border-radius: 10px !important;
+        background: var(--tg-input) !important;
+        border-color: var(--tg-border) !important;
       }
-      .alfhd-bottom-nav-item-active svg { transform: scale(1.12); }
+      .alfhd-order-card {
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
+        transition: background 0.13s ease !important;
+      }
+      .alfhd-order-card:hover { background: #1e2d3d !important; transform: none !important; }
+      .alfhd-modal {
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+      }
+      .alfhd-users-grid > *, .alfhd-pages-grid > * {
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
+        backdrop-filter: none !important;
+      }
+      .alfhd-stats-row > *:hover, .alfhd-stats-grid-2 > *:hover,
+      .alfhd-pages-grid > *:hover, .alfhd-users-grid > *:hover {
+        transform: none !important;
+        background: #1e2d3d !important;
+        border-color: rgba(42,171,238,0.18) !important;
+      }
+      .alfhd-view-header { padding: 14px 18px 10px !important; margin-bottom: 12px !important; }
+      .alfhd-chat-bubble-row { animation: msgPop 0.17s ease; }
+      .alfhd-card-enter { animation: cardEnter 0.28s ease backwards; }
+      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg { transition: transform 0.15s ease !important; }
+      .alfhd-bottom-nav-item-active svg { transform: scale(1.08) !important; }
+      .alfhd-login-card {
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+      }
 
-      /* ── تصميم متجاوب للموبايل ── */
+      @keyframes shake {
+        0%,100% { transform: translateX(0); }
+        20% { transform: translateX(-8px); }
+        40% { transform: translateX(8px); }
+        60% { transform: translateX(-5px); }
+        80% { transform: translateX(5px); }
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes chatSlideIn { from { transform:translateX(20px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+      @keyframes msgPop { from { transform:scale(0.95); opacity:0; } to { transform:scale(1); opacity:1; } }
+      @keyframes cardEnter { from { transform:translateY(8px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+      @keyframes unreadPulse {
+        0%,100% { box-shadow: 0 0 0 0 rgba(244,20,60,0.5); }
+        50% { box-shadow: 0 0 0 5px rgba(244,20,60,0); }
+      }
+      .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
+      @keyframes recPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.8); } }
+      .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
+      @keyframes loginFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
+      @keyframes starDrift { from { transform:translate3d(0,0,0); } to { transform:translate3d(-80px,100px,0); } }
+      @keyframes starDriftReverse { from { transform:translate3d(0,0,0); } to { transform:translate3d(80px,-80px,0); } }
+      @keyframes orbitSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+      @keyframes auroraMove { 0%,100% { opacity:0.6; } 50% { opacity:0.85; } }
+      .alfhd-stars-layer { animation: starDrift 30s linear infinite; }
+      .alfhd-stars-layer-2 { animation: starDriftReverse 44s linear infinite; }
+      .alfhd-login-orbit { animation: orbitSpin 36s linear infinite; }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      }
+
       @media (max-width: 860px) {
-        .alfhd-app-wrap {
-          flex-direction: column !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          overflow-x: hidden !important;
-        }
-        .alfhd-main-area {
-          padding: 76px 14px 86px !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          overflow-x: hidden !important;
-        }
-        .alfhd-conv-layout {
-          grid-template-columns: 1fr !important;
-        }
-        .alfhd-conv-list {
-          max-height: none !important;
-        }
-        .alfhd-conv-list-hidden-mobile {
-          display: none !important;
-        }
-        .alfhd-conv-detail-empty {
-          display: none !important;
-        }
+        .alfhd-app-wrap { flex-direction: column !important; }
+        .alfhd-main-area { padding: 52px 0 66px !important; width: 100% !important; }
+        .alfhd-conv-layout { grid-template-columns: 1fr !important; }
+        .alfhd-conv-list { max-height: none !important; border-left: none !important; }
+        .alfhd-conv-list-hidden-mobile { display: none !important; }
+        .alfhd-conv-detail-empty { display: none !important; }
         .alfhd-conv-detail-active-mobile {
-          position: fixed !important;
-          top: 0 !important;
-          right: 0 !important;
-          left: 0 !important;
-          bottom: 0 !important;
-          z-index: 200 !important;
-          border-radius: 0 !important;
-          border: none !important;
-          padding: 0 !important;
-          min-height: 0 !important;
-          height: 100dvh !important;
-          display: flex !important;
-          flex-direction: column !important;
-          animation: chatSlideIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
+          position: fixed !important; top: 0 !important; right: 0 !important;
+          left: 0 !important; bottom: 0 !important; z-index: 200 !important;
+          border-radius: 0 !important; border: none !important; padding: 0 !important;
+          min-height: 0 !important; height: 100dvh !important;
+          display: flex !important; flex-direction: column !important;
+          animation: chatSlideIn 0.2s ease !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-detail-header {
-          padding: 14px 14px 12px !important;
-          padding-top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+          padding: 12px 14px !important;
+          padding-top: calc(12px + env(safe-area-inset-top,0px)) !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-scroll {
-          flex: 1 1 auto !important;
-          max-height: none !important;
-          min-height: 0 !important;
-          padding: 12px 14px !important;
+          flex: 1 1 auto !important; max-height: none !important; min-height: 0 !important; padding: 12px !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-composer-bar {
-          margin: 0 !important;
-          border-radius: 0 !important;
-          border-left: none !important;
-          border-right: none !important;
-          border-bottom: none !important;
+          margin: 0 !important; border-radius: 0 !important;
+          border-left: none !important; border-right: none !important; border-bottom: none !important;
           padding: 10px 12px !important;
-          padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+          padding-bottom: calc(10px + env(safe-area-inset-bottom,0px)) !important;
           flex-shrink: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-linked-order {
-          flex-shrink: 0 !important;
-          margin: 0 14px 0 !important;
-          max-height: 120px !important;
-          overflow-y: auto !important;
+          flex-shrink: 0 !important; margin: 0 12px !important;
+          max-height: 110px !important; overflow-y: auto !important;
         }
-        .alfhd-conv-back-btn {
-          display: flex !important;
-        }
-        .alfhd-chat-scroll {
-          max-height: none !important;
-        }
-        .alfhd-stats-row {
-          grid-template-columns: repeat(2, 1fr) !important;
-        }
-        .alfhd-stats-grid-2 {
-          grid-template-columns: 1fr !important;
-        }
-        .alfhd-orders-table-header {
-          display: none !important;
-        }
-        .alfhd-orders-row {
-          grid-template-columns: 1fr !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 6px !important;
-          padding: 14px !important;
-        }
-        .alfhd-view-header {
-          flex-direction: column !important;
-          align-items: flex-start !important;
-        }
-        .alfhd-pages-grid, .alfhd-users-grid {
-          grid-template-columns: 1fr !important;
-        }
-        .alfhd-bar-chart-row {
-          grid-template-columns: 1fr !important;
-          gap: 6px !important;
-        }
-        .alfhd-modal {
-          max-width: 94vw !important;
-        }
-        .alfhd-login-card {
-          max-width: 92vw !important;
-          padding: 36px 24px !important;
-        }
-      }
-
-      /* ── طباعة الطلبات ── */
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
+        .alfhd-conv-back-btn { display: flex !important; }
+        .alfhd-chat-scroll { max-height: none !important; }
+        .alfhd-stats-row { grid-template-columns: repeat(2,1fr) !important; }
+        .alfhd-stats-grid-2 { grid-template-columns: 1fr !important; }
+        .alfhd-orders-table-header { display: none !important; }
+        .alfhd-orders-row { grid-template-columns: 1fr !important; display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 12px !important; }
+        .alfhd-view-header { flex-direction: column !important; align-items: flex-start !important; }
+        .alfhd-pages-grid, .alfhd-users-grid { grid-template-columns: 1fr !important; }
+        .alfhd-bar-chart-row { grid-template-columns: 1fr !important; gap: 4px !important; }
+        .alfhd-modal { max-width: 94vw !important; }
+        .alfhd-login-card { max-width: 92vw !important; padding: 32px 20px !important; }
       }
 
       @media print {
         body * { visibility: hidden; }
         .alfhd-print-area, .alfhd-print-area * { visibility: visible; }
-        .alfhd-print-area {
-          position: absolute; top: 0; right: 0; left: 0; width: 100%;
-          display: grid !important; grid-template-columns: repeat(2, 1fr) !important;
-        }
-        .alfhd-orders-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; }
+        .alfhd-print-area { position: absolute; top: 0; right: 0; left: 0; width: 100%; display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
+        .alfhd-orders-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
         .alfhd-no-print { display: none !important; }
       }
     `}</style>
@@ -3950,709 +4288,338 @@ function GlobalStyles() {
 }
 
 // ──────────────────────────────────────────────
-// كائن الأنماط (Design Tokens)
+// كائن الأنماط — Telegram Style
 // ──────────────────────────────────────────────
+const TG = '#0E1621';
+const TP = '#17212B';
+const TI = '#242F3D';
+const TB = 'rgba(255,255,255,0.07)';
+const TBL = '#2AABEE';
+const TBL2 = '#229ED9';
+const TGR = '#4DDB6B';
+const TRD = '#F25050';
+const TTX = '#F5F5F5';
+const TSB = '#8B9AB3';
+const TDM = '#546880';
+const TAC = 'rgba(42,171,238,0.15)';
+const TSH = '0 1px 2px rgba(0,0,0,0.4)';
+const TBTN = `linear-gradient(135deg,${TBL},${TBL2})`;
+const TGBTN = 'linear-gradient(135deg,#4DDB6B,#22C55E)';
+const TRDS = 'rgba(242,80,80,0.12)';
+
 const styles = {
   // ── Login ──
-  loginWrap: {
-    minHeight: '100vh', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center',
-    background: '#0A0E17', position: 'relative', overflow: 'hidden',
-    direction: 'rtl', padding: 20,
-  },
-  loginBgPattern: {
-    position: 'absolute', inset: 0,
-    backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(59,130,246,0.06) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(59,130,246,0.04) 0%, transparent 40%)',
-    pointerEvents: 'none',
-  },
-  loginCard: {
-    position: 'relative', zIndex: 1,
-    background: 'linear-gradient(180deg, #161E30 0%, #11141C 100%)',
-    border: '1px solid rgba(59,130,246,0.15)',
-    borderRadius: 22, padding: '50px 38px 42px', width: '100%', maxWidth: 400,
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-    boxShadow: '0 24px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)',
-    overflow: 'hidden',
-  },
-  loginCardAccent: {
-    position: 'absolute', top: 0, right: 0, left: 0, height: 3,
-    background: 'linear-gradient(90deg, transparent, #60A5FA, transparent)',
-  },
+  loginWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: TG, position: 'relative', overflow: 'hidden', direction: 'rtl', padding: 20 },
+  loginSpaceBg: { position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(42,171,238,0.08), transparent 60%)', pointerEvents: 'none' },
+  loginStarsLayer: { position: 'absolute', inset: '-20%', opacity: 0.20, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 0 1px, transparent 1.3px)', backgroundSize: '90px 90px' },
+  loginStarsLayer2: { position: 'absolute', inset: '-18%', opacity: 0.10, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.6) 0 1px, transparent 1.5px)', backgroundSize: '60px 60px' },
+  loginNebulaOne: { position: 'absolute', width: 380, height: 380, borderRadius: '50%', top: '-90px', right: '-110px', background: 'radial-gradient(circle, rgba(42,171,238,0.10), transparent 70%)', filter: 'blur(28px)' },
+  loginNebulaTwo: { position: 'absolute', width: 340, height: 340, borderRadius: '50%', bottom: '-110px', left: '-90px', background: 'radial-gradient(circle, rgba(34,158,217,0.08), transparent 72%)', filter: 'blur(26px)' },
+  loginOrbit: { position: 'absolute', width: 500, height: 500, borderRadius: '50%', border: '1px solid rgba(42,171,238,0.07)', borderTopColor: 'rgba(42,171,238,0.18)', pointerEvents: 'none' },
+  loginBrandTop: { position: 'absolute', top: 20, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, color: TSB, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', background: 'rgba(23,33,43,0.80)', border: `1px solid ${TB}`, borderRadius: 999, padding: '6px 13px' },
+  loginCard: { position: 'relative', zIndex: 1, background: TP, border: `1px solid ${TB}`, borderRadius: 16, padding: '36px 30px 24px', width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'loginFloat 5s ease-in-out infinite' },
+  loginGlassShine: { display: 'none' },
+  loginCardAccent: { position: 'absolute', top: 0, right: 0, left: 0, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, borderRadius: '16px 16px 0 0', opacity: 0.7 },
   loginLogoArea: { position: 'relative', marginBottom: 4 },
-  logoGlow: {
-    position: 'absolute', inset: -20, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)',
-    filter: 'blur(8px)',
-  },
-  loginTitle: {
-    fontSize: 32, fontWeight: 800, color: '#EAF0FB', margin: '18px 0 4px',
-    letterSpacing: '0.02em', fontFamily: "'Cairo', sans-serif",
-  },
-  loginSubtitle: { fontSize: 13, color: '#5E6986', letterSpacing: '0.03em', margin: 0 },
-  inputLabel: { display: 'block', fontSize: 12, color: '#8B96AD', marginBottom: 14, fontWeight: 600, textAlign: 'center' },
+  logoGlow: { position: 'absolute', inset: -22, borderRadius: '50%', background: 'radial-gradient(circle, rgba(42,171,238,0.18) 0%, transparent 70%)', filter: 'blur(10px)' },
+  loginTitle: { fontSize: 28, fontWeight: 800, color: TTX, margin: '12px 0 2px', letterSpacing: '0.03em' },
+  loginSubtitle: { fontSize: 12, color: TSB, margin: 0, fontWeight: 500 },
+  loginMicroCopy: { marginTop: 9, color: TBL, fontSize: 10.5, fontWeight: 700, background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.18)', borderRadius: 999, padding: '4px 11px' },
+  inputLabel: { display: 'block', fontSize: 11, color: TSB, marginBottom: 11, fontWeight: 700, textAlign: 'center', letterSpacing: '0.05em' },
   pinBoxesWrap: { position: 'relative', display: 'flex', gap: 9, justifyContent: 'center', cursor: 'text' },
-  pinBox: {
-    width: 42, height: 52, borderRadius: 12, background: '#0A0E17',
-    border: '1.5px solid rgba(59,130,246,0.18)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: 22, color: '#60A5FA', fontWeight: 700,
-    transition: 'border-color 0.15s, transform 0.12s, background 0.15s',
-  },
-  pinBoxActive: { borderColor: '#3B82F6', transform: 'translateY(-2px)' },
-  pinBoxFilled: { borderColor: 'rgba(59,130,246,0.55)', background: 'rgba(59,130,246,0.07)' },
-  pinBoxError: { borderColor: '#F45B69' },
-  pinHiddenInput: {
-    position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%',
-    border: 'none', padding: 0, margin: 0, cursor: 'text',
-  },
-  errorText: { color: '#F45B69', fontSize: 12, marginTop: 14, textAlign: 'center' },
-  checkbox: { width: 16, height: 16, accentColor: '#3B82F6', cursor: 'pointer' },
-  loginFooter: { marginTop: 28, fontSize: 11, color: '#39425C', position: 'relative', zIndex: 1 },
+  pinBox: { width: 50, height: 56, borderRadius: 10, background: TI, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: TBL, fontWeight: 900, transition: 'border-color 0.13s, transform 0.12s' },
+  pinBoxActive: { borderColor: TBL, transform: 'translateY(-2px)' },
+  pinBoxFilled: { borderColor: 'rgba(42,171,238,0.45)', background: 'rgba(42,171,238,0.07)' },
+  pinBoxError: { borderColor: TRD },
+  pinHiddenInput: { position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', border: 'none', padding: 0, margin: 0, cursor: 'text' },
+  errorText: { color: TRD, fontSize: 11.5, marginTop: 9, textAlign: 'center', fontWeight: 600 },
+  rememberRow: { marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: TSB, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' },
+  loginKeypad: { marginTop: 17, display: 'grid', gridTemplateColumns: 'repeat(3, 50px)', gap: 9, justifyContent: 'center' },
+  loginKeypadBtn: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: TI, color: TTX, fontSize: 16, fontWeight: 700 },
+  loginKeypadGhost: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: 'transparent', color: TSB, fontSize: 11, fontWeight: 700 },
+  checkbox: { width: 14, height: 14, accentColor: TBL, cursor: 'pointer' },
+  loginFooter: { marginTop: 20, fontSize: 10, color: TDM, position: 'relative', zIndex: 1, letterSpacing: '0.04em' },
 
   // ── App layout ──
-  appWrap: {
-    display: 'flex', minHeight: '100vh', background: '#0A0E17',
-    direction: 'rtl', color: '#EAF0FB', fontFamily: "'Cairo', sans-serif",
-  },
-  sidebar: {
-    width: 264, background: 'linear-gradient(180deg,#121826,#0E1422)', borderLeft: '1px solid rgba(255,255,255,0.06)',
-    display: 'flex', flexDirection: 'column', padding: '24px 16px', flexShrink: 0,
-  },
-  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 11, padding: '0 8px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 18 },
-  sidebarBrand: { fontSize: 18, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
-  sidebarBrandSub: { fontSize: 10, color: '#5E6986', letterSpacing: '0.04em' },
-  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
-  navItem: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
-    borderRadius: 11, border: '1px solid transparent', background: 'transparent', color: '#8B96AD',
-    fontSize: 14, fontWeight: 500, textAlign: 'right', position: 'relative',
-    transition: 'all 0.18s cubic-bezier(0.22,1,0.36,1)',
-  },
-  navItemActive: {
-    background: 'linear-gradient(90deg, rgba(59,130,246,0.16), rgba(59,130,246,0.05))',
-    borderColor: 'rgba(59,130,246,0.22)', color: '#93C5FD', fontWeight: 700,
-  },
-  navActiveDot: { position: 'absolute', right: -16, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, borderRadius: 4, background: '#3B82F6', boxShadow: '0 0 10px rgba(59,130,246,0.6)' },
-  sidebarFooter: { paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' },
-  userBadge: { display: 'flex', alignItems: 'center', gap: 11, padding: '8px', marginBottom: 8 },
-  userAvatar: {
-    width: 36, height: 36, borderRadius: 11, background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
-    color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontWeight: 700, fontSize: 14, flexShrink: 0, boxShadow: '0 4px 12px -2px rgba(59,130,246,0.5)',
-  },
-  userName: { fontSize: 13, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  userRole: { fontSize: 11, color: '#5E6986' },
-  logoutBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '11px 14px',
-    background: 'transparent', border: '1px solid rgba(244,91,105,0.2)', borderRadius: 11,
-    color: '#F45B69', fontSize: 13, fontWeight: 600,
-  },
+  appWrap: { display: 'flex', minHeight: '100vh', background: TG, direction: 'rtl', color: TTX, fontFamily: "'Cairo', sans-serif" },
+  sidebar: { width: 260, background: TP, borderLeft: `1px solid ${TB}`, display: 'flex', flexDirection: 'column', padding: '14px 10px', flexShrink: 0 },
+  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px 14px', borderBottom: `1px solid ${TB}`, marginBottom: 10 },
+  sidebarBrand: { fontSize: 15.5, fontWeight: 800, color: TTX },
+  sidebarBrandSub: { fontSize: 9, color: TDM, letterSpacing: '0.05em', textTransform: 'uppercase' },
+  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1 },
+  navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 10, border: '1px solid transparent', background: 'transparent', color: TSB, fontSize: 13.5, fontWeight: 600, textAlign: 'right', position: 'relative', transition: 'all 0.12s ease' },
+  navItemActive: { background: TAC, borderColor: 'rgba(42,171,238,0.20)', color: TBL, fontWeight: 700 },
+  navActiveDot: { position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)', width: 3, height: 15, borderRadius: 4, background: TBL },
+  sidebarFooter: { paddingTop: 11, borderTop: `1px solid ${TB}` },
+  userBadge: { display: 'flex', alignItems: 'center', gap: 9, padding: '6px', marginBottom: 7 },
+  userAvatar: { width: 32, height: 32, borderRadius: '50%', background: TBTN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
+  userName: { fontSize: 13, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  userRole: { fontSize: 10, color: TDM },
+  logoutBtn: { display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '9px 11px', background: 'transparent', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 10, color: TRD, fontSize: 12.5, fontWeight: 600 },
 
-  // ── Mobile header + bottom nav ──
-  mobileHeader: {
-    position: 'fixed', top: 0, right: 0, left: 0, height: 58, zIndex: 100,
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'rgba(14,20,34,0.82)', backdropFilter: 'blur(16px)',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    padding: '0 16px', direction: 'rtl',
-  },
-  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 9 },
-  mobileHeaderTitle: { fontSize: 16, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
-  mobileLogoutBtn: {
-    width: 34, height: 34, borderRadius: 10, background: 'rgba(244,91,105,0.1)',
-    border: 'none', color: '#F45B69', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  bottomNav: {
-    position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100,
-    display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-    background: 'rgba(14,20,34,0.9)', backdropFilter: 'blur(16px)',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
-    padding: '8px 4px 10px', direction: 'rtl',
-  },
-  bottomNavItem: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-    background: 'transparent', border: 'none', color: '#5E6986', padding: '6px 1px',
-    flex: 1, minWidth: 0, position: 'relative',
-  },
-  bottomNavItemActive: { color: '#60A5FA' },
-  bottomNavLabel: { fontSize: 9, fontWeight: 600, whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.1, maxWidth: '100%', wordBreak: 'break-all' },
+  // ── Mobile ──
+  mobileHeader: { position: 'fixed', top: 0, right: 0, left: 0, height: 52, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: TP, borderBottom: `1px solid ${TB}`, padding: '0 14px', direction: 'rtl' },
+  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 8 },
+  mobileHeaderTitle: { fontSize: 15, fontWeight: 800, color: TTX },
+  mobileLogoutBtn: { width: 32, height: 32, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  bottomNav: { position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: TP, borderTop: `1px solid ${TB}`, padding: '6px 4px 8px', direction: 'rtl' },
+  bottomNavItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'transparent', border: 'none', color: TDM, padding: '5px 8px', flex: 1, minWidth: 0, position: 'relative' },
+  bottomNavItemActive: { color: TBL },
+  bottomNavLabel: { fontSize: 9.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
-  mainArea: { flex: 1, overflow: 'auto', padding: '32px 36px' },
-  viewWrap: { animation: 'fadeUp 0.35s cubic-bezier(0.22,1,0.36,1)', maxWidth: 1400 },
-  viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 26, flexWrap: 'wrap', gap: 14 },
-  viewTitle: { fontSize: 25, fontWeight: 800, color: '#EAF0FB', margin: 0, letterSpacing: '-0.02em' },
-  viewSubtitle: { fontSize: 13, color: '#5E6986', margin: '5px 0 0', letterSpacing: '0.01em' },
-
-  pageSelectWrap: {
-    display: 'flex', alignItems: 'center', gap: 8, background: '#1A2235',
-    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 12px',
-  },
-  pageSelect: {
-    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13,
-    fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
-  },
+  mainArea: { flex: 1, overflow: 'auto', padding: '0', position: 'relative', background: TG },
+  viewWrap: { animation: 'fadeUp 0.26s ease', maxWidth: 1480, margin: '0 auto', padding: '16px 18px' },
+  viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap', gap: 11 },
+  viewTitle: { fontSize: 19, fontWeight: 800, color: TTX, margin: 0, letterSpacing: '-0.02em' },
+  viewSubtitle: { fontSize: 12, color: TDM, margin: '3px 0 0', fontWeight: 500 },
+  pageSelectWrap: { display: 'flex', alignItems: 'center', gap: 7, background: TI, border: 'none', borderRadius: 10, padding: '6px 11px' },
+  pageSelect: { background: 'transparent', border: 'none', color: TTX, fontSize: 12.5, fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
 
   // ── Conversations ──
-  convTabs: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
-  convTab: {
-    display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px',
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12,
-    color: '#8B96AD', fontSize: 13, fontWeight: 600, transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
-  },
-  convTabActive: {
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-    borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
-  },
-  convTabCount: {
-    background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700,
-  },
-  convTabCountActive: { background: 'rgba(59,130,246,0.3)', color: '#93C5FD' },
-  unreadPulse: {
-    position: 'absolute', top: -6, left: -6, minWidth: 18, height: 18, padding: '0 5px',
-    borderRadius: 20, background: '#F4143C', color: '#fff', fontSize: 10, fontWeight: 800,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: '2px solid #0A0E17',
-  },
-  markAllReadBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%',
-    padding: '9px', marginBottom: 8, background: 'rgba(59,130,246,0.1)',
-    border: '1px solid rgba(59,130,246,0.22)', borderRadius: 11, color: '#60A5FA',
-    fontSize: 12, fontWeight: 700,
-  },
+  convTabs: { display: 'flex', gap: 5, marginBottom: 0, flexWrap: 'wrap', padding: '0 0 9px' },
+  convTab: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12, fontWeight: 600, transition: 'all 0.12s ease' },
+  convTabActive: { background: TAC, color: TBL },
+  convTabCount: { background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 6px', fontSize: 10, fontWeight: 700 },
+  convTabCountActive: { background: 'rgba(42,171,238,0.28)', color: TBL },
+  unreadPulse: { position: 'absolute', top: -5, left: -5, minWidth: 15, height: 15, padding: '0 4px', borderRadius: 20, background: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${TP}` },
+  markAllReadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '7px', marginBottom: 4, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 0, color: TBL, fontSize: 12, fontWeight: 600 },
+  markAllReadBtnDisabled: { opacity: 0.38, color: TDM, background: 'transparent', cursor: 'not-allowed' },
 
-  convLayout: { display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, minHeight: 500 },
-  convList: {
-    background: 'transparent', border: 'none', borderRadius: 0,
-    padding: 0, display: 'flex', flexDirection: 'column', gap: 0, maxHeight: 640, overflow: 'auto',
-  },
-  searchBox: {
-    display: 'flex', alignItems: 'center', gap: 9, background: '#161E30',
-    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 15px', marginBottom: 6,
-  },
-  searchInput: {
-    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13.5,
-    width: '100%', fontFamily: "'Cairo', sans-serif",
-  },
-  convItem: {
-    display: 'flex', gap: 13, padding: '11px 10px', background: 'transparent', border: 'none',
-    borderBottom: '1px solid rgba(255,255,255,0.05)', borderRadius: 0,
-    textAlign: 'right', alignItems: 'center', transition: 'background 0.16s ease', width: '100%',
-  },
-  convItemActive: { background: 'rgba(59,130,246,0.1)', borderRadius: 14, borderBottomColor: 'transparent' },
-  convAvatar: {
-    width: 52, height: 52, borderRadius: '50%', background: '#222C42', color: '#3B82F6',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 18,
-  },
-  convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  convCustomer: { fontSize: 14.5, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  convTime: { fontSize: 11.5, color: '#5E6986', flexShrink: 0, marginRight: 8 },
-  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' },
-  convLastMsg: { fontSize: 12.5, color: '#7C879E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
-  unreadBadge: {
-    background: 'linear-gradient(135deg,#60A5FA,#3B82F6)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800,
-    padding: '2px 8px', minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    textAlign: 'center', flexShrink: 0, boxShadow: '0 2px 8px -1px rgba(59,130,246,0.5)',
-  },
+  convLayout: { display: 'grid', gridTemplateColumns: '320px 1fr', gap: 0, minHeight: '100vh', alignItems: 'stretch' },
+  convList: { background: TP, border: 'none', borderRadius: 0, borderLeft: `1px solid ${TB}`, padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 0, maxHeight: '100vh', overflow: 'auto', boxShadow: 'none' },
+  searchBox: { display: 'flex', alignItems: 'center', gap: 8, background: TI, border: 'none', borderRadius: 10, padding: '8px 12px', margin: '0 10px 7px', boxShadow: 'none' },
+  searchInput: { background: 'transparent', border: 'none', color: TTX, fontSize: 12.5, width: '100%', fontFamily: "'Cairo', sans-serif" },
+  convItem: { display: 'flex', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', borderRight: '3px solid transparent', borderRadius: 0, textAlign: 'right', alignItems: 'center', transition: 'background 0.12s ease', width: '100%' },
+  convItemActive: { background: TAC, borderRightColor: TBL },
+  convAvatar: { width: 44, height: 44, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 15 },
+  convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  convCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  convTime: { fontSize: 10.5, color: TDM, flexShrink: 0, marginRight: 5 },
+  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
+  convLastMsg: { fontSize: 12, color: TSB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
+  convMiniMetaRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 3, minHeight: 14 },
+  convMiniMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 999, background: 'rgba(42,171,238,0.08)', color: TBL, fontSize: 9, fontWeight: 700 },
+  unreadBadge: { background: TBL, color: '#fff', borderRadius: 20, fontSize: 10.5, fontWeight: 800, padding: '2px 7px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0 },
 
-  convDetail: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 24, display: 'flex', flexDirection: 'column', minHeight: 560, minWidth: 0, overflow: 'hidden',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  detailHeader: { display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 14 },
-  convBackBtn: {
-    display: 'none', width: 36, height: 36, borderRadius: 11, background: '#1A2235',
-    border: '1px solid rgba(255,255,255,0.06)', color: '#C4CEE0', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0,
-  },
-  convAvatarLg: {
-    width: 48, height: 48, borderRadius: '50%', background: '#222C42', color: '#3B82F6',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, flexShrink: 0,
-  },
-  detailName: { fontSize: 16, fontWeight: 700, color: '#EAF0FB' },
-  detailPage: { fontSize: 12, color: '#5E6986' },
-  pinOrderBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 13px',
-    background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)',
-    borderRadius: 11, color: '#60A5FA', fontSize: 12, fontWeight: 700, flexShrink: 0,
-  },
-  chatScroll: {
-    flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
-    padding: '8px 2px', minHeight: 240, maxHeight: 480,
-  },
-  msgBubbleIn: {
-    background: '#1E2740', borderRadius: '18px 6px 18px 18px', padding: '10px 14px',
-    fontSize: 13, color: '#EAF0FB', maxWidth: '78%', lineHeight: 1.6,
-    display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-    overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
-  },
-  msgBubbleOut: {
-    background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
-    borderRadius: '6px 18px 18px 18px', padding: '10px 14px',
-    fontSize: 13, color: '#ffffff', maxWidth: '78%', lineHeight: 1.6,
-    display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 12px -2px rgba(59,130,246,0.45)',
-    overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
-  },
-  msgImage: { width: '100%', maxWidth: 220, borderRadius: 12, display: 'block' },
-  msgAudio: { width: 220, maxWidth: '100%', height: 36 },
-  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.5)', alignSelf: 'flex-end' },
-  composerBar: {
-    display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 16, padding: 8,
-  },
-  composerIconBtn: {
-    width: 38, height: 38, borderRadius: 11, background: 'transparent',
-    border: 'none', color: '#8B96AD', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0,
-  },
-  recordingBar: {
-    display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '4px 6px',
-  },
-  recordingInfo: { flex: 1, display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'center' },
-  recordingDot: { width: 11, height: 11, borderRadius: '50%', background: '#F4143C', flexShrink: 0 },
-  recordingTime: { fontSize: 15, fontWeight: 800, color: '#EAF0FB', fontFamily: 'monospace', minWidth: 44 },
-  recordingLabel: { fontSize: 12.5, color: '#8B96AD' },
-  recordingCancelBtn: {
-    width: 40, height: 40, borderRadius: 12, background: 'rgba(244,91,105,0.12)',
-    border: '1px solid rgba(244,91,105,0.25)', color: '#F45B69',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  recordingSendBtn: {
-    width: 44, height: 44, borderRadius: 13, background: 'linear-gradient(135deg, #60A5FA, #2563EB)',
-    border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.6)',
-  },
-  composerInput: {
-    flex: 1, background: 'transparent', border: 'none', color: '#EAF0FB',
-    fontSize: 13.5, padding: '6px 4px', fontFamily: "'Cairo', sans-serif",
-  },
-  composerSendBtn: {
-    width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg, #60A5FA, #2563EB)',
-    border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px -2px rgba(59,130,246,0.5)',
-  },
-  linkedOrderCard: {
-    background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)',
-    borderRadius: 14, padding: 16, marginBottom: 14,
-  },
-  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#3B82F6', marginBottom: 12 },
-  linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 9 },
+  convDetail: { background: TG, border: 'none', borderRadius: 0, padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0, overflow: 'hidden', boxShadow: 'none' },
+  detailHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${TB}`, marginBottom: 0, position: 'relative', background: TP },
+  convBackBtn: { display: 'none', width: 32, height: 32, borderRadius: 9, background: TI, border: 'none', color: TSB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  convAvatarLg: { width: 40, height: 40, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 },
+  detailName: { fontSize: 14.5, fontWeight: 800, color: TTX },
+  detailPage: { fontSize: 11, color: TDM, fontWeight: 500 },
+  chatHeaderMetaRow: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 3 },
+  chatHeaderMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 999, background: TI, color: TSB, fontSize: 9.5, fontWeight: 600 },
+  pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 11.5, fontWeight: 700, flexShrink: 0 },
+  chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
+  msgBubbleIn: { background: '#182533', border: 'none', borderRadius: '16px 16px 16px 4px', padding: '8px 12px', fontSize: 13.5, color: TTX, maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 },
+  msgBubbleOut: { background: '#2B5278', border: 'none', borderRadius: '16px 16px 4px 16px', padding: '8px 12px', fontSize: 13.5, color: '#fff', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 },
+  chatDateDivider: { alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 10, fontWeight: 600 },
+  msgImage: { width: '100%', maxWidth: 260, borderRadius: 10, display: 'block' },
+  msgAudio: { width: 240, maxWidth: '100%', height: 34 },
+  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.45)', alignSelf: 'flex-end', fontWeight: 500 },
+  composerBar: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 0, background: TP, border: 'none', borderTop: `1px solid ${TB}`, borderRadius: 0, padding: '10px 14px', boxShadow: 'none' },
+  composerIconBtn: { width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TDM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  recordingBar: { display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' },
+  recordingInfo: { flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
+  recordingDot: { width: 9, height: 9, borderRadius: '50%', background: TRD, flexShrink: 0 },
+  recordingTime: { fontSize: 14, fontWeight: 800, color: TTX, fontFamily: 'monospace', minWidth: 42 },
+  recordingLabel: { fontSize: 12, color: TDM },
+  recordingCancelBtn: { width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  recordingSendBtn: { width: 38, height: 38, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  composerInput: { flex: 1, background: 'transparent', border: 'none', color: TTX, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" },
+  composerSendBtn: { width: 36, height: 36, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  linkedOrderCard: { background: TI, border: `1px solid ${TB}`, borderRadius: 10, padding: 12, marginBottom: 9 },
+  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: TBL, marginBottom: 9 },
+  linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 7 },
   linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  linkedOrderLabel: { fontSize: 12, color: '#5E6986' },
-  linkedOrderValue: { fontSize: 13, color: '#EAF0FB', fontWeight: 600 },
-  linkedOrderDetailBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%',
-    marginTop: 12, padding: '10px', background: 'rgba(59,130,246,0.12)',
-    border: '1px solid rgba(59,130,246,0.3)', borderRadius: 11, color: '#60A5FA',
-    fontSize: 12.5, fontWeight: 700,
-  },
-
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '50px 20px', color: '#5E6986', fontSize: 13 },
-  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: '#5E6986', fontSize: 14 },
+  linkedOrderLabel: { fontSize: 11.5, color: TDM },
+  linkedOrderValue: { fontSize: 12.5, color: TTX, fontWeight: 600 },
+  linkedOrderDetailBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '8px', background: 'rgba(42,171,238,0.09)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700 },
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TDM, fontSize: 13 },
+  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 11, flex: 1, color: TDM, fontSize: 13 },
 
   // ── Orders ──
-  printBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: 'linear-gradient(135deg,#60A5FA,#2563EB)', border: 'none', borderRadius: 11,
-    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.55)',
-  },
-  secondaryBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px',
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 11,
-    color: '#C4CEE0', fontSize: 13, fontWeight: 700,
-  },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 },
-  statCard: {
-    display: 'flex', alignItems: 'center', gap: 13, background: 'linear-gradient(180deg,#141B2C,#111725)',
-    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '18px 20px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  statIconWrap: { width: 42, height: 42, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  statValue: { fontSize: 22, fontWeight: 800, color: '#EAF0FB', lineHeight: 1.15, letterSpacing: '-0.02em' },
-  statLabel: { fontSize: 11, color: '#5E6986', marginTop: 3 },
-
-  sectionTabs: { display: 'flex', gap: 8, marginBottom: 18 },
-  sectionTab: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: '#111725', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 13,
-    color: '#8B96AD', fontSize: 13, fontWeight: 700, transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
-  },
-  sectionTabActive: {
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-    borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
-  },
-  filterChips: { display: 'flex', gap: 6 },
-  chip: {
-    padding: '8px 14px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 10, color: '#8B96AD', fontSize: 12, fontWeight: 600,
-  },
-  chipActive: { background: 'rgba(59,130,246,0.14)', borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD' },
-
-  ordersGrid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16,
-  },
-  orderCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-    transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
-  },
-  orderTicketHead: {
-    display: 'flex', alignItems: 'center', gap: 11, padding: '15px 16px 12px',
-  },
-  orderTicketAvatar: {
-    width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.25), rgba(59,130,246,0.08))',
-    border: '1px solid rgba(59,130,246,0.2)', color: '#93C5FD',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 17,
-  },
-  orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderTicketPage: { fontSize: 11.5, color: '#5E6986', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderStatusPill: {
-    fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 11px', flexShrink: 0,
-  },
-  orderTicketBody: {
-    padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 7,
-  },
-  orderDetailRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#8B96AD' },
-  deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#60A5FA', fontWeight: 700, marginTop: 2 },
-  orderTicketItems: {
-    fontSize: 12.5, color: '#C4CEE0', background: 'rgba(255,255,255,0.03)', borderRadius: 11,
-    padding: '10px 12px', marginTop: 2, lineHeight: 1.55, border: '1px solid rgba(255,255,255,0.04)',
-  },
-  orderTicketFoot: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-    padding: '12px 16px', borderTop: '1px dashed rgba(255,255,255,0.08)',
-  },
-  orderCardTotal: { fontSize: 19, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.02em' },
-  orderCurrency: { fontSize: 12, fontWeight: 600, color: '#5E6986' },
-  orderTicketMeta: { display: 'flex', gap: 5, alignItems: 'center', fontSize: 10.5, color: '#5E6986', marginTop: 3 },
-  printedBadge: {
-    display: 'inline-flex', alignItems: 'center', gap: 3,
-    background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)',
-    borderRadius: 20, padding: '2px 9px', fontSize: 10, fontWeight: 700,
-  },
-  batchBlock: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: 18,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  batchHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10,
-  },
-  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#EAF0FB' },
-  batchHeaderTime: { fontSize: 11, color: '#5E6986', fontWeight: 500 },
-  orderCardActions: {
-    display: 'flex', gap: 6, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)',
-    background: 'rgba(0,0,0,0.15)',
-  },
-  orderActionBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: 34, borderRadius: 10, background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    color: '#8B96AD',
-  },
-  statusSelect: {
-    border: '1px solid', borderRadius: 10, padding: '6px 10px', fontSize: 12,
-    fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
-  },
+  printBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  secondaryBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 600 },
+  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 },
+  statCard: { display: 'flex', alignItems: 'center', gap: 11, background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: '13px 15px', boxShadow: TSH },
+  statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  statValue: { fontSize: 20, fontWeight: 800, color: TTX, lineHeight: 1.15, letterSpacing: '-0.02em' },
+  statLabel: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  sectionTabs: { display: 'flex', gap: 5, marginBottom: 13 },
+  sectionTab: { display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12.5, fontWeight: 600, transition: 'all 0.12s ease' },
+  sectionTabActive: { background: TAC, color: TBL },
+  filterChips: { display: 'flex', gap: 5 },
+  chip: { padding: '6px 12px', background: TI, border: 'none', borderRadius: 20, color: TDM, fontSize: 11.5, fontWeight: 600 },
+  chipActive: { background: TAC, color: TBL },
+  ordersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(272px,1fr))', gap: 11 },
+  orderCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'background 0.12s ease' },
+  orderTicketHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px 9px' },
+  orderTicketAvatar: { width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15 },
+  orderCardCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderTicketPage: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderStatusPill: { fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: '3px 9px', flexShrink: 0 },
+  orderTicketBody: { padding: '0 13px 9px', display: 'flex', flexDirection: 'column', gap: 5 },
+  orderDetailRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TSB },
+  deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TBL, fontWeight: 700, marginTop: 2 },
+  orderTicketItems: { fontSize: 11.5, color: '#C8D0DC', background: TI, borderRadius: 8, padding: '8px 10px', marginTop: 2, lineHeight: 1.55, border: 'none' },
+  orderTicketFoot: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '9px 13px', borderTop: `1px solid ${TB}` },
+  orderCardTotal: { fontSize: 17, fontWeight: 800, color: TTX, letterSpacing: '-0.02em' },
+  orderCurrency: { fontSize: 11, fontWeight: 500, color: TDM },
+  orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, color: TDM, marginTop: 2 },
+  printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(77,219,107,0.11)', color: TGR, borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 },
+  batchBlock: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  batchHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
+  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: TTX },
+  batchHeaderTime: { fontSize: 10.5, color: TDM, fontWeight: 500 },
+  orderCardActions: { display: 'flex', gap: 5, padding: '9px 13px', borderTop: `1px solid ${TB}`, background: 'rgba(0,0,0,0.08)' },
+  orderActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 31, borderRadius: 8, background: TI, border: 'none', color: TDM },
+  statusSelect: { border: '1px solid', borderRadius: 8, padding: '5px 8px', fontSize: 11.5, fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
 
   // ── Stats ──
-  chartCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 24, marginBottom: 20, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  timeFilterBar: { display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' },
-  customDateRow: { display: 'flex', gap: 10, marginBottom: 20 },
-  customDateSelect: {
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 11,
-    padding: '10px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif", flex: 1,
-  },
-  filtersWrap: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
-  dateChipsRow: {
-    display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2,
-    WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
-  },
-  filterBottomRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },
-  chartTitle: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', margin: '0 0 18px' },
-  barChartArea: { display: 'flex', flexDirection: 'column', gap: 16 },
-  barChartRow: { display: 'grid', gridTemplateColumns: '180px 1fr 120px', gap: 14, alignItems: 'center' },
-  barChartLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#C4CEE0', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
-  barChartTrack: { height: 10, background: '#1A2235', borderRadius: 6, overflow: 'hidden' },
-  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1D4ED8,#60A5FA)', borderRadius: 6, transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', boxShadow: '0 0 12px -2px rgba(59,130,246,0.6)' },
-  barChartValue: { fontSize: 12, fontWeight: 700, color: '#60A5FA', textAlign: 'left' },
-
-  statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
-  donutWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0' },
+  chartCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 16, marginBottom: 13, boxShadow: TSH },
+  timeFilterBar: { display: 'flex', gap: 5, marginBottom: 12, flexWrap: 'wrap' },
+  customDateRow: { display: 'flex', gap: 8, marginBottom: 14 },
+  customDateSelect: { background: TI, border: 'none', borderRadius: 9, padding: '8px 11px', color: TTX, fontSize: 12.5, fontFamily: "'Cairo', sans-serif", flex: 1 },
+  customDateSelectCompact: { background: TI, border: 'none', borderRadius: 9, padding: '8px 10px', color: TTX, fontSize: 12, fontFamily: "'Cairo', sans-serif", minWidth: 110 },
+  filtersWrap: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, background: TI, borderRadius: 10, padding: 10 },
+  dateChipsRow: { display: 'none' },
+  filterBottomRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
+  chartTitle: { fontSize: 14, fontWeight: 700, color: TTX, margin: '0 0 13px' },
+  barChartArea: { display: 'flex', flexDirection: 'column', gap: 12 },
+  barChartRow: { display: 'grid', gridTemplateColumns: '165px 1fr 105px', gap: 11, alignItems: 'center' },
+  barChartLabel: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: TSB, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+  barChartTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
+  barChartFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4, transition: 'width 0.5s ease' },
+  barChartValue: { fontSize: 11.5, fontWeight: 700, color: TBL, textAlign: 'left' },
+  statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 },
+  donutWrap: { display: 'flex', justifyContent: 'center', padding: '8px 0' },
   pageStatRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  pageStatInfo: { display: 'flex', alignItems: 'center', gap: 10 },
-  pageStatBadge: {
-    background: '#1A2235', padding: '5px 12px', borderRadius: 20, fontSize: 11,
-    fontWeight: 700, color: '#8B96AD',
-  },
+  pageStatInfo: { display: 'flex', alignItems: 'center', gap: 9 },
+  pageStatBadge: { background: TI, padding: '4px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 700, color: TSB },
 
   // ── Pages ──
-  addBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)', border: 'none', borderRadius: 10,
-    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
-  },
-  confirmBtn: {
-    background: '#3B82F6', border: 'none', borderRadius: 8, padding: '0 18px',
-    color: '#ffffff', fontWeight: 700, fontSize: 13,
-  },
-  fbErrorBox: {
-    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-    background: 'rgba(244,91,105,0.08)', border: '1px solid rgba(244,91,105,0.25)',
-    borderRadius: 12, padding: '12px 16px', color: '#F45B69', fontSize: 13, lineHeight: 1.6,
-  },
-  fbExchangingBox: {
-    marginBottom: 16, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
-    borderRadius: 12, padding: '12px 16px', color: '#3B82F6', fontSize: 13,
-  },
-  fbCandidatesWrap: {
-    marginBottom: 20, background: '#111725', border: '1px solid rgba(59,130,246,0.2)',
-    borderRadius: 14, padding: 16,
-  },
-  fbCandidatesTitle: { fontSize: 13, fontWeight: 700, color: '#EAF0FB', marginBottom: 12 },
-  fbCandidateRow: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-  },
-  fbCandidateAvatarImg: { width: 38, height: 38, borderRadius: 10, objectFit: 'cover' },
-  fbCandidateId: { fontSize: 11, color: '#5E6986', marginTop: 2 },
-  pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 },
-  pageCard: {
-    display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(180deg,#141B2C,#111725)',
-    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 18,
-    flexWrap: 'wrap', boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  subscribeBtn: {
-    width: '100%', marginTop: 4, background: 'rgba(74,222,128,0.1)',
-    border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '8px 0',
-    color: '#4ADE80', fontSize: 12, fontWeight: 700,
-  },
-  pageCardAvatar: {
-    width: 44, height: 44, borderRadius: 12, background: '#1A2235', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
-  },
-  pageCardName: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
-  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginTop: 4, fontWeight: 600 },
-  iconBtnDanger: {
-    width: 32, height: 32, borderRadius: 9, background: 'rgba(244,91,105,0.1)',
-    border: 'none', color: '#F45B69', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
+  addBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  confirmBtn: { background: TBL, border: 'none', borderRadius: 8, padding: '0 15px', color: '#fff', fontWeight: 700, fontSize: 13 },
+  fbErrorBox: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12, background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.18)`, borderRadius: 10, padding: '10px 12px', color: TRD, fontSize: 12.5, lineHeight: 1.6 },
+  fbExchangingBox: { marginBottom: 12, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 10, padding: '10px 12px', color: TBL, fontSize: 12.5 },
+  fbCandidatesWrap: { marginBottom: 15, background: TI, border: 'none', borderRadius: 11, padding: 12 },
+  fbCandidatesTitle: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 10 },
+  fbCandidateRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${TB}` },
+  fbCandidateAvatarImg: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' },
+  fbCandidateId: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(295px,1fr))', gap: 12 },
+  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH, overflow: 'hidden' },
+  pageCardTopLine: { position: 'absolute', top: 0, right: 16, left: 16, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, opacity: 0.55 },
+  pageCardHeader: { display: 'flex', alignItems: 'center', gap: 11, width: '100%' },
+  subscribeBtn: { width: '100%', background: 'rgba(77,219,107,0.09)', border: `1px solid rgba(77,219,107,0.22)`, borderRadius: 10, padding: '9px 0', color: TGR, fontSize: 12, fontWeight: 700 },
+  pageCardAvatar: { width: 46, height: 46, borderRadius: '50%', background: TI, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0 },
+  pageCardName: { fontSize: 14, fontWeight: 800, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  pageCardMeta: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, marginTop: 3, fontWeight: 600 },
+  pageStatusPill: { display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start', borderRadius: 20, padding: '6px 11px', fontSize: 11.5, fontWeight: 700, border: 'none' },
+  pageStatusPillOk: { color: TGR, background: 'rgba(77,219,107,0.09)' },
+  pageStatusPillWait: { color: TBL, background: 'rgba(42,171,238,0.09)' },
+  liveDot: { width: 7, height: 7, borderRadius: '50%', boxShadow: '0 0 8px currentColor' },
+  iconBtnDanger: { width: 30, height: 30, borderRadius: 8, background: 'rgba(242,80,80,0.08)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
   // ── Users ──
-  usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 },
-  userCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: 18,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  userCardTop: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
-  userCardAvatar: {
-    width: 42, height: 42, borderRadius: 12, display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0,
-  },
-  userCardName: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
-  userCardRole: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#8B96AD', marginTop: 3 },
-  activeDot: { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
-  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)' },
-  permTag: {
-    background: 'rgba(59,130,246,0.12)', color: '#60A5FA', fontSize: 10, fontWeight: 600,
-    padding: '4px 9px', borderRadius: 8,
-  },
-  userCardActions: { display: 'flex', gap: 8 },
-  userActionBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-    padding: '8px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 8, color: '#8B96AD', fontSize: 11, fontWeight: 600,
-  },
-  userCardMetaRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
-  userCodeTag: {
-    fontSize: 11, color: '#8B96AD', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 8, padding: '4px 10px', fontFamily: 'monospace',
-  },
-  warehouseNote: {
-    display: 'flex', gap: 9, alignItems: 'flex-start', background: 'rgba(240,168,104,0.08)',
-    border: '1px solid rgba(240,168,104,0.22)', borderRadius: 11, padding: 12,
-    fontSize: 12, color: '#C4CEE0', lineHeight: 1.6,
-  },
-  rejectReasonBox: {
-    margin: '0 16px 12px', padding: '10px 12px', background: 'rgba(244,91,105,0.08)',
-    border: '1px solid rgba(244,91,105,0.2)', borderRadius: 11, fontSize: 12.5, color: '#EAF0FB',
-    display: 'flex', flexDirection: 'column', gap: 3,
-  },
-  rejectReasonLabel: { fontSize: 11, color: '#F45B69', fontWeight: 700 },
-  rejectedCard: {
-    border: '1.5px solid rgba(244,91,105,0.45)',
-    boxShadow: '0 0 0 1px rgba(244,91,105,0.15), 0 8px 24px -8px rgba(244,91,105,0.35)',
-  },
-  rejectedBanner: {
-    display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center',
-    background: 'linear-gradient(135deg, #F4143C, #C0143C)', color: '#fff',
-    fontSize: 12.5, fontWeight: 800, padding: '9px 12px',
-    borderRadius: '16px 16px 0 0', margin: '-1px -1px 0',
-  },
-  prepTimeRow: {
-    display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8B96AD',
-    margin: '0 16px 10px', paddingTop: 2,
-  },
+  usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(285px,1fr))', gap: 11 },
+  userCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  userCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
+  userCardAvatar: { width: 38, height: 38, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 },
+  userCardName: { fontSize: 13, fontWeight: 700, color: TTX },
+  userCardRole: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: TDM, marginTop: 2 },
+  activeDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
+  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
+  permTag: { background: 'rgba(42,171,238,0.09)', color: TBL, fontSize: 9.5, fontWeight: 600, padding: '3px 7px', borderRadius: 6 },
+  userCardActions: { display: 'flex', gap: 6 },
+  userActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', background: TI, border: 'none', borderRadius: 8, color: TSB, fontSize: 10.5, fontWeight: 600 },
+  userCardMetaRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
+  userCodeTag: { fontSize: 10.5, color: TDM, background: TI, border: 'none', borderRadius: 7, padding: '3px 8px', fontFamily: 'monospace' },
+  warehouseNote: { display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: 10, fontSize: 12, color: TSB, lineHeight: 1.6 },
+  rejectReasonBox: { margin: '0 13px 10px', padding: '8px 10px', background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.14)`, borderRadius: 9, fontSize: 12, color: TTX, display: 'flex', flexDirection: 'column', gap: 3 },
+  rejectReasonLabel: { fontSize: 10.5, color: TRD, fontWeight: 700 },
+  rejectedCard: { border: `1.5px solid rgba(242,80,80,0.36)`, boxShadow: '0 0 0 1px rgba(242,80,80,0.09), 0 4px 14px -6px rgba(242,80,80,0.25)' },
+  rejectedBanner: { display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'center', background: '#7B1A1A', color: '#fff', fontSize: 12, fontWeight: 800, padding: '8px 11px', borderRadius: '12px 12px 0 0', margin: '-1px -1px 0' },
+  prepTimeRow: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: TDM, margin: '0 13px 8px', paddingTop: 2 },
+  orderReprepNoteBox: { display: 'flex', alignItems: 'flex-start', gap: 7, margin: '0 13px 10px', background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.24)`, color: '#FCA5A5', borderRadius: 9, padding: '8px 10px', fontSize: 12, lineHeight: 1.6 },
+  globalOrderSearchWrap: { position: 'relative', display: 'flex', alignItems: 'center', gap: 6, width: 208, minHeight: 34, background: TI, border: 'none', borderRadius: 10, padding: '0 10px' },
+  globalOrderSearchInput: { width: '100%', background: 'transparent', border: 'none', outline: 'none', color: TTX, fontSize: 12, fontFamily: "'Cairo', sans-serif" },
+  globalOrderResultsBox: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 50, background: TP, border: `1px solid ${TB}`, borderRadius: 11, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', overflow: 'hidden' },
+  globalOrderResultItem: { width: '100%', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 10px', border: 'none', background: 'transparent', borderRadius: 0, textAlign: 'right', color: TTX },
+  globalOrderResultTitle: { fontSize: 12, fontWeight: 700, color: TTX, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  globalOrderResultMeta: { fontSize: 10.5, color: TDM, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  globalOrderEmpty: { padding: '11px', color: TDM, fontSize: 12, textAlign: 'center' },
 
-  // ── واجهة موظف المخزن ──
-  warehouseWrap: { flex: 1, overflow: 'auto', padding: '24px 18px', maxWidth: 760, margin: '0 auto', width: '100%' },
-  warehouseHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 12,
-    paddingTop: 'env(safe-area-inset-top, 0px)',
-  },
-  warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 14 },
-  warehouseCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 18, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5)',
-  },
-  warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  warehouseCardNo: { fontSize: 13, fontWeight: 800, color: '#60A5FA', fontFamily: 'monospace' },
-  warehouseCardDate: { fontSize: 11.5, color: '#5E6986' },
-  warehouseBigType: {
-    fontSize: 19, fontWeight: 800, color: '#EAF0FB', lineHeight: 1.5, letterSpacing: '-0.01em',
-    overflowWrap: 'anywhere', whiteSpace: 'pre-wrap',
-  },
-  warehouseFilterBar: { display: 'flex', gap: 8, marginBottom: 18 },
-  warehouseFilterChip: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-    padding: '11px 8px', background: '#141B2C', border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 13, color: '#8B96AD', fontSize: 13.5, fontWeight: 700,
-  },
-  warehouseFilterChipActive: {
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-    borderColor: 'rgba(59,130,246,0.45)', color: '#EAF0FB',
-  },
-  warehouseFilterCount: {
-    minWidth: 22, height: 22, borderRadius: 11, background: 'rgba(255,255,255,0.08)',
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 11.5, fontWeight: 800, padding: '0 6px',
-  },
-  warehouseFilterCountActive: { background: '#3B82F6', color: '#fff' },
-  warehouseItemsBox: {
-    marginTop: 12, background: 'rgba(240,168,104,0.06)', border: '1px solid rgba(240,168,104,0.18)',
-    borderRadius: 12, padding: '12px 14px',
-  },
-  warehouseItemsLabel: { fontSize: 11.5, fontWeight: 700, color: '#F0A868', marginBottom: 5 },
-  warehouseItemsText: { fontSize: 14.5, color: '#EAF0FB', lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
-  warehouseBadge: {
-    width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg,#F0A868,#E0833C)',
-    color: '#2A1606', fontSize: 19, fontWeight: 800, display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 14px -4px rgba(240,168,104,0.6)',
-  },
-  warehouseActions: { display: 'flex', gap: 10, marginTop: 16 },
-  warehouseDoneBtn: {
-    flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '15px',
-    background: 'linear-gradient(135deg,#4ADE80,#16A34A)', border: 'none', borderRadius: 13,
-    color: '#06210F', fontSize: 15, fontWeight: 800, boxShadow: '0 3px 14px -3px rgba(74,222,128,0.5)',
-  },
-  warehouseRejectBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '15px',
-    background: 'rgba(244,91,105,0.12)', border: '1px solid rgba(244,91,105,0.3)', borderRadius: 13,
-    color: '#F45B69', fontSize: 14, fontWeight: 700,
-  },
+  // ── Warehouse ──
+  warehouseWrap: { flex: 1, overflow: 'auto', padding: '18px 15px', maxWidth: 700, margin: '0 auto', width: '100%' },
+  warehouseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 11, paddingTop: 'env(safe-area-inset-top,0px)' },
+  warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
+  warehouseCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
+  warehouseCardNo: { fontSize: 12, fontWeight: 800, color: TBL, fontFamily: 'monospace' },
+  warehouseCardDate: { fontSize: 11, color: TDM },
+  warehouseBigType: { fontSize: 17, fontWeight: 800, color: TTX, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
+  warehouseFilterBar: { display: 'flex', gap: 6, marginBottom: 13 },
+  warehouseFilterChip: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 7px', background: TI, border: 'none', borderRadius: 10, color: TDM, fontSize: 12.5, fontWeight: 700 },
+  warehouseFilterChipActive: { background: TAC, color: TBL },
+  warehouseFilterCount: { minWidth: 19, height: 19, borderRadius: 10, background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 800, padding: '0 5px' },
+  warehouseFilterCountActive: { background: TBL, color: '#fff' },
+  warehouseReprepNote: { display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, padding: '10px 11px', color: '#FCA5A5' },
+  warehouseReprepTitle: { fontSize: 12, fontWeight: 800, color: TRD, marginBottom: 3 },
+  warehouseReprepText: { fontSize: 13.5, fontWeight: 700, color: '#FEE2E2', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
+  warehouseItemsBox: { marginTop: 10, background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: '9px 11px' },
+  warehouseItemsLabel: { fontSize: 10.5, fontWeight: 700, color: '#FFCA28', marginBottom: 4 },
+  warehouseItemsText: { fontSize: 13.5, color: TTX, lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
+  warehouseBadge: { width: 38, height: 38, borderRadius: '50%', background: TBTN, color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  warehouseActions: { display: 'flex', gap: 8, marginTop: 12 },
+  warehouseDoneBtn: { flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '12px', background: TGBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(77,219,107,0.32)' },
+  warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
-  },
-  modal: {
-    background: 'linear-gradient(180deg,#161E30,#121826)', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 20, width: '100%', maxWidth: 460, maxHeight: '88vh', overflowY: 'auto',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 16px 50px -12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)', position: 'relative', zIndex: 1,
-  },
-  modalHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-  },
-  modalTitle: { fontSize: 16, fontWeight: 700, color: '#EAF0FB', margin: 0 },
-  modalClose: { background: 'transparent', border: 'none', color: '#5E6986', display: 'flex' },
-  modalBody: { padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 },
-  formGroup: { display: 'flex', flexDirection: 'column', gap: 7 },
-  formLabel: { fontSize: 12, fontWeight: 600, color: '#8B96AD' },
-  formInput: {
-    background: '#0A0E17', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9,
-    padding: '11px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif",
-  },
-  roleToggle: { display: 'flex', gap: 8 },
-  roleBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: '10px', background: '#0A0E17', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 9, color: '#8B96AD', fontSize: 12, fontWeight: 600,
-  },
-  roleBtnActive: { background: 'rgba(59,130,246,0.12)', borderColor: 'rgba(59,130,246,0.3)', color: '#60A5FA' },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
+  modal: { background: TP, border: `1px solid ${TB}`, borderRadius: 14, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'relative', zIndex: 1 },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
+  modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
+  modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
+  modalBody: { padding: '15px 17px', display: 'flex', flexDirection: 'column', gap: 13 },
+  formGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
+  formLabel: { fontSize: 11.5, fontWeight: 600, color: TDM },
+  formInput: { background: TI, border: 'none', borderRadius: 9, padding: '9px 12px', color: TTX, fontSize: 13, fontFamily: "'Cairo', sans-serif" },
+  roleToggle: { display: 'flex', gap: 6 },
+  roleBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px', background: TI, border: 'none', borderRadius: 9, color: TDM, fontSize: 12, fontWeight: 600 },
+  roleBtnActive: { background: TAC, color: TBL },
   permsGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
-  permCheckRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#C4CEE0', padding: '6px 0', cursor: 'pointer' },
-  modalFooter: { display: 'flex', gap: 10, padding: '18px 22px', borderTop: '1px solid rgba(255,255,255,0.06)' },
-  modalCancelBtn: {
-    flex: 1, padding: '11px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 9, color: '#8B96AD', fontSize: 13, fontWeight: 600,
-  },
-  modalSaveBtn: {
-    flex: 1, padding: '11px', background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
-    border: 'none', borderRadius: 9, color: '#ffffff', fontSize: 13, fontWeight: 700,
-    boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
-  },
-  detailGridRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-    paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.05)',
-  },
-  detailGridLabel: { fontSize: 12.5, color: '#5E6986', flexShrink: 0 },
-  detailGridValue: { fontSize: 13.5, color: '#EAF0FB', fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
-  detailActionBtn: {
-    flex: 1, minWidth: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: '11px 10px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 10, color: '#C4CEE0', fontSize: 12.5, fontWeight: 700,
-  },
-  statsBottomBtns: { display: 'flex', gap: 10, marginTop: 18 },
-  statsSmallBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1, padding: '13px',
-    background: '#141B2C', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 13,
-    color: '#C4CEE0', fontSize: 13, fontWeight: 700,
-  },
-  statsSummaryBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1.4, padding: '13px',
-    background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)', border: 'none', borderRadius: 13,
-    color: '#fff', fontSize: 14, fontWeight: 800, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.5)',
-  },
-  summaryRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-    padding: '13px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.02)',
-    border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8,
-  },
-  summaryRowSub: { background: 'transparent', border: 'none', padding: '6px 20px', marginBottom: 2 },
-  summaryRowLabel: { fontSize: 13.5, fontWeight: 600 },
-  summaryRowValue: { fontSize: 18, fontWeight: 800 },
-  summaryHint: { fontSize: 11.5, color: '#5E6986', textAlign: 'center', marginTop: 10 },
-  bestSellerRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
-  bestSellerRank: {
-    width: 28, height: 28, borderRadius: 9, background: 'rgba(59,130,246,0.15)', color: '#60A5FA',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0,
-  },
-  bestSellerType: { fontSize: 13.5, fontWeight: 700, color: '#EAF0FB', marginBottom: 5, overflowWrap: 'anywhere' },
-  bestSellerTrack: { height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' },
-  bestSellerFill: { height: '100%', background: 'linear-gradient(90deg,#3B82F6,#60A5FA)', borderRadius: 4 },
-  bestSellerCount: { fontSize: 15, fontWeight: 800, color: '#60A5FA', minWidth: 28, textAlign: 'center', flexShrink: 0 },
-  convertedRow: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.05)',
-  },
-  convertedCustomer: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
-  convertedSub: { fontSize: 12, color: '#93C5FD', marginTop: 2 },
-  convertedMeta: { fontSize: 11, color: '#5E6986', marginTop: 3 },
-  convertedTotal: { fontSize: 14, fontWeight: 800, color: '#60A5FA', flexShrink: 0 },
-  neglectedRow: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '12px', marginBottom: 8,
-    borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-    cursor: 'pointer',
-  },
-  neglectedRowSel: { background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.4)' },
-  neglectedCheck: {
-    width: 24, height: 24, borderRadius: 7, border: '1.5px solid rgba(255,255,255,0.2)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff',
-  },
-  neglectedCheckOn: { background: '#3B82F6', borderColor: '#3B82F6' },
+  permCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: TSB, padding: '5px 0', cursor: 'pointer' },
+  modalFooter: { display: 'flex', gap: 8, padding: '13px 17px', borderTop: `1px solid ${TB}` },
+  modalCancelBtn: { flex: 1, padding: '9px', background: 'transparent', border: `1px solid ${TB}`, borderRadius: 9, color: TDM, fontSize: 12.5, fontWeight: 600 },
+  modalSaveBtn: { flex: 1, padding: '9px', background: TBTN, border: 'none', borderRadius: 9, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.28)' },
+  detailGridRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 11, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
+  detailGridLabel: { fontSize: 11.5, color: TDM, flexShrink: 0 },
+  detailGridValue: { fontSize: 12.5, color: TTX, fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
+  detailActionBtn: { flex: 1, minWidth: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px', background: TI, border: 'none', borderRadius: 9, color: TSB, fontSize: 12, fontWeight: 700 },
+  statsBottomBtns: { display: 'flex', gap: 8, marginTop: 13 },
+  statsSmallBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '10px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 700 },
+  statsSummaryBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1.4, padding: '10px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  summaryRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 10, background: TI, border: 'none', marginBottom: 6 },
+  summaryRowSub: { background: 'transparent', border: 'none', padding: '4px 15px', marginBottom: 2 },
+  summaryRowLabel: { fontSize: 12.5, fontWeight: 600 },
+  summaryRowValue: { fontSize: 16, fontWeight: 800 },
+  summaryHint: { fontSize: 11, color: TDM, textAlign: 'center', marginTop: 8 },
+  bestSellerRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 },
+  bestSellerRank: { width: 24, height: 24, borderRadius: 8, background: 'rgba(42,171,238,0.11)', color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, flexShrink: 0 },
+  bestSellerType: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 4, overflowWrap: 'anywhere' },
+  bestSellerTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
+  bestSellerFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4 },
+  bestSellerCount: { fontSize: 14, fontWeight: 800, color: TBL, minWidth: 23, textAlign: 'center', flexShrink: 0 },
+  convertedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${TB}` },
+  convertedCustomer: { fontSize: 13, fontWeight: 700, color: TTX },
+  convertedSub: { fontSize: 11, color: TBL, marginTop: 2 },
+  convertedMeta: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  convertedTotal: { fontSize: 13, fontWeight: 800, color: TBL, flexShrink: 0 },
+  neglectedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px', marginBottom: 5, borderRadius: 10, background: TI, border: 'none', cursor: 'pointer' },
+  neglectedRowSel: { background: TAC, border: '1px solid rgba(42,171,238,0.28)' },
+  neglectedCheck: { width: 21, height: 21, borderRadius: 6, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff' },
+  neglectedCheckOn: { background: TBL, borderColor: TBL },
 };
