@@ -256,6 +256,7 @@ function mapOrderFromDb(row) {
     jenniShipmentId: row.jenni_shipment_id || null,
     jenniSent: !!row.jenni_sent,
     jenniTracking: row.jenni_tracking || null,
+    jenniError: null, // خطأ مؤقت في الذاكرة فقط (مو بقاعدة البيانات)
     deliveryStep: row.delivery_step || null,
     deliveryStepAr: row.delivery_step_ar || null,
     deliveryNote: row.delivery_note || null,
@@ -1690,9 +1691,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
+  // تنظيف رقم الهاتف ليكون بصيغة 07XXXXXXXXX التي تقبلها جيني
+  function normalizeIraqiPhone(raw) {
+    if (!raw) return '';
+    let digits = String(raw).replace(/[^0-9]/g, '');
+    if (digits.startsWith('964')) digits = '0' + digits.slice(3);
+    if (digits.startsWith('00964')) digits = '0' + digits.slice(5);
+    if (!digits.startsWith('0')) digits = '0' + digits;
+    return digits.slice(0, 11); // 07XXXXXXXXX = 11 رقماً
+  }
+
   async function sendOrderToJenni(o) {
     // لا نرسل بدون محافظة أو هاتف (Jenni ترفضه)
     if (!o.governorateCode || !o.phone) return;
+    const cleanPhone = normalizeIraqiPhone(o.phone);
+    if (cleanPhone.length < 10) { console.warn('Jenni: رقم هاتف غير صالح', o.phone); return; }
     try {
       const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
         method: 'POST',
@@ -1704,12 +1717,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         body: JSON.stringify({
           external_shipment_id: o.id,
           shipment_number: o.orderNo,
-          receiver_name: o.customer,
-          receiver_phone_1: o.phone,
+          receiver_name: o.customer || '',
+          receiver_phone_1: cleanPhone,
           governorate_code: o.governorateCode,
-          city: o.area || '',
+          city: o.area || o.address?.split(' - ')[1] || '',
           address: o.address || '',
           amount_iqd: Number(o.total) || 0,
+          note: o.orderType || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1718,7 +1732,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniShipmentId: data.shipment_id || null, jenniTracking: data.tracking_number || null } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
       } else {
-        console.warn('Jenni send failed for order', o.orderNo, data?.error);
+        // أخبر المستخدم لو فشل الإرسال لجيني (مو صامت)
+        const errMsg = data?.error || data?.message || 'خطأ غير محدد';
+        console.warn('Jenni send failed for order', o.orderNo, errMsg);
+        // حدّث حالة الطلب محلياً عشان يبين للمستخدم إنه ما أُرسل
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
       }
     } catch (e) {
       console.warn('Jenni send error:', e);
@@ -1827,18 +1845,38 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
         </div>
 
+        {o.jenniError && (
+          <div style={{ background: 'rgba(244,91,105,0.1)', border: '1px solid rgba(244,91,105,0.3)', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#F45B69', marginBottom: 6 }}>
+            ⚠️ فشل الإرسال لجيني: {o.jenniError}
+          </div>
+        )}
         <div style={styles.orderCardActions} className="alfhd-no-print">
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
           {section === 'delivery' && (
-            <select
-              value={o.status}
-              onChange={(e) => updateStatus(o.id, e.target.value)}
-              style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status].color, borderColor: STATUS_CONFIG[o.status].color + '44', background: STATUS_CONFIG[o.status].bg, flex: 1.4 }}
-            >
-              {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
-            </select>
+            o.jenniSent ? (
+              // الطلب عند شركة التوصيل — الحالة تأتي تلقائياً من جيني
+              <div style={{
+                ...styles.statusSelect,
+                color: STATUS_CONFIG[o.status]?.color || '#9AA3B8',
+                background: STATUS_CONFIG[o.status]?.bg || 'rgba(154,163,184,0.1)',
+                borderColor: (STATUS_CONFIG[o.status]?.color || '#9AA3B8') + '44',
+                flex: 1.4, display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 12, fontWeight: 700, cursor: 'default',
+              }}>
+                <Truck size={12} />
+                {STATUS_CONFIG[o.status]?.label || o.deliveryStepAr || 'جاري التحديث...'}
+              </div>
+            ) : (
+              <select
+                value={o.status}
+                onChange={(e) => updateStatus(o.id, e.target.value)}
+                style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status]?.color, borderColor: (STATUS_CONFIG[o.status]?.color || '#999') + '44', background: STATUS_CONFIG[o.status]?.bg, flex: 1.4 }}
+              >
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
+              </select>
+            )
           )}
           {o.conversationId && (
             <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
@@ -3433,8 +3471,15 @@ export default function AlFhdApp() {
   const [users, setUsers] = useState(SEED_USERS);
   const [storageReady, setStorageReady] = useState(false);
 
-  // ── حالة تسجيل الدخول ──
-  const [authedUser, setAuthedUser] = useState(null);
+  // ── حالة تسجيل الدخول ── يُستعاد فوراً من localStorage بدون انتظار Supabase
+  const [authedUser, setAuthedUser] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('alfhd_session') || 'null');
+      if (saved?.userId && saved?.userData) return saved.userData;
+    } catch (_) {}
+    return null;
+  });
+  const [appLoading, setAppLoading] = useState(!localStorage.getItem('alfhd_session'));
 
   // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
   const convSignatureRef = React.useRef('');
@@ -3481,7 +3526,7 @@ export default function AlFhdApp() {
       rejectedIdsRef.current = rejectedNow;
 
       // حدّث الحالة فقط إذا تغيّر شيء فعلاً
-      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}`).join('|');
+      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}:${o.jenni_sent}:${o.delivery_status}`).join('|');
       if (sig !== orderSignatureRef.current) {
         orderSignatureRef.current = sig;
         setOrders(mapped);
@@ -3539,14 +3584,22 @@ export default function AlFhdApp() {
     return () => clearInterval(interval);
   }, [storageReady, pollFacebookNow]);
 
-  // استرجاع الجلسة المحفوظة محلياً (الجلسة فقط، مو البيانات نفسها)
+  // بعد تحميل Supabase: حدّث بيانات المستخدم المسجّل (صلاحيات جديدة إلخ) وأوقف شاشة التحميل
   useEffect(() => {
     if (!storageReady) return;
+    setAppLoading(false);
     try {
-      const savedSession = JSON.parse(sessionStorage.getItem('alfhd_session') || 'null');
-      if (savedSession?.userId) {
-        const found = users.find((u) => u.id === savedSession.userId && u.active);
-        if (found) setAuthedUser(found);
+      const saved = JSON.parse(localStorage.getItem('alfhd_session') || 'null');
+      if (saved?.userId) {
+        const found = users.find((u) => u.id === saved.userId && u.active);
+        if (found) {
+          setAuthedUser(found);
+          localStorage.setItem('alfhd_session', JSON.stringify({ userId: found.id, userData: found }));
+        } else if (authedUser) {
+          // المستخدم محذوف أو معطّل في قاعدة البيانات
+          setAuthedUser(null);
+          localStorage.removeItem('alfhd_session');
+        }
       }
     } catch (e) { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3555,15 +3608,16 @@ export default function AlFhdApp() {
   const handleLogin = (user) => {
     ensureAudioReady();
     setAuthedUser(user);
+    setAppLoading(false);
     try {
-      sessionStorage.setItem('alfhd_session', JSON.stringify({ userId: user.id }));
+      localStorage.setItem('alfhd_session', JSON.stringify({ userId: user.id, userData: user }));
     } catch (e) { /* ignore */ }
   };
 
   const handleLogout = () => {
     setAuthedUser(null);
     try {
-      sessionStorage.removeItem('alfhd_session');
+      localStorage.removeItem('alfhd_session');
     } catch (e) { /* ignore */ }
   };
 
@@ -3582,6 +3636,21 @@ export default function AlFhdApp() {
     else if (!digits.startsWith('964')) digits = '964' + digits;
     window.open(`https://wa.me/${digits}`, '_blank');
   }, []);
+
+  // ── شاشة التحميل الأولية (تظهر فقط عند أول تشغيل بدون جلسة محفوظة) ──
+  if (appLoading && !authedUser) {
+    return (
+      <>
+        <GlobalStyles />
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080B14', flexDirection: 'column', gap: 16 }}>
+          <FahdLogo size={52} />
+          <div style={{ color: '#3B82F6', fontSize: 13, animation: 'spin 1s linear infinite', display: 'inline-block' }}>
+            <RefreshCw size={20} />
+          </div>
+        </div>
+      </>
+    );
+  }
 
   // ── شاشة الدخول ──
   if (!authedUser) {
