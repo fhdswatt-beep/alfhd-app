@@ -1179,7 +1179,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
         </div>
 
         {/* ── قائمة المحادثات ── */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
           {/* زر تعليم الكل كمقروء */}
           {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && (
             <button
@@ -1327,6 +1327,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                 flex: 1, overflowY: 'auto', overflowX: 'hidden',
                 display: 'flex', flexDirection: 'column',
                 padding: '14px 16px', background: '#0E1621',
+                minHeight: 0,
               }}
               ref={scrollRef}
               className="alfhd-chat-scroll"
