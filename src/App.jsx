@@ -3942,439 +3942,250 @@ export default function AlFhdApp() {
 // ──────────────────────────────────────────────
 // أنماط عامة + خطوط
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// أنماط عامة — Telegram Style
+// ──────────────────────────────────────────────
 function GlobalStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
       * { box-sizing: border-box; font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
-      body {
-        margin: 0;
-        background: #0A0E17;
-        background-image:
-          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.08), transparent 60%),
-          radial-gradient(ellipse 60% 50% at 100% 100%, rgba(59,130,246,0.04), transparent 55%);
-        background-attachment: fixed;
+
+      :root {
+        --tg-bg:      #0E1621;
+        --tg-panel:   #17212B;
+        --tg-input:   #242F3D;
+        --tg-border:  rgba(255,255,255,0.07);
+        --tg-blue:    #2AABEE;
+        --tg-blue2:   #229ED9;
+        --tg-green:   #4DDB6B;
+        --tg-red:     #F25050;
+        --tg-text:    #F5F5F5;
+        --tg-sub:     #8B9AB3;
+        --tg-dim:     #546880;
+        --tg-hover:   rgba(255,255,255,0.05);
+        --tg-active:  rgba(42,171,238,0.15);
       }
-      input::placeholder, textarea::placeholder { color: #5E6986; }
-      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-        outline: 2px solid rgba(59,130,246,0.5); outline-offset: 1px;
-      }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #2A3550; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #3A4768; }
-      @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        20% { transform: translateX(-8px); }
-        40% { transform: translateX(8px); }
-        60% { transform: translateX(-6px); }
-        80% { transform: translateX(6px); }
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes chatSlideIn {
-        from { transform: translateX(28px); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-      @keyframes msgPop {
-        from { transform: scale(0.92); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
-      }
-      @keyframes cardEnter {
-        from { transform: translateY(12px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-      }
-      @keyframes unreadPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(244,20,60,0.6); }
-        50% { box-shadow: 0 0 0 6px rgba(244,20,60,0); }
-      }
-      .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
-      @keyframes recPulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.4; transform: scale(0.8); }
-      }
-      .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
+
+      body { margin: 0; background: var(--tg-bg); color: var(--tg-text); }
+      input::placeholder, textarea::placeholder { color: var(--tg-dim); }
       input:focus, select:focus, textarea:focus { outline: none; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+        outline: 2px solid rgba(42,171,238,0.5); outline-offset: 1px;
+      }
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 10px; }
+      select, input, textarea { color-scheme: dark; }
       button {
         font-family: 'Cairo', sans-serif; cursor: pointer;
-        transition: transform 0.12s ease, opacity 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+        transition: background 0.13s ease, opacity 0.12s ease, transform 0.1s ease;
       }
-      button:active { transform: scale(0.95); }
-      button:disabled { opacity: 0.55; cursor: default; transform: none; }
-      .alfhd-conv-item, .alfhd-order-card {
-        transition: border-color 0.16s ease, transform 0.16s cubic-bezier(0.22,1,0.36,1), background 0.16s ease, box-shadow 0.16s ease;
+      button:active { transform: scale(0.97); }
+      button:disabled { opacity: 0.45; cursor: default; transform: none !important; }
+
+      .alfhd-app-wrap { background: var(--tg-bg) !important; }
+      .alfhd-app-wrap > aside {
+        width: 260px !important;
+        background: var(--tg-panel) !important;
+        border-left: 1px solid var(--tg-border) !important;
+        backdrop-filter: none !important;
+        box-shadow: none !important;
       }
-      .alfhd-conv-item:active { transform: scale(0.985); background: rgba(255,255,255,0.02); }
-      @media (hover: hover) {
-        .alfhd-order-card:hover {
-          transform: translateY(-3px);
-          border-color: rgba(59,130,246,0.28) !important;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 18px 40px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(59,130,246,0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
-        }
-        .alfhd-conv-item:hover { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06) !important; }
-        .alfhd-nav-item:hover { background: rgba(255,255,255,0.04); color: #C4CEE0 !important; }
-        .alfhd-stat-card:hover { transform: translateY(-2px); }
+      .alfhd-main-area { padding: 0 !important; background: var(--tg-bg) !important; }
+      .alfhd-nav-item { border-radius: 10px !important; font-weight: 700 !important; }
+      .alfhd-nav-item:hover { background: var(--tg-hover) !important; }
+      .alfhd-bottom-nav-item-active,
+      .alfhd-nav-item.alfhd-bottom-nav-item-active {
+        background: var(--tg-active) !important;
+        color: var(--tg-blue) !important;
+        border-color: rgba(42,171,238,0.22) !important;
+        box-shadow: none !important;
       }
-      .alfhd-stat-card { transition: transform 0.16s cubic-bezier(0.22,1,0.36,1); }
+      .alfhd-conv-layout {
+        grid-template-columns: 320px minmax(0,1fr) !important;
+        gap: 0 !important;
+        min-height: 100vh !important;
+      }
+      .alfhd-conv-list {
+        background: var(--tg-panel) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        border-left: 1px solid var(--tg-border) !important;
+        padding: 8px 0 !important;
+        gap: 0 !important;
+        max-height: 100vh !important;
+        box-shadow: none !important;
+      }
+      .alfhd-conv-item {
+        border-radius: 0 !important;
+        border: none !important;
+        border-right: 3px solid transparent !important;
+        padding: 10px 14px !important;
+        margin: 0 !important;
+      }
+      .alfhd-conv-item:hover { background: var(--tg-hover) !important; }
+      .alfhd-conv-item[style*="rgba(59,130,246"],
+      .alfhd-conv-item[style*="rgba(43,124,233"] {
+        background: var(--tg-active) !important;
+        border-right-color: var(--tg-blue) !important;
+      }
+      .alfhd-conv-detail {
+        background: var(--tg-bg) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        min-height: 100vh !important;
+        box-shadow: none !important;
+      }
+      .alfhd-chat-detail-header {
+        background: var(--tg-panel) !important;
+        border-bottom: 1px solid var(--tg-border) !important;
+        padding: 12px 16px !important;
+      }
       .alfhd-chat-scroll {
+        background: var(--tg-bg) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 14px 16px !important;
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
       }
-      .alfhd-chat-bubble-row { animation: msgPop 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
-      .alfhd-card-enter { animation: cardEnter 0.4s cubic-bezier(0.22,1,0.36,1) backwards; }
-      .alfhd-bottom-nav-item, .alfhd-nav-item {
-        transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-      }
-      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg {
-        transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-      }
-      .alfhd-bottom-nav-item-active svg { transform: scale(1.12); }
-
-
-      /* ─────────────────────────────────────────────
-         ULTRA PREMIUM SKIN — calm glass SaaS, smooth, no visual noise
-         يشتغل فوق الـ inline styles بدون زيادة ملفات
-      ───────────────────────────────────────────── */
-      :root {
-        --u-bg: #030712;
-        --u-bg2: #07111f;
-        --u-panel: rgba(8, 13, 25, .72);
-        --u-panel-strong: rgba(11, 18, 32, .88);
-        --u-line: rgba(148, 163, 184, .115);
-        --u-line-blue: rgba(96, 165, 250, .22);
-        --u-text: #F8FAFC;
-        --u-muted: #94A3B8;
-        --u-dim: #64748B;
-        --u-blue: #2AABEE;
-        --u-blue2: #3B82F6;
-        --u-cyan: #22D3EE;
-        --u-green: #22C55E;
-        --u-red: #FB7185;
-        --u-shadow: 0 26px 80px -46px rgba(0,0,0,.92);
-      }
-      body {
-        background:
-          radial-gradient(circle at 12% -8%, rgba(42,171,238,.19), transparent 30%),
-          radial-gradient(circle at 92% 8%, rgba(59,130,246,.12), transparent 28%),
-          radial-gradient(circle at 50% 115%, rgba(34,211,238,.05), transparent 34%),
-          linear-gradient(135deg, #030712 0%, #07111f 48%, #050816 100%) !important;
-        color: var(--u-text) !important;
-      }
-      body::before {
-        content: "";
-        position: fixed;
-        inset: -20%;
-        pointer-events: none;
-        background-image:
-          radial-gradient(circle, rgba(255,255,255,.55) 0 1px, transparent 1.4px),
-          radial-gradient(circle, rgba(42,171,238,.35) 0 1px, transparent 1.6px);
-        background-size: 120px 120px, 190px 190px;
-        opacity: .13;
-        animation: starDrift 42s linear infinite;
-      }
-      body::after {
-        content: "";
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        background:
-          linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,.014) 1px, transparent 1px);
-        background-size: 52px 52px;
-        mask-image: radial-gradient(circle at 50% 0%, #000 0%, transparent 68%);
-        opacity: .55;
-      }
-      .alfhd-app-wrap {
-        background: transparent !important;
-      }
-      .alfhd-app-wrap > aside {
-        width: 292px !important;
-        background: linear-gradient(180deg, rgba(15,23,42,.72), rgba(2,6,23,.86)) !important;
-        border-left: 1px solid var(--u-line) !important;
-        box-shadow: -24px 0 80px -64px rgba(0,0,0,.95), inset 1px 0 0 rgba(255,255,255,.035) !important;
-        backdrop-filter: blur(24px) saturate(1.1) !important;
-      }
-      .alfhd-main-area {
-        padding: 34px 38px !important;
-      }
-      .alfhd-view-header {
-        padding: 2px 2px 4px !important;
-        margin-bottom: 22px !important;
-      }
-      .alfhd-view-header h2, h2[style] {
-        letter-spacing: -0.04em !important;
-      }
-      .alfhd-nav-item {
-        border-radius: 16px !important;
-        font-weight: 800 !important;
-      }
-      .alfhd-nav-item:hover {
-        transform: translateX(-2px) !important;
-      }
-      .alfhd-bottom-nav-item-active,
-      .alfhd-nav-item-active {
-        background: linear-gradient(135deg, rgba(42,171,238,.18), rgba(59,130,246,.07)) !important;
-        border-color: rgba(42,171,238,.28) !important;
-        color: #DBEAFE !important;
-        box-shadow: 0 16px 34px -28px rgba(42,171,238,.9), inset 0 1px 0 rgba(255,255,255,.07) !important;
-      }
-      .alfhd-conv-layout {
-        grid-template-columns: 405px minmax(0, 1fr) !important;
-        gap: 18px !important;
-        min-height: calc(100vh - 160px) !important;
-      }
-      .alfhd-conv-list,
-      .alfhd-conv-detail,
-      .alfhd-order-card,
-      .alfhd-modal,
-      .alfhd-users-grid > *,
-      .alfhd-pages-grid > * {
-        background: linear-gradient(180deg, rgba(15,23,42,.72), rgba(2,6,23,.70)) !important;
-        border: 1px solid var(--u-line) !important;
-        border-radius: 28px !important;
-        box-shadow: var(--u-shadow), inset 0 1px 0 rgba(255,255,255,.052) !important;
-        backdrop-filter: blur(18px) saturate(1.08) !important;
-      }
-      .alfhd-conv-list {
-        padding: 12px !important;
-        gap: 8px !important;
-        max-height: calc(100vh - 160px) !important;
-      }
-      .alfhd-conv-item {
-        background: transparent !important;
-        border: 1px solid transparent !important;
-        border-radius: 22px !important;
-        padding: 13px 12px !important;
-      }
-      .alfhd-conv-item:hover {
-        background: rgba(148,163,184,.045) !important;
-        border-color: rgba(148,163,184,.08) !important;
-      }
-      .alfhd-conv-item[style*="translateY"],
-      .alfhd-conv-item-active-mobile,
-      .alfhd-conv-item:focus {
-        outline: none !important;
-      }
-      .alfhd-conv-item[style*="rgba(59,130,246"] {
-        background: linear-gradient(135deg, rgba(42,171,238,.18), rgba(59,130,246,.055)) !important;
-        border-color: rgba(42,171,238,.28) !important;
-      }
-      .alfhd-conv-detail {
-        min-height: calc(100vh - 160px) !important;
-        padding: 18px !important;
-        overflow: hidden !important;
-      }
-      .alfhd-chat-detail-header {
-        padding: 0 2px 16px !important;
-        border-bottom: 1px solid rgba(148,163,184,.10) !important;
+      .alfhd-composer-bar {
+        background: var(--tg-panel) !important;
+        border: none !important;
+        border-top: 1px solid var(--tg-border) !important;
+        border-radius: 0 !important;
+        padding: 10px 14px !important;
+        box-shadow: none !important;
       }
       .alfhd-linked-order {
-        border-radius: 22px !important;
-        background: linear-gradient(135deg, rgba(42,171,238,.095), rgba(59,130,246,.045)) !important;
-        border-color: rgba(42,171,238,.20) !important;
-      }
-      .alfhd-chat-scroll {
-        background:
-          radial-gradient(circle at 50% 0%, rgba(42,171,238,.07), transparent 31%),
-          linear-gradient(180deg, rgba(2,6,23,.18), rgba(2,6,23,.30)) !important;
-        border: 1px solid rgba(148,163,184,.07) !important;
-        border-radius: 24px !important;
-        padding: 16px 14px !important;
-      }
-      .alfhd-chat-bubble-row > div {
-        backdrop-filter: blur(10px) !important;
-      }
-      .alfhd-composer-bar {
-        background: linear-gradient(180deg, rgba(15,23,42,.86), rgba(2,6,23,.66)) !important;
-        border: 1px solid rgba(148,163,184,.12) !important;
-        border-radius: 24px !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 18px 44px -34px rgba(0,0,0,.9) !important;
+        border-radius: 10px !important;
+        background: var(--tg-input) !important;
+        border-color: var(--tg-border) !important;
       }
       .alfhd-order-card {
-        border-radius: 26px !important;
-        overflow: hidden !important;
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
+        transition: background 0.13s ease !important;
       }
-      .alfhd-order-card:hover {
-        transform: translateY(-4px) !important;
-        border-color: rgba(42,171,238,.24) !important;
-        box-shadow: 0 30px 70px -42px rgba(0,0,0,.95), 0 0 0 1px rgba(42,171,238,.075), inset 0 1px 0 rgba(255,255,255,.06) !important;
+      .alfhd-order-card:hover { background: #1e2d3d !important; transform: none !important; }
+      .alfhd-modal {
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
       }
-      .alfhd-stats-row > *,
-      .alfhd-stats-grid-2 > *,
-      .alfhd-pages-grid > *,
-      .alfhd-users-grid > * {
-        transition: transform .18s cubic-bezier(.22,1,.36,1), border-color .18s ease, box-shadow .18s ease !important;
+      .alfhd-users-grid > *, .alfhd-pages-grid > * {
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
+        backdrop-filter: none !important;
       }
-      .alfhd-stats-row > *:hover,
-      .alfhd-stats-grid-2 > *:hover,
-      .alfhd-pages-grid > *:hover,
-      .alfhd-users-grid > *:hover {
-        transform: translateY(-3px) !important;
-        border-color: rgba(42,171,238,.22) !important;
+      .alfhd-stats-row > *:hover, .alfhd-stats-grid-2 > *:hover,
+      .alfhd-pages-grid > *:hover, .alfhd-users-grid > *:hover {
+        transform: none !important;
+        background: #1e2d3d !important;
+        border-color: rgba(42,171,238,0.18) !important;
       }
+      .alfhd-view-header { padding: 14px 18px 10px !important; margin-bottom: 12px !important; }
+      .alfhd-chat-bubble-row { animation: msgPop 0.17s ease; }
+      .alfhd-card-enter { animation: cardEnter 0.28s ease backwards; }
+      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg { transition: transform 0.15s ease !important; }
+      .alfhd-bottom-nav-item-active svg { transform: scale(1.08) !important; }
       .alfhd-login-card {
-        border-radius: 36px !important;
-        background: linear-gradient(180deg, rgba(15,23,42,.62), rgba(2,6,23,.90)) !important;
-        border-color: rgba(191,219,254,.18) !important;
-        box-shadow: 0 46px 130px rgba(0,0,0,.72), 0 0 120px rgba(42,171,238,.10), inset 0 1px 0 rgba(255,255,255,.12) !important;
-      }
-      select, input, textarea {
-        color-scheme: dark;
-      }
-      @keyframes starDrift {
-        from { transform: translate3d(0,0,0); }
-        to { transform: translate3d(-160px,120px,0); }
+        background: var(--tg-panel) !important;
+        border: 1px solid var(--tg-border) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
       }
 
-      /* ── تصميم متجاوب للموبايل ── */
+      @keyframes shake {
+        0%,100% { transform: translateX(0); }
+        20% { transform: translateX(-8px); }
+        40% { transform: translateX(8px); }
+        60% { transform: translateX(-5px); }
+        80% { transform: translateX(5px); }
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes chatSlideIn { from { transform:translateX(20px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+      @keyframes msgPop { from { transform:scale(0.95); opacity:0; } to { transform:scale(1); opacity:1; } }
+      @keyframes cardEnter { from { transform:translateY(8px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+      @keyframes unreadPulse {
+        0%,100% { box-shadow: 0 0 0 0 rgba(244,20,60,0.5); }
+        50% { box-shadow: 0 0 0 5px rgba(244,20,60,0); }
+      }
+      .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
+      @keyframes recPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.8); } }
+      .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
+      @keyframes loginFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
+      @keyframes starDrift { from { transform:translate3d(0,0,0); } to { transform:translate3d(-80px,100px,0); } }
+      @keyframes starDriftReverse { from { transform:translate3d(0,0,0); } to { transform:translate3d(80px,-80px,0); } }
+      @keyframes orbitSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+      @keyframes auroraMove { 0%,100% { opacity:0.6; } 50% { opacity:0.85; } }
+      .alfhd-stars-layer { animation: starDrift 30s linear infinite; }
+      .alfhd-stars-layer-2 { animation: starDriftReverse 44s linear infinite; }
+      .alfhd-login-orbit { animation: orbitSpin 36s linear infinite; }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      }
+
       @media (max-width: 860px) {
-        .alfhd-app-wrap {
-          flex-direction: column !important;
-        }
-        .alfhd-main-area {
-          padding: 76px 14px 86px !important;
-          width: 100% !important;
-        }
-        .alfhd-conv-layout {
-          grid-template-columns: 1fr !important;
-        }
-        .alfhd-conv-list {
-          max-height: none !important;
-        }
-        .alfhd-conv-list-hidden-mobile {
-          display: none !important;
-        }
-        .alfhd-conv-detail-empty {
-          display: none !important;
-        }
+        .alfhd-app-wrap { flex-direction: column !important; }
+        .alfhd-main-area { padding: 52px 0 66px !important; width: 100% !important; }
+        .alfhd-conv-layout { grid-template-columns: 1fr !important; }
+        .alfhd-conv-list { max-height: none !important; border-left: none !important; }
+        .alfhd-conv-list-hidden-mobile { display: none !important; }
+        .alfhd-conv-detail-empty { display: none !important; }
         .alfhd-conv-detail-active-mobile {
-          position: fixed !important;
-          top: 0 !important;
-          right: 0 !important;
-          left: 0 !important;
-          bottom: 0 !important;
-          z-index: 200 !important;
-          border-radius: 0 !important;
-          border: none !important;
-          padding: 0 !important;
-          min-height: 0 !important;
-          height: 100dvh !important;
-          display: flex !important;
-          flex-direction: column !important;
-          animation: chatSlideIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
+          position: fixed !important; top: 0 !important; right: 0 !important;
+          left: 0 !important; bottom: 0 !important; z-index: 200 !important;
+          border-radius: 0 !important; border: none !important; padding: 0 !important;
+          min-height: 0 !important; height: 100dvh !important;
+          display: flex !important; flex-direction: column !important;
+          animation: chatSlideIn 0.2s ease !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-detail-header {
-          padding: 14px 14px 12px !important;
-          padding-top: calc(14px + env(safe-area-inset-top, 0px)) !important;
+          padding: 12px 14px !important;
+          padding-top: calc(12px + env(safe-area-inset-top,0px)) !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-scroll {
-          flex: 1 1 auto !important;
-          max-height: none !important;
-          min-height: 0 !important;
-          padding: 12px 14px !important;
+          flex: 1 1 auto !important; max-height: none !important; min-height: 0 !important; padding: 12px !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-composer-bar {
-          margin: 0 !important;
-          border-radius: 0 !important;
-          border-left: none !important;
-          border-right: none !important;
-          border-bottom: none !important;
+          margin: 0 !important; border-radius: 0 !important;
+          border-left: none !important; border-right: none !important; border-bottom: none !important;
           padding: 10px 12px !important;
-          padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+          padding-bottom: calc(10px + env(safe-area-inset-bottom,0px)) !important;
           flex-shrink: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-linked-order {
-          flex-shrink: 0 !important;
-          margin: 0 14px 0 !important;
-          max-height: 120px !important;
-          overflow-y: auto !important;
+          flex-shrink: 0 !important; margin: 0 12px !important;
+          max-height: 110px !important; overflow-y: auto !important;
         }
-        .alfhd-conv-back-btn {
-          display: flex !important;
-        }
-        .alfhd-chat-scroll {
-          max-height: none !important;
-        }
-        .alfhd-stats-row {
-          grid-template-columns: repeat(2, 1fr) !important;
-        }
-        .alfhd-stats-grid-2 {
-          grid-template-columns: 1fr !important;
-        }
-        .alfhd-orders-table-header {
-          display: none !important;
-        }
-        .alfhd-orders-row {
-          grid-template-columns: 1fr !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 6px !important;
-          padding: 14px !important;
-        }
-        .alfhd-view-header {
-          flex-direction: column !important;
-          align-items: flex-start !important;
-        }
-        .alfhd-pages-grid, .alfhd-users-grid {
-          grid-template-columns: 1fr !important;
-        }
-        .alfhd-bar-chart-row {
-          grid-template-columns: 1fr !important;
-          gap: 6px !important;
-        }
-        .alfhd-modal {
-          max-width: 94vw !important;
-        }
-        .alfhd-login-card {
-          max-width: 92vw !important;
-          padding: 36px 24px !important;
-        }
-      }
-
-      @keyframes loginFloat {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50% { transform: translateY(-10px) scale(1.006); }
-      }
-      @keyframes starDrift {
-        from { transform: translate3d(0, 0, 0); }
-        to { transform: translate3d(-120px, 160px, 0); }
-      }
-      @keyframes starDriftReverse {
-        from { transform: translate3d(0, 0, 0) rotate(0deg); }
-        to { transform: translate3d(140px, -120px, 0) rotate(8deg); }
-      }
-      @keyframes orbitSpin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      @keyframes auroraMove {
-        0%, 100% { transform: translate3d(0,0,0) scale(1); opacity: .72; }
-        50% { transform: translate3d(34px,-26px,0) scale(1.08); opacity: .95; }
-      }
-      .alfhd-stars-layer { animation: starDrift 22s linear infinite; }
-      .alfhd-stars-layer-2 { animation: starDriftReverse 34s linear infinite; }
-      .alfhd-login-orbit { animation: orbitSpin 28s linear infinite; }
-
-      /* ── طباعة الطلبات ── */
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
+        .alfhd-conv-back-btn { display: flex !important; }
+        .alfhd-chat-scroll { max-height: none !important; }
+        .alfhd-stats-row { grid-template-columns: repeat(2,1fr) !important; }
+        .alfhd-stats-grid-2 { grid-template-columns: 1fr !important; }
+        .alfhd-orders-table-header { display: none !important; }
+        .alfhd-orders-row { grid-template-columns: 1fr !important; display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 12px !important; }
+        .alfhd-view-header { flex-direction: column !important; align-items: flex-start !important; }
+        .alfhd-pages-grid, .alfhd-users-grid { grid-template-columns: 1fr !important; }
+        .alfhd-bar-chart-row { grid-template-columns: 1fr !important; gap: 4px !important; }
+        .alfhd-modal { max-width: 94vw !important; }
+        .alfhd-login-card { max-width: 92vw !important; padding: 32px 20px !important; }
       }
 
       @media print {
         body * { visibility: hidden; }
         .alfhd-print-area, .alfhd-print-area * { visibility: visible; }
-        .alfhd-print-area {
-          position: absolute; top: 0; right: 0; left: 0; width: 100%;
-          display: grid !important; grid-template-columns: repeat(2, 1fr) !important;
-        }
-        .alfhd-orders-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; }
+        .alfhd-print-area { position: absolute; top: 0; right: 0; left: 0; width: 100%; display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
+        .alfhd-orders-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
         .alfhd-no-print { display: none !important; }
       }
     `}</style>
@@ -4382,850 +4193,338 @@ function GlobalStyles() {
 }
 
 // ──────────────────────────────────────────────
-// كائن الأنماط (Design Tokens)
+// كائن الأنماط — Telegram Style
 // ──────────────────────────────────────────────
+const TG = '#0E1621';
+const TP = '#17212B';
+const TI = '#242F3D';
+const TB = 'rgba(255,255,255,0.07)';
+const TBL = '#2AABEE';
+const TBL2 = '#229ED9';
+const TGR = '#4DDB6B';
+const TRD = '#F25050';
+const TTX = '#F5F5F5';
+const TSB = '#8B9AB3';
+const TDM = '#546880';
+const TAC = 'rgba(42,171,238,0.15)';
+const TSH = '0 1px 2px rgba(0,0,0,0.4)';
+const TBTN = `linear-gradient(135deg,${TBL},${TBL2})`;
+const TGBTN = 'linear-gradient(135deg,#4DDB6B,#22C55E)';
+const TRDS = 'rgba(242,80,80,0.12)';
+
 const styles = {
   // ── Login ──
-  loginWrap: {
-    minHeight: '100vh', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center',
-    background: 'radial-gradient(circle at 50% 120%, #111C36 0%, #070A12 42%, #02040A 100%)',
-    position: 'relative', overflow: 'hidden', direction: 'rtl', padding: 20,
-  },
-  loginSpaceBg: {
-    position: 'absolute', inset: 0,
-    background: 'radial-gradient(circle at 18% 22%, rgba(96,165,250,0.18), transparent 26%), radial-gradient(circle at 82% 72%, rgba(167,139,250,0.14), transparent 24%), linear-gradient(135deg, rgba(2,6,23,0.2), rgba(15,23,42,0.35))',
-    pointerEvents: 'none',
-  },
-  loginStarsLayer: {
-    position: 'absolute', inset: '-20%', opacity: 0.75,
-    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.9) 0 1px, transparent 1.4px), radial-gradient(circle, rgba(96,165,250,0.8) 0 1px, transparent 1.3px)',
-    backgroundSize: '110px 110px, 170px 170px', backgroundPosition: '0 0, 42px 64px',
-  },
-  loginStarsLayer2: {
-    position: 'absolute', inset: '-18%', opacity: 0.34,
-    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.75) 0 1px, transparent 1.5px)',
-    backgroundSize: '74px 74px', backgroundPosition: '30px 20px', filter: 'blur(0.2px)',
-  },
-  loginNebulaOne: {
-    position: 'absolute', width: 520, height: 520, borderRadius: '50%', top: '-130px', right: '-160px',
-    background: 'radial-gradient(circle, rgba(59,130,246,0.26), rgba(59,130,246,0.08) 34%, transparent 70%)',
-    filter: 'blur(18px)', animation: 'auroraMove 9s ease-in-out infinite',
-  },
-  loginNebulaTwo: {
-    position: 'absolute', width: 460, height: 460, borderRadius: '50%', bottom: '-160px', left: '-130px',
-    background: 'radial-gradient(circle, rgba(168,85,247,0.22), rgba(14,165,233,0.08) 36%, transparent 72%)',
-    filter: 'blur(20px)', animation: 'auroraMove 11s ease-in-out infinite reverse',
-  },
-  loginOrbit: {
-    position: 'absolute', width: 620, height: 620, borderRadius: '50%',
-    border: '1px solid rgba(96,165,250,0.10)', borderTopColor: 'rgba(96,165,250,0.36)',
-    borderRightColor: 'rgba(167,139,250,0.22)', pointerEvents: 'none',
-  },
-  loginBrandTop: {
-    position: 'absolute', top: 24, zIndex: 2, display: 'flex', alignItems: 'center', gap: 8,
-    color: '#93C5FD', fontSize: 11, fontWeight: 900, letterSpacing: '0.16em',
-    background: 'rgba(15,23,42,0.48)', border: '1px solid rgba(147,197,253,0.18)', borderRadius: 999,
-    padding: '9px 14px', backdropFilter: 'blur(14px)',
-  },
-  loginCard: {
-    position: 'relative', zIndex: 1,
-    background: 'linear-gradient(180deg, rgba(15,23,42,0.66) 0%, rgba(2,6,23,0.90) 100%)',
-    border: '1px solid rgba(191,219,254,0.18)',
-    borderRadius: 34, padding: '42px 36px 30px', width: '100%', maxWidth: 430,
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-    boxShadow: '0 36px 120px rgba(0,0,0,0.74), 0 0 90px rgba(37,99,235,0.12), inset 0 1px 0 rgba(255,255,255,0.12)',
-    overflow: 'hidden', backdropFilter: 'blur(28px) saturate(1.2)',
-  },
-  loginGlassShine: {
-    position: 'absolute', inset: 0,
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.12), transparent 30%, transparent 62%, rgba(96,165,250,0.08))',
-    pointerEvents: 'none',
-  },
-  loginCardAccent: {
-    position: 'absolute', top: 0, right: 0, left: 0, height: 4,
-    background: 'linear-gradient(90deg, transparent, #60A5FA, #A78BFA, #60A5FA, transparent)',
-  },
+  loginWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: TG, position: 'relative', overflow: 'hidden', direction: 'rtl', padding: 20 },
+  loginSpaceBg: { position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(42,171,238,0.08), transparent 60%)', pointerEvents: 'none' },
+  loginStarsLayer: { position: 'absolute', inset: '-20%', opacity: 0.20, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 0 1px, transparent 1.3px)', backgroundSize: '90px 90px' },
+  loginStarsLayer2: { position: 'absolute', inset: '-18%', opacity: 0.10, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.6) 0 1px, transparent 1.5px)', backgroundSize: '60px 60px' },
+  loginNebulaOne: { position: 'absolute', width: 380, height: 380, borderRadius: '50%', top: '-90px', right: '-110px', background: 'radial-gradient(circle, rgba(42,171,238,0.10), transparent 70%)', filter: 'blur(28px)' },
+  loginNebulaTwo: { position: 'absolute', width: 340, height: 340, borderRadius: '50%', bottom: '-110px', left: '-90px', background: 'radial-gradient(circle, rgba(34,158,217,0.08), transparent 72%)', filter: 'blur(26px)' },
+  loginOrbit: { position: 'absolute', width: 500, height: 500, borderRadius: '50%', border: '1px solid rgba(42,171,238,0.07)', borderTopColor: 'rgba(42,171,238,0.18)', pointerEvents: 'none' },
+  loginBrandTop: { position: 'absolute', top: 20, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, color: TSB, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', background: 'rgba(23,33,43,0.80)', border: `1px solid ${TB}`, borderRadius: 999, padding: '6px 13px' },
+  loginCard: { position: 'relative', zIndex: 1, background: TP, border: `1px solid ${TB}`, borderRadius: 16, padding: '36px 30px 24px', width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'loginFloat 5s ease-in-out infinite' },
+  loginGlassShine: { display: 'none' },
+  loginCardAccent: { position: 'absolute', top: 0, right: 0, left: 0, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, borderRadius: '16px 16px 0 0', opacity: 0.7 },
   loginLogoArea: { position: 'relative', marginBottom: 4 },
-  logoGlow: {
-    position: 'absolute', inset: -28, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(96,165,250,0.42) 0%, rgba(167,139,250,0.16) 42%, transparent 72%)',
-    filter: 'blur(10px)',
-  },
-  loginTitle: {
-    fontSize: 38, fontWeight: 950, color: '#F8FAFC', margin: '18px 0 3px',
-    letterSpacing: '0.035em', fontFamily: "'Cairo', sans-serif", textShadow: '0 0 28px rgba(96,165,250,0.28)',
-  },
-  loginSubtitle: { fontSize: 13.5, color: '#AAB8D3', letterSpacing: '0.02em', margin: 0, fontWeight: 700 },
-  loginMicroCopy: {
-    marginTop: 12, color: '#60A5FA', fontSize: 11.5, fontWeight: 900,
-    background: 'rgba(96,165,250,0.10)', border: '1px solid rgba(96,165,250,0.22)', borderRadius: 999,
-    padding: '6px 12px',
-  },
-  inputLabel: { display: 'block', fontSize: 12, color: '#B8C4D9', marginBottom: 14, fontWeight: 900, textAlign: 'center' },
-  pinBoxesWrap: { position: 'relative', display: 'flex', gap: 12, justifyContent: 'center', cursor: 'text' },
-  pinBox: {
-    width: 58, height: 66, borderRadius: 21, background: 'linear-gradient(180deg, rgba(15,23,42,0.82), rgba(2,6,23,0.82))',
-    border: '1.5px solid rgba(147,197,253,0.20)', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontSize: 28, color: '#BFDBFE', fontWeight: 950,
-    transition: 'border-color 0.15s, transform 0.12s, background 0.15s, box-shadow .15s',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.045)',
-  },
-  pinBoxActive: { borderColor: '#60A5FA', transform: 'translateY(-3px)', boxShadow: '0 0 24px rgba(96,165,250,0.22)' },
-  pinBoxFilled: { borderColor: 'rgba(96,165,250,0.75)', background: 'rgba(59,130,246,0.13)', boxShadow: 'inset 0 0 18px rgba(96,165,250,0.08)' },
-  pinBoxError: { borderColor: '#F45B69', boxShadow: '0 0 20px rgba(244,91,105,0.2)' },
-  pinHiddenInput: {
-    position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%',
-    border: 'none', padding: 0, margin: 0, cursor: 'text',
-  },
-  errorText: { color: '#FF8A98', fontSize: 12.5, marginTop: 13, textAlign: 'center', fontWeight: 800 },
-  rememberRow: {
-    marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    color: '#AAB8D3', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
-  },
-  loginKeypad: {
-    marginTop: 22, display: 'grid', gridTemplateColumns: 'repeat(3, 58px)', gap: 12, justifyContent: 'center',
-  },
-  loginKeypadBtn: {
-    width: 58, height: 58, borderRadius: '50%', border: '1px solid rgba(191,219,254,0.14)',
-    background: 'radial-gradient(circle at 35% 20%, rgba(255,255,255,0.10), rgba(15,23,42,0.72) 42%, rgba(2,6,23,0.72))', color: '#F8FAFC', fontSize: 19, fontWeight: 950,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 10px 24px -20px rgba(0,0,0,0.9)',
-  },
-  loginKeypadGhost: {
-    width: 58, height: 58, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)',
-    background: 'rgba(255,255,255,0.028)', color: '#94A3B8', fontSize: 11.5, fontWeight: 950,
-  },
-  checkbox: { width: 16, height: 16, accentColor: '#60A5FA', cursor: 'pointer' },
-  loginFooter: { marginTop: 28, fontSize: 11, color: '#64748B', position: 'relative', zIndex: 1, letterSpacing: '0.04em' },
+  logoGlow: { position: 'absolute', inset: -22, borderRadius: '50%', background: 'radial-gradient(circle, rgba(42,171,238,0.18) 0%, transparent 70%)', filter: 'blur(10px)' },
+  loginTitle: { fontSize: 28, fontWeight: 800, color: TTX, margin: '12px 0 2px', letterSpacing: '0.03em' },
+  loginSubtitle: { fontSize: 12, color: TSB, margin: 0, fontWeight: 500 },
+  loginMicroCopy: { marginTop: 9, color: TBL, fontSize: 10.5, fontWeight: 700, background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.18)', borderRadius: 999, padding: '4px 11px' },
+  inputLabel: { display: 'block', fontSize: 11, color: TSB, marginBottom: 11, fontWeight: 700, textAlign: 'center', letterSpacing: '0.05em' },
+  pinBoxesWrap: { position: 'relative', display: 'flex', gap: 9, justifyContent: 'center', cursor: 'text' },
+  pinBox: { width: 50, height: 56, borderRadius: 10, background: TI, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: TBL, fontWeight: 900, transition: 'border-color 0.13s, transform 0.12s' },
+  pinBoxActive: { borderColor: TBL, transform: 'translateY(-2px)' },
+  pinBoxFilled: { borderColor: 'rgba(42,171,238,0.45)', background: 'rgba(42,171,238,0.07)' },
+  pinBoxError: { borderColor: TRD },
+  pinHiddenInput: { position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', border: 'none', padding: 0, margin: 0, cursor: 'text' },
+  errorText: { color: TRD, fontSize: 11.5, marginTop: 9, textAlign: 'center', fontWeight: 600 },
+  rememberRow: { marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: TSB, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' },
+  loginKeypad: { marginTop: 17, display: 'grid', gridTemplateColumns: 'repeat(3, 50px)', gap: 9, justifyContent: 'center' },
+  loginKeypadBtn: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: TI, color: TTX, fontSize: 16, fontWeight: 700 },
+  loginKeypadGhost: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: 'transparent', color: TSB, fontSize: 11, fontWeight: 700 },
+  checkbox: { width: 14, height: 14, accentColor: TBL, cursor: 'pointer' },
+  loginFooter: { marginTop: 20, fontSize: 10, color: TDM, position: 'relative', zIndex: 1, letterSpacing: '0.04em' },
 
   // ── App layout ──
-  appWrap: {
-    display: 'flex', minHeight: '100vh',
-    background: 'radial-gradient(circle at 10% 0%, rgba(59,130,246,0.16), transparent 30%), radial-gradient(circle at 88% 20%, rgba(34,211,238,0.08), transparent 28%), linear-gradient(135deg,#050812 0%, #080D18 45%, #0B1020 100%)',
-    direction: 'rtl', color: '#EAF0FB', fontFamily: "'Cairo', sans-serif",
-  },
-  sidebar: {
-    width: 286, background: 'linear-gradient(180deg, rgba(15,23,42,0.82), rgba(2,6,23,0.92))',
-    borderLeft: '1px solid rgba(148,163,184,0.10)', backdropFilter: 'blur(22px)',
-    display: 'flex', flexDirection: 'column', padding: '24px 16px', flexShrink: 0,
-    boxShadow: '-20px 0 70px -55px rgba(0,0,0,0.95), inset 1px 0 0 rgba(255,255,255,0.04)',
-  },
-  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 22px', borderBottom: '1px solid rgba(148,163,184,0.10)', marginBottom: 18 },
-  sidebarBrand: { fontSize: 18, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
-  sidebarBrandSub: { fontSize: 10, color: '#5E6986', letterSpacing: '0.04em' },
-  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
-  navItem: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
-    borderRadius: 15, border: '1px solid transparent', background: 'transparent', color: '#94A3B8',
-    fontSize: 14, fontWeight: 700, textAlign: 'right', position: 'relative',
-    transition: 'all 0.18s cubic-bezier(0.22,1,0.36,1)',
-  },
-  navItemActive: {
-    background: 'linear-gradient(135deg, rgba(37,99,235,0.24), rgba(14,165,233,0.08))',
-    borderColor: 'rgba(96,165,250,0.30)', color: '#DBEAFE', fontWeight: 900,
-    boxShadow: '0 12px 30px -24px rgba(59,130,246,0.8), inset 0 1px 0 rgba(255,255,255,0.06)',
-  },
-  navActiveDot: { position: 'absolute', right: -16, top: '50%', transform: 'translateY(-50%)', width: 3, height: 20, borderRadius: 4, background: '#3B82F6', boxShadow: '0 0 10px rgba(59,130,246,0.6)' },
-  sidebarFooter: { paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' },
-  userBadge: { display: 'flex', alignItems: 'center', gap: 11, padding: '8px', marginBottom: 8 },
-  userAvatar: {
-    width: 36, height: 36, borderRadius: 11, background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
-    color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontWeight: 700, fontSize: 14, flexShrink: 0, boxShadow: '0 4px 12px -2px rgba(59,130,246,0.5)',
-  },
-  userName: { fontSize: 13, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  userRole: { fontSize: 11, color: '#5E6986' },
-  logoutBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '11px 14px',
-    background: 'transparent', border: '1px solid rgba(244,91,105,0.2)', borderRadius: 11,
-    color: '#F45B69', fontSize: 13, fontWeight: 600,
-  },
+  appWrap: { display: 'flex', minHeight: '100vh', background: TG, direction: 'rtl', color: TTX, fontFamily: "'Cairo', sans-serif" },
+  sidebar: { width: 260, background: TP, borderLeft: `1px solid ${TB}`, display: 'flex', flexDirection: 'column', padding: '14px 10px', flexShrink: 0 },
+  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px 14px', borderBottom: `1px solid ${TB}`, marginBottom: 10 },
+  sidebarBrand: { fontSize: 15.5, fontWeight: 800, color: TTX },
+  sidebarBrandSub: { fontSize: 9, color: TDM, letterSpacing: '0.05em', textTransform: 'uppercase' },
+  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1 },
+  navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 10, border: '1px solid transparent', background: 'transparent', color: TSB, fontSize: 13.5, fontWeight: 600, textAlign: 'right', position: 'relative', transition: 'all 0.12s ease' },
+  navItemActive: { background: TAC, borderColor: 'rgba(42,171,238,0.20)', color: TBL, fontWeight: 700 },
+  navActiveDot: { position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)', width: 3, height: 15, borderRadius: 4, background: TBL },
+  sidebarFooter: { paddingTop: 11, borderTop: `1px solid ${TB}` },
+  userBadge: { display: 'flex', alignItems: 'center', gap: 9, padding: '6px', marginBottom: 7 },
+  userAvatar: { width: 32, height: 32, borderRadius: '50%', background: TBTN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
+  userName: { fontSize: 13, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  userRole: { fontSize: 10, color: TDM },
+  logoutBtn: { display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '9px 11px', background: 'transparent', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 10, color: TRD, fontSize: 12.5, fontWeight: 600 },
 
-  // ── Mobile header + bottom nav ──
-  mobileHeader: {
-    position: 'fixed', top: 0, right: 0, left: 0, height: 58, zIndex: 100,
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'rgba(14,20,34,0.82)', backdropFilter: 'blur(16px)',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    padding: '0 16px', direction: 'rtl',
-  },
-  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 9 },
-  mobileHeaderTitle: { fontSize: 16, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
-  mobileLogoutBtn: {
-    width: 34, height: 34, borderRadius: 10, background: 'rgba(244,91,105,0.1)',
-    border: 'none', color: '#F45B69', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  bottomNav: {
-    position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100,
-    display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-    background: 'rgba(14,20,34,0.9)', backdropFilter: 'blur(16px)',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
-    padding: '8px 4px 10px', direction: 'rtl',
-  },
-  bottomNavItem: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-    background: 'transparent', border: 'none', color: '#5E6986', padding: '6px 8px',
-    flex: 1, minWidth: 0, position: 'relative',
-  },
-  bottomNavItemActive: { color: '#60A5FA' },
-  bottomNavLabel: { fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
+  // ── Mobile ──
+  mobileHeader: { position: 'fixed', top: 0, right: 0, left: 0, height: 52, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: TP, borderBottom: `1px solid ${TB}`, padding: '0 14px', direction: 'rtl' },
+  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 8 },
+  mobileHeaderTitle: { fontSize: 15, fontWeight: 800, color: TTX },
+  mobileLogoutBtn: { width: 32, height: 32, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  bottomNav: { position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: TP, borderTop: `1px solid ${TB}`, padding: '6px 4px 8px', direction: 'rtl' },
+  bottomNavItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'transparent', border: 'none', color: TDM, padding: '5px 8px', flex: 1, minWidth: 0, position: 'relative' },
+  bottomNavItemActive: { color: TBL },
+  bottomNavLabel: { fontSize: 9.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
-  mainArea: { flex: 1, overflow: 'auto', padding: '34px 38px', position: 'relative' },
-  viewWrap: { animation: 'fadeUp 0.35s cubic-bezier(0.22,1,0.36,1)', maxWidth: 1480, margin: '0 auto' },
-  viewHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 26, flexWrap: 'wrap', gap: 14,
-    padding: '4px 2px 0',
-  },
-  viewTitle: { fontSize: 28, fontWeight: 950, color: '#F8FAFC', margin: 0, letterSpacing: '-0.035em', textShadow: '0 0 28px rgba(59,130,246,0.08)' },
-  viewSubtitle: { fontSize: 13.5, color: '#8290A8', margin: '6px 0 0', letterSpacing: '0.01em', fontWeight: 600 },
-
-  pageSelectWrap: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    background: 'linear-gradient(180deg, rgba(15,23,42,0.86), rgba(2,6,23,0.52))',
-    border: '1px solid rgba(148,163,184,0.12)', borderRadius: 14, padding: '9px 13px',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  pageSelect: {
-    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13,
-    fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
-  },
+  mainArea: { flex: 1, overflow: 'auto', padding: '0', position: 'relative', background: TG },
+  viewWrap: { animation: 'fadeUp 0.26s ease', maxWidth: 1480, margin: '0 auto', padding: '16px 18px' },
+  viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap', gap: 11 },
+  viewTitle: { fontSize: 19, fontWeight: 800, color: TTX, margin: 0, letterSpacing: '-0.02em' },
+  viewSubtitle: { fontSize: 12, color: TDM, margin: '3px 0 0', fontWeight: 500 },
+  pageSelectWrap: { display: 'flex', alignItems: 'center', gap: 7, background: TI, border: 'none', borderRadius: 10, padding: '6px 11px' },
+  pageSelect: { background: 'transparent', border: 'none', color: TTX, fontSize: 12.5, fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
 
   // ── Conversations ──
-  convTabs: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
-  convTab: {
-    display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px',
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12,
-    color: '#8B96AD', fontSize: 13, fontWeight: 600, transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
-  },
-  convTabActive: {
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-    borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
-  },
-  convTabCount: {
-    background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700,
-  },
-  convTabCountActive: { background: 'rgba(59,130,246,0.3)', color: '#93C5FD' },
-  unreadPulse: {
-    position: 'absolute', top: -6, left: -6, minWidth: 18, height: 18, padding: '0 5px',
-    borderRadius: 20, background: '#F4143C', color: '#fff', fontSize: 10, fontWeight: 800,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: '2px solid #0A0E17',
-  },
-  markAllReadBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%',
-    padding: '9px', marginBottom: 8, background: 'rgba(59,130,246,0.1)',
-    border: '1px solid rgba(59,130,246,0.22)', borderRadius: 11, color: '#60A5FA',
-    fontSize: 12, fontWeight: 700,
-  },
-  markAllReadBtnDisabled: {
-    opacity: 0.55, color: '#6B7280', background: 'rgba(255,255,255,0.035)', borderColor: 'rgba(255,255,255,0.06)',
-    cursor: 'not-allowed',
-  },
+  convTabs: { display: 'flex', gap: 5, marginBottom: 0, flexWrap: 'wrap', padding: '0 0 9px' },
+  convTab: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12, fontWeight: 600, transition: 'all 0.12s ease' },
+  convTabActive: { background: TAC, color: TBL },
+  convTabCount: { background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 6px', fontSize: 10, fontWeight: 700 },
+  convTabCountActive: { background: 'rgba(42,171,238,0.28)', color: TBL },
+  unreadPulse: { position: 'absolute', top: -5, left: -5, minWidth: 15, height: 15, padding: '0 4px', borderRadius: 20, background: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${TP}` },
+  markAllReadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '7px', marginBottom: 4, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 0, color: TBL, fontSize: 12, fontWeight: 600 },
+  markAllReadBtnDisabled: { opacity: 0.38, color: TDM, background: 'transparent', cursor: 'not-allowed' },
 
-  convLayout: { display: 'grid', gridTemplateColumns: '400px 1fr', gap: 22, minHeight: 540, alignItems: 'stretch' },
-  convList: {
-    background: 'linear-gradient(180deg, rgba(20,27,44,0.72), rgba(13,18,31,0.58))',
-    border: '1px solid rgba(255,255,255,0.07)', borderRadius: 22,
-    padding: 12, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 680, overflow: 'auto',
-    boxShadow: '0 18px 50px -30px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  searchBox: {
-    display: 'flex', alignItems: 'center', gap: 9, background: 'rgba(10,14,23,0.72)',
-    border: '1px solid rgba(96,165,250,0.14)', borderRadius: 16, padding: '12px 15px', marginBottom: 6,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-  },
-  searchInput: {
-    background: 'transparent', border: 'none', color: '#EAF0FB', fontSize: 13.5,
-    width: '100%', fontFamily: "'Cairo', sans-serif",
-  },
-  convItem: {
-    display: 'flex', gap: 13, padding: '13px 12px', background: 'rgba(255,255,255,0.018)',
-    border: '1px solid rgba(255,255,255,0.045)', borderRadius: 16,
-    textAlign: 'right', alignItems: 'center', transition: 'background 0.16s ease, transform .16s ease, border-color .16s ease', width: '100%',
-  },
-  convItemActive: { background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(96,165,250,0.06))', borderColor: 'rgba(96,165,250,0.32)', transform: 'translateY(-1px)' },
-  convAvatar: {
-    width: 52, height: 52, borderRadius: '50%', background: '#222C42', color: '#3B82F6',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 18,
-  },
-  convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  convCustomer: { fontSize: 14.5, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  convTime: { fontSize: 11.5, color: '#5E6986', flexShrink: 0, marginRight: 8 },
-  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' },
-  convLastMsg: { fontSize: 12.5, color: '#7C879E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
-  convMiniMetaRow: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 7, minHeight: 18 },
-  convMiniMetaPill: {
-    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', borderRadius: 999,
-    background: 'rgba(96,165,250,0.075)', border: '1px solid rgba(96,165,250,0.16)', color: '#93C5FD',
-    fontSize: 10, fontWeight: 850, lineHeight: 1.3,
-  },
-  unreadBadge: {
-    background: 'linear-gradient(135deg,#60A5FA,#3B82F6)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800,
-    padding: '2px 8px', minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    textAlign: 'center', flexShrink: 0, boxShadow: '0 2px 8px -1px rgba(59,130,246,0.5)',
-  },
+  convLayout: { display: 'grid', gridTemplateColumns: '320px 1fr', gap: 0, minHeight: '100vh', alignItems: 'stretch' },
+  convList: { background: TP, border: 'none', borderRadius: 0, borderLeft: `1px solid ${TB}`, padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 0, maxHeight: '100vh', overflow: 'auto', boxShadow: 'none' },
+  searchBox: { display: 'flex', alignItems: 'center', gap: 8, background: TI, border: 'none', borderRadius: 10, padding: '8px 12px', margin: '0 10px 7px', boxShadow: 'none' },
+  searchInput: { background: 'transparent', border: 'none', color: TTX, fontSize: 12.5, width: '100%', fontFamily: "'Cairo', sans-serif" },
+  convItem: { display: 'flex', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', borderRight: '3px solid transparent', borderRadius: 0, textAlign: 'right', alignItems: 'center', transition: 'background 0.12s ease', width: '100%' },
+  convItemActive: { background: TAC, borderRightColor: TBL },
+  convAvatar: { width: 44, height: 44, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 15 },
+  convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  convCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  convTime: { fontSize: 10.5, color: TDM, flexShrink: 0, marginRight: 5 },
+  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
+  convLastMsg: { fontSize: 12, color: TSB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
+  convMiniMetaRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 3, minHeight: 14 },
+  convMiniMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 999, background: 'rgba(42,171,238,0.08)', color: TBL, fontSize: 9, fontWeight: 700 },
+  unreadBadge: { background: TBL, color: '#fff', borderRadius: 20, fontSize: 10.5, fontWeight: 800, padding: '2px 7px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0 },
 
-  convDetail: {
-    background: 'linear-gradient(180deg, rgba(20,27,44,0.92), rgba(11,16,28,0.96))', border: '1px solid rgba(147,197,253,0.10)', borderRadius: 24,
-    padding: 24, display: 'flex', flexDirection: 'column', minHeight: 580, minWidth: 0, overflow: 'hidden',
-    boxShadow: '0 24px 70px -38px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.055)',
-  },
-  detailHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: '0 0 18px', borderBottom: '1px solid rgba(147,197,253,0.10)', marginBottom: 16, position: 'relative' },
-  convBackBtn: {
-    display: 'none', width: 36, height: 36, borderRadius: 11, background: '#1A2235',
-    border: '1px solid rgba(255,255,255,0.06)', color: '#C4CEE0', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0,
-  },
-  convAvatarLg: {
-    width: 48, height: 48, borderRadius: '50%', background: '#222C42', color: '#3B82F6',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, flexShrink: 0,
-  },
-  detailName: { fontSize: 17, fontWeight: 950, color: '#F8FAFC', letterSpacing: '-0.01em' },
-  detailPage: { fontSize: 12, color: '#8290A8', fontWeight: 650 },
-  chatHeaderMetaRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 7 },
-  chatHeaderMetaPill: {
-    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999,
-    background: 'rgba(15,23,42,0.55)', border: '1px solid rgba(148,163,184,0.12)', color: '#CBD5E1',
-    fontSize: 10.5, fontWeight: 850,
-  },
-  pinOrderBtn: {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 13px',
-    background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)',
-    borderRadius: 11, color: '#60A5FA', fontSize: 12, fontWeight: 700, flexShrink: 0,
-  },
-  chatScroll: {
-    flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
-    padding: '14px 10px', minHeight: 260, maxHeight: 520,
-    background: 'radial-gradient(circle at 50% 0%, rgba(96,165,250,0.055), transparent 30%), rgba(2,6,23,0.20)',
-    border: '1px solid rgba(255,255,255,0.035)', borderRadius: 20,
-  },
-  msgBubbleIn: {
-    background: 'linear-gradient(180deg, rgba(30,41,59,0.92), rgba(15,23,42,0.94))',
-    border: '1px solid rgba(148,163,184,0.12)', borderRadius: '20px 20px 6px 20px', padding: '11px 15px',
-    fontSize: 13.5, color: '#EAF0FB', maxWidth: '76%', lineHeight: 1.7,
-    display: 'flex', flexDirection: 'column', gap: 5, boxShadow: '0 10px 26px -20px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.04)',
-    overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
-  },
-  msgBubbleOut: {
-    background: 'linear-gradient(135deg, #2563EB 0%, #3B82F6 48%, #60A5FA 100%)',
-    border: '1px solid rgba(191,219,254,0.22)', borderRadius: '20px 20px 20px 6px', padding: '11px 15px',
-    fontSize: 13.5, color: '#ffffff', maxWidth: '76%', lineHeight: 1.7,
-    display: 'flex', flexDirection: 'column', gap: 5, boxShadow: '0 14px 30px -18px rgba(59,130,246,0.9), inset 0 1px 0 rgba(255,255,255,0.16)',
-    overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
-  },
-  chatDateDivider: {
-    alignSelf: 'center', margin: '2px 0 14px', padding: '5px 12px', borderRadius: 999,
-    background: 'rgba(15,23,42,0.72)', border: '1px solid rgba(148,163,184,0.10)', color: '#94A3B8',
-    fontSize: 10.5, fontWeight: 850, boxShadow: '0 8px 22px -18px rgba(0,0,0,0.85)',
-  },
-  msgImage: { width: '100%', maxWidth: 260, borderRadius: 14, display: 'block' },
-  msgAudio: { width: 240, maxWidth: '100%', height: 38 },
-  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.56)', alignSelf: 'flex-end', fontWeight: 700 },
-  composerBar: {
-    display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
-    background: 'linear-gradient(180deg, rgba(26,34,53,0.92), rgba(15,23,42,0.88))', border: '1px solid rgba(147,197,253,0.12)',
-    borderRadius: 18, padding: 9, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  composerIconBtn: {
-    width: 38, height: 38, borderRadius: 11, background: 'transparent',
-    border: 'none', color: '#8B96AD', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0,
-  },
-  recordingBar: {
-    display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '4px 6px',
-  },
-  recordingInfo: { flex: 1, display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'center' },
-  recordingDot: { width: 11, height: 11, borderRadius: '50%', background: '#F4143C', flexShrink: 0 },
-  recordingTime: { fontSize: 15, fontWeight: 800, color: '#EAF0FB', fontFamily: 'monospace', minWidth: 44 },
-  recordingLabel: { fontSize: 12.5, color: '#8B96AD' },
-  recordingCancelBtn: {
-    width: 40, height: 40, borderRadius: 12, background: 'rgba(244,91,105,0.12)',
-    border: '1px solid rgba(244,91,105,0.25)', color: '#F45B69',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  recordingSendBtn: {
-    width: 44, height: 44, borderRadius: 13, background: 'linear-gradient(135deg, #60A5FA, #2563EB)',
-    border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.6)',
-  },
-  composerInput: {
-    flex: 1, background: 'transparent', border: 'none', color: '#EAF0FB',
-    fontSize: 13.5, padding: '6px 4px', fontFamily: "'Cairo', sans-serif",
-  },
-  composerSendBtn: {
-    width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg, #60A5FA, #2563EB)',
-    border: 'none', color: '#ffffff', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px -2px rgba(59,130,246,0.5)',
-  },
-  linkedOrderCard: {
-    background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)',
-    borderRadius: 14, padding: 16, marginBottom: 14,
-  },
-  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#3B82F6', marginBottom: 12 },
-  linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 9 },
+  convDetail: { background: TG, border: 'none', borderRadius: 0, padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0, overflow: 'hidden', boxShadow: 'none' },
+  detailHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${TB}`, marginBottom: 0, position: 'relative', background: TP },
+  convBackBtn: { display: 'none', width: 32, height: 32, borderRadius: 9, background: TI, border: 'none', color: TSB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  convAvatarLg: { width: 40, height: 40, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 },
+  detailName: { fontSize: 14.5, fontWeight: 800, color: TTX },
+  detailPage: { fontSize: 11, color: TDM, fontWeight: 500 },
+  chatHeaderMetaRow: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 3 },
+  chatHeaderMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 999, background: TI, color: TSB, fontSize: 9.5, fontWeight: 600 },
+  pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 11.5, fontWeight: 700, flexShrink: 0 },
+  chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
+  msgBubbleIn: { background: '#182533', border: 'none', borderRadius: '16px 16px 16px 4px', padding: '8px 12px', fontSize: 13.5, color: TTX, maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 },
+  msgBubbleOut: { background: '#2B5278', border: 'none', borderRadius: '16px 16px 4px 16px', padding: '8px 12px', fontSize: 13.5, color: '#fff', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 },
+  chatDateDivider: { alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 10, fontWeight: 600 },
+  msgImage: { width: '100%', maxWidth: 260, borderRadius: 10, display: 'block' },
+  msgAudio: { width: 240, maxWidth: '100%', height: 34 },
+  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.45)', alignSelf: 'flex-end', fontWeight: 500 },
+  composerBar: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 0, background: TP, border: 'none', borderTop: `1px solid ${TB}`, borderRadius: 0, padding: '10px 14px', boxShadow: 'none' },
+  composerIconBtn: { width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TDM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  recordingBar: { display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' },
+  recordingInfo: { flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
+  recordingDot: { width: 9, height: 9, borderRadius: '50%', background: TRD, flexShrink: 0 },
+  recordingTime: { fontSize: 14, fontWeight: 800, color: TTX, fontFamily: 'monospace', minWidth: 42 },
+  recordingLabel: { fontSize: 12, color: TDM },
+  recordingCancelBtn: { width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  recordingSendBtn: { width: 38, height: 38, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  composerInput: { flex: 1, background: 'transparent', border: 'none', color: TTX, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" },
+  composerSendBtn: { width: 36, height: 36, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  linkedOrderCard: { background: TI, border: `1px solid ${TB}`, borderRadius: 10, padding: 12, marginBottom: 9 },
+  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: TBL, marginBottom: 9 },
+  linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 7 },
   linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  linkedOrderLabel: { fontSize: 12, color: '#5E6986' },
-  linkedOrderValue: { fontSize: 13, color: '#EAF0FB', fontWeight: 600 },
-  linkedOrderDetailBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%',
-    marginTop: 12, padding: '10px', background: 'rgba(59,130,246,0.12)',
-    border: '1px solid rgba(59,130,246,0.3)', borderRadius: 11, color: '#60A5FA',
-    fontSize: 12.5, fontWeight: 700,
-  },
-
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '50px 20px', color: '#5E6986', fontSize: 13 },
-  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: '#5E6986', fontSize: 14 },
+  linkedOrderLabel: { fontSize: 11.5, color: TDM },
+  linkedOrderValue: { fontSize: 12.5, color: TTX, fontWeight: 600 },
+  linkedOrderDetailBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '8px', background: 'rgba(42,171,238,0.09)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700 },
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TDM, fontSize: 13 },
+  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 11, flex: 1, color: TDM, fontSize: 13 },
 
   // ── Orders ──
-  printBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: 'linear-gradient(135deg,#60A5FA,#2563EB)', border: 'none', borderRadius: 11,
-    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.55)',
-  },
-  secondaryBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px',
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 11,
-    color: '#C4CEE0', fontSize: 13, fontWeight: 700,
-  },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 },
-  statCard: {
-    display: 'flex', alignItems: 'center', gap: 13, background: 'linear-gradient(180deg,#141B2C,#111725)',
-    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '18px 20px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  statIconWrap: { width: 42, height: 42, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  statValue: { fontSize: 22, fontWeight: 800, color: '#EAF0FB', lineHeight: 1.15, letterSpacing: '-0.02em' },
-  statLabel: { fontSize: 11, color: '#5E6986', marginTop: 3 },
-
-  sectionTabs: { display: 'flex', gap: 8, marginBottom: 18 },
-  sectionTab: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: '#111725', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 13,
-    color: '#8B96AD', fontSize: 13, fontWeight: 700, transition: 'all 0.16s cubic-bezier(0.22,1,0.36,1)',
-  },
-  sectionTabActive: {
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-    borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
-  },
-  filterChips: { display: 'flex', gap: 6 },
-  chip: {
-    padding: '8px 14px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 10, color: '#8B96AD', fontSize: 12, fontWeight: 600,
-  },
-  chipActive: { background: 'rgba(59,130,246,0.14)', borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD' },
-
-  ordersGrid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))', gap: 18,
-  },
-  orderCard: {
-    background: 'linear-gradient(180deg, rgba(20,27,44,0.92), rgba(12,17,29,0.96))', border: '1px solid rgba(147,197,253,0.08)', borderRadius: 22,
-    padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    boxShadow: '0 18px 45px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.055)',
-    transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
-  },
-  orderTicketHead: {
-    display: 'flex', alignItems: 'center', gap: 11, padding: '15px 16px 12px',
-  },
-  orderTicketAvatar: {
-    width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.25), rgba(59,130,246,0.08))',
-    border: '1px solid rgba(59,130,246,0.2)', color: '#93C5FD',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 17,
-  },
-  orderCardCustomer: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderTicketPage: { fontSize: 11.5, color: '#5E6986', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderStatusPill: {
-    fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 11px', flexShrink: 0,
-  },
-  orderTicketBody: {
-    padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 7,
-  },
-  orderDetailRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#8B96AD' },
-  deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#60A5FA', fontWeight: 700, marginTop: 2 },
-  orderTicketItems: {
-    fontSize: 12.5, color: '#C4CEE0', background: 'rgba(255,255,255,0.03)', borderRadius: 11,
-    padding: '10px 12px', marginTop: 2, lineHeight: 1.55, border: '1px solid rgba(255,255,255,0.04)',
-  },
-  orderTicketFoot: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-    padding: '12px 16px', borderTop: '1px dashed rgba(255,255,255,0.08)',
-  },
-  orderCardTotal: { fontSize: 19, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.02em' },
-  orderCurrency: { fontSize: 12, fontWeight: 600, color: '#5E6986' },
-  orderTicketMeta: { display: 'flex', gap: 5, alignItems: 'center', fontSize: 10.5, color: '#5E6986', marginTop: 3 },
-  printedBadge: {
-    display: 'inline-flex', alignItems: 'center', gap: 3,
-    background: 'rgba(74,222,128,0.12)', color: '#4ADE80', border: '1px solid rgba(74,222,128,0.3)',
-    borderRadius: 20, padding: '2px 9px', fontSize: 10, fontWeight: 700,
-  },
-  batchBlock: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: 18,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  batchHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10,
-  },
-  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#EAF0FB' },
-  batchHeaderTime: { fontSize: 11, color: '#5E6986', fontWeight: 500 },
-  orderCardActions: {
-    display: 'flex', gap: 6, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)',
-    background: 'rgba(0,0,0,0.15)',
-  },
-  orderActionBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    height: 34, borderRadius: 10, background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    color: '#8B96AD',
-  },
-  statusSelect: {
-    border: '1px solid', borderRadius: 10, padding: '6px 10px', fontSize: 12,
-    fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
-  },
+  printBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  secondaryBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 600 },
+  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 },
+  statCard: { display: 'flex', alignItems: 'center', gap: 11, background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: '13px 15px', boxShadow: TSH },
+  statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  statValue: { fontSize: 20, fontWeight: 800, color: TTX, lineHeight: 1.15, letterSpacing: '-0.02em' },
+  statLabel: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  sectionTabs: { display: 'flex', gap: 5, marginBottom: 13 },
+  sectionTab: { display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12.5, fontWeight: 600, transition: 'all 0.12s ease' },
+  sectionTabActive: { background: TAC, color: TBL },
+  filterChips: { display: 'flex', gap: 5 },
+  chip: { padding: '6px 12px', background: TI, border: 'none', borderRadius: 20, color: TDM, fontSize: 11.5, fontWeight: 600 },
+  chipActive: { background: TAC, color: TBL },
+  ordersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(272px,1fr))', gap: 11 },
+  orderCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'background 0.12s ease' },
+  orderTicketHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px 9px' },
+  orderTicketAvatar: { width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15 },
+  orderCardCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderTicketPage: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderStatusPill: { fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: '3px 9px', flexShrink: 0 },
+  orderTicketBody: { padding: '0 13px 9px', display: 'flex', flexDirection: 'column', gap: 5 },
+  orderDetailRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TSB },
+  deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TBL, fontWeight: 700, marginTop: 2 },
+  orderTicketItems: { fontSize: 11.5, color: '#C8D0DC', background: TI, borderRadius: 8, padding: '8px 10px', marginTop: 2, lineHeight: 1.55, border: 'none' },
+  orderTicketFoot: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '9px 13px', borderTop: `1px solid ${TB}` },
+  orderCardTotal: { fontSize: 17, fontWeight: 800, color: TTX, letterSpacing: '-0.02em' },
+  orderCurrency: { fontSize: 11, fontWeight: 500, color: TDM },
+  orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, color: TDM, marginTop: 2 },
+  printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(77,219,107,0.11)', color: TGR, borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 },
+  batchBlock: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  batchHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
+  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: TTX },
+  batchHeaderTime: { fontSize: 10.5, color: TDM, fontWeight: 500 },
+  orderCardActions: { display: 'flex', gap: 5, padding: '9px 13px', borderTop: `1px solid ${TB}`, background: 'rgba(0,0,0,0.08)' },
+  orderActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 31, borderRadius: 8, background: TI, border: 'none', color: TDM },
+  statusSelect: { border: '1px solid', borderRadius: 8, padding: '5px 8px', fontSize: 11.5, fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
 
   // ── Stats ──
-  chartCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18,
-    padding: 24, marginBottom: 20, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  timeFilterBar: { display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' },
-  customDateRow: { display: 'flex', gap: 10, marginBottom: 20 },
-  customDateSelect: {
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 11,
-    padding: '10px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif", flex: 1,
-  },
-  customDateSelectCompact: {
-    background: 'rgba(26,34,53,0.82)', border: '1px solid rgba(96,165,250,0.13)', borderRadius: 13,
-    padding: '10px 13px', color: '#EAF0FB', fontSize: 12.5, fontFamily: "'Cairo', sans-serif", minWidth: 120,
-  },
-  filtersWrap: {
-    display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16,
-    background: 'linear-gradient(180deg, rgba(20,27,44,0.46), rgba(17,23,37,0.35))',
-    border: '1px solid rgba(255,255,255,0.055)', borderRadius: 18, padding: 12,
-  },
+  chartCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 16, marginBottom: 13, boxShadow: TSH },
+  timeFilterBar: { display: 'flex', gap: 5, marginBottom: 12, flexWrap: 'wrap' },
+  customDateRow: { display: 'flex', gap: 8, marginBottom: 14 },
+  customDateSelect: { background: TI, border: 'none', borderRadius: 9, padding: '8px 11px', color: TTX, fontSize: 12.5, fontFamily: "'Cairo', sans-serif", flex: 1 },
+  customDateSelectCompact: { background: TI, border: 'none', borderRadius: 9, padding: '8px 10px', color: TTX, fontSize: 12, fontFamily: "'Cairo', sans-serif", minWidth: 110 },
+  filtersWrap: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, background: TI, borderRadius: 10, padding: 10 },
   dateChipsRow: { display: 'none' },
-  filterBottomRow: { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' },
-  chartTitle: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', margin: '0 0 18px' },
-  barChartArea: { display: 'flex', flexDirection: 'column', gap: 16 },
-  barChartRow: { display: 'grid', gridTemplateColumns: '180px 1fr 120px', gap: 14, alignItems: 'center' },
-  barChartLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#C4CEE0', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
-  barChartTrack: { height: 10, background: '#1A2235', borderRadius: 6, overflow: 'hidden' },
-  barChartFill: { height: '100%', background: 'linear-gradient(90deg,#1D4ED8,#60A5FA)', borderRadius: 6, transition: 'width 0.6s cubic-bezier(0.22,1,0.36,1)', boxShadow: '0 0 12px -2px rgba(59,130,246,0.6)' },
-  barChartValue: { fontSize: 12, fontWeight: 700, color: '#60A5FA', textAlign: 'left' },
-
-  statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
-  donutWrap: { display: 'flex', justifyContent: 'center', padding: '10px 0' },
+  filterBottomRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
+  chartTitle: { fontSize: 14, fontWeight: 700, color: TTX, margin: '0 0 13px' },
+  barChartArea: { display: 'flex', flexDirection: 'column', gap: 12 },
+  barChartRow: { display: 'grid', gridTemplateColumns: '165px 1fr 105px', gap: 11, alignItems: 'center' },
+  barChartLabel: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: TSB, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+  barChartTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
+  barChartFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4, transition: 'width 0.5s ease' },
+  barChartValue: { fontSize: 11.5, fontWeight: 700, color: TBL, textAlign: 'left' },
+  statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 },
+  donutWrap: { display: 'flex', justifyContent: 'center', padding: '8px 0' },
   pageStatRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  pageStatInfo: { display: 'flex', alignItems: 'center', gap: 10 },
-  pageStatBadge: {
-    background: '#1A2235', padding: '5px 12px', borderRadius: 20, fontSize: 11,
-    fontWeight: 700, color: '#8B96AD',
-  },
+  pageStatInfo: { display: 'flex', alignItems: 'center', gap: 9 },
+  pageStatBadge: { background: TI, padding: '4px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 700, color: TSB },
 
   // ── Pages ──
-  addBtn: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px',
-    background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)', border: 'none', borderRadius: 10,
-    color: '#ffffff', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
-  },
-  confirmBtn: {
-    background: '#3B82F6', border: 'none', borderRadius: 8, padding: '0 18px',
-    color: '#ffffff', fontWeight: 700, fontSize: 13,
-  },
-  fbErrorBox: {
-    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-    background: 'rgba(244,91,105,0.08)', border: '1px solid rgba(244,91,105,0.25)',
-    borderRadius: 12, padding: '12px 16px', color: '#F45B69', fontSize: 13, lineHeight: 1.6,
-  },
-  fbExchangingBox: {
-    marginBottom: 16, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
-    borderRadius: 12, padding: '12px 16px', color: '#3B82F6', fontSize: 13,
-  },
-  fbCandidatesWrap: {
-    marginBottom: 20, background: '#111725', border: '1px solid rgba(59,130,246,0.2)',
-    borderRadius: 14, padding: 16,
-  },
-  fbCandidatesTitle: { fontSize: 13, fontWeight: 700, color: '#EAF0FB', marginBottom: 12 },
-  fbCandidateRow: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-  },
-  fbCandidateAvatarImg: { width: 38, height: 38, borderRadius: 10, objectFit: 'cover' },
-  fbCandidateId: { fontSize: 11, color: '#5E6986', marginTop: 2 },
-  pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 18 },
-  pageCard: {
-    position: 'relative', display: 'flex', flexDirection: 'column', gap: 14,
-    background: 'linear-gradient(180deg, rgba(20,27,44,0.92), rgba(12,17,29,0.96))',
-    border: '1px solid rgba(147,197,253,0.10)', borderRadius: 24, padding: 18,
-    boxShadow: '0 20px 55px -34px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.055)', overflow: 'hidden',
-  },
-  pageCardTopLine: { position: 'absolute', top: 0, right: 22, left: 22, height: 3, background: 'linear-gradient(90deg, transparent, #60A5FA, transparent)' },
-  pageCardHeader: { display: 'flex', alignItems: 'center', gap: 13, width: '100%' },
-  subscribeBtn: {
-    width: '100%', marginTop: 0, background: 'linear-gradient(135deg, rgba(74,222,128,0.18), rgba(34,197,94,0.08))',
-    border: '1px solid rgba(74,222,128,0.32)', borderRadius: 14, padding: '11px 0',
-    color: '#86EFAC', fontSize: 12.5, fontWeight: 900,
-  },
-  pageCardAvatar: {
-    width: 54, height: 54, borderRadius: 18, background: 'linear-gradient(135deg, rgba(59,130,246,0.24), rgba(96,165,250,0.07))', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0, border: '1px solid rgba(96,165,250,0.18)',
-  },
-  pageCardName: { fontSize: 15.5, fontWeight: 900, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  pageCardMeta: { fontSize: 11, color: '#6B7280', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginTop: 4, fontWeight: 600 },
-  pageStatusPill: { display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', borderRadius: 999, padding: '8px 12px', fontSize: 12, fontWeight: 900, border: '1px solid' },
-  pageStatusPillOk: { color: '#86EFAC', background: 'rgba(34,197,94,0.10)', borderColor: 'rgba(74,222,128,0.28)' },
-  pageStatusPillWait: { color: '#93C5FD', background: 'rgba(59,130,246,0.10)', borderColor: 'rgba(96,165,250,0.25)' },
-  liveDot: { width: 8, height: 8, borderRadius: '50%', boxShadow: '0 0 14px currentColor' },
-  iconBtnDanger: {
-    width: 32, height: 32, borderRadius: 9, background: 'rgba(244,91,105,0.1)',
-    border: 'none', color: '#F45B69', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
+  addBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  confirmBtn: { background: TBL, border: 'none', borderRadius: 8, padding: '0 15px', color: '#fff', fontWeight: 700, fontSize: 13 },
+  fbErrorBox: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12, background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.18)`, borderRadius: 10, padding: '10px 12px', color: TRD, fontSize: 12.5, lineHeight: 1.6 },
+  fbExchangingBox: { marginBottom: 12, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 10, padding: '10px 12px', color: TBL, fontSize: 12.5 },
+  fbCandidatesWrap: { marginBottom: 15, background: TI, border: 'none', borderRadius: 11, padding: 12 },
+  fbCandidatesTitle: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 10 },
+  fbCandidateRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${TB}` },
+  fbCandidateAvatarImg: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' },
+  fbCandidateId: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(295px,1fr))', gap: 12 },
+  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH, overflow: 'hidden' },
+  pageCardTopLine: { position: 'absolute', top: 0, right: 16, left: 16, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, opacity: 0.55 },
+  pageCardHeader: { display: 'flex', alignItems: 'center', gap: 11, width: '100%' },
+  subscribeBtn: { width: '100%', background: 'rgba(77,219,107,0.09)', border: `1px solid rgba(77,219,107,0.22)`, borderRadius: 10, padding: '9px 0', color: TGR, fontSize: 12, fontWeight: 700 },
+  pageCardAvatar: { width: 46, height: 46, borderRadius: '50%', background: TI, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0 },
+  pageCardName: { fontSize: 14, fontWeight: 800, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  pageCardMeta: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, marginTop: 3, fontWeight: 600 },
+  pageStatusPill: { display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start', borderRadius: 20, padding: '6px 11px', fontSize: 11.5, fontWeight: 700, border: 'none' },
+  pageStatusPillOk: { color: TGR, background: 'rgba(77,219,107,0.09)' },
+  pageStatusPillWait: { color: TBL, background: 'rgba(42,171,238,0.09)' },
+  liveDot: { width: 7, height: 7, borderRadius: '50%', boxShadow: '0 0 8px currentColor' },
+  iconBtnDanger: { width: 30, height: 30, borderRadius: 8, background: 'rgba(242,80,80,0.08)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
   // ── Users ──
-  usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 },
-  userCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 18, padding: 18,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-  },
-  userCardTop: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
-  userCardAvatar: {
-    width: 42, height: 42, borderRadius: 12, display: 'flex', alignItems: 'center',
-    justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0,
-  },
-  userCardName: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
-  userCardRole: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#8B96AD', marginTop: 3 },
-  activeDot: { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
-  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)' },
-  permTag: {
-    background: 'rgba(59,130,246,0.12)', color: '#60A5FA', fontSize: 10, fontWeight: 600,
-    padding: '4px 9px', borderRadius: 8,
-  },
-  userCardActions: { display: 'flex', gap: 8 },
-  userActionBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-    padding: '8px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 8, color: '#8B96AD', fontSize: 11, fontWeight: 600,
-  },
-  userCardMetaRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 },
-  userCodeTag: {
-    fontSize: 11, color: '#8B96AD', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: 8, padding: '4px 10px', fontFamily: 'monospace',
-  },
-  warehouseNote: {
-    display: 'flex', gap: 9, alignItems: 'flex-start', background: 'rgba(240,168,104,0.08)',
-    border: '1px solid rgba(240,168,104,0.22)', borderRadius: 11, padding: 12,
-    fontSize: 12, color: '#C4CEE0', lineHeight: 1.6,
-  },
-  rejectReasonBox: {
-    margin: '0 16px 12px', padding: '10px 12px', background: 'rgba(244,91,105,0.08)',
-    border: '1px solid rgba(244,91,105,0.2)', borderRadius: 11, fontSize: 12.5, color: '#EAF0FB',
-    display: 'flex', flexDirection: 'column', gap: 3,
-  },
-  rejectReasonLabel: { fontSize: 11, color: '#F45B69', fontWeight: 700 },
-  rejectedCard: {
-    border: '1.5px solid rgba(244,91,105,0.45)',
-    boxShadow: '0 0 0 1px rgba(244,91,105,0.15), 0 8px 24px -8px rgba(244,91,105,0.35)',
-  },
-  rejectedBanner: {
-    display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center',
-    background: 'linear-gradient(135deg, #F4143C, #C0143C)', color: '#fff',
-    fontSize: 12.5, fontWeight: 800, padding: '9px 12px',
-    borderRadius: '16px 16px 0 0', margin: '-1px -1px 0',
-  },
-  prepTimeRow: {
-    display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8B96AD',
-    margin: '0 16px 10px', paddingTop: 2,
-  },
-  orderReprepNoteBox: {
-    display: 'flex', alignItems: 'flex-start', gap: 8, margin: '0 16px 12px',
-    background: 'rgba(244,91,105,0.12)', border: '1px solid rgba(244,91,105,0.35)', color: '#FFD0D6',
-    borderRadius: 12, padding: '10px 12px', fontSize: 12.5, lineHeight: 1.6,
-  },
-  globalOrderSearchWrap: {
-    position: 'relative', display: 'flex', alignItems: 'center', gap: 7,
-    width: 230, minHeight: 38, background: '#111827', border: '1px solid rgba(96,165,250,0.32)',
-    borderRadius: 12, padding: '0 11px', boxShadow: '0 8px 22px -16px rgba(96,165,250,0.7)',
-  },
-  globalOrderSearchInput: {
-    width: '100%', background: 'transparent', border: 'none', outline: 'none', color: '#EAF0FB',
-    fontSize: 12.5, fontFamily: "'Cairo', sans-serif",
-  },
-  globalOrderResultsBox: {
-    position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 50,
-    background: '#101827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14,
-    boxShadow: '0 18px 40px -18px rgba(0,0,0,0.85)', padding: 6, maxHeight: 360, overflowY: 'auto',
-  },
-  globalOrderResultItem: {
-    width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 8px', border: 'none',
-    background: 'transparent', borderRadius: 10, textAlign: 'right', color: '#EAF0FB',
-  },
-  globalOrderResultTitle: { fontSize: 12.5, fontWeight: 800, color: '#EAF0FB', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  globalOrderResultMeta: { fontSize: 11, color: '#7C879E', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  globalOrderEmpty: { padding: '12px', color: '#8B96AD', fontSize: 12, textAlign: 'center' },
+  usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(285px,1fr))', gap: 11 },
+  userCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  userCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
+  userCardAvatar: { width: 38, height: 38, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 },
+  userCardName: { fontSize: 13, fontWeight: 700, color: TTX },
+  userCardRole: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: TDM, marginTop: 2 },
+  activeDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
+  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
+  permTag: { background: 'rgba(42,171,238,0.09)', color: TBL, fontSize: 9.5, fontWeight: 600, padding: '3px 7px', borderRadius: 6 },
+  userCardActions: { display: 'flex', gap: 6 },
+  userActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', background: TI, border: 'none', borderRadius: 8, color: TSB, fontSize: 10.5, fontWeight: 600 },
+  userCardMetaRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
+  userCodeTag: { fontSize: 10.5, color: TDM, background: TI, border: 'none', borderRadius: 7, padding: '3px 8px', fontFamily: 'monospace' },
+  warehouseNote: { display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: 10, fontSize: 12, color: TSB, lineHeight: 1.6 },
+  rejectReasonBox: { margin: '0 13px 10px', padding: '8px 10px', background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.14)`, borderRadius: 9, fontSize: 12, color: TTX, display: 'flex', flexDirection: 'column', gap: 3 },
+  rejectReasonLabel: { fontSize: 10.5, color: TRD, fontWeight: 700 },
+  rejectedCard: { border: `1.5px solid rgba(242,80,80,0.36)`, boxShadow: '0 0 0 1px rgba(242,80,80,0.09), 0 4px 14px -6px rgba(242,80,80,0.25)' },
+  rejectedBanner: { display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'center', background: '#7B1A1A', color: '#fff', fontSize: 12, fontWeight: 800, padding: '8px 11px', borderRadius: '12px 12px 0 0', margin: '-1px -1px 0' },
+  prepTimeRow: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: TDM, margin: '0 13px 8px', paddingTop: 2 },
+  orderReprepNoteBox: { display: 'flex', alignItems: 'flex-start', gap: 7, margin: '0 13px 10px', background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.24)`, color: '#FCA5A5', borderRadius: 9, padding: '8px 10px', fontSize: 12, lineHeight: 1.6 },
+  globalOrderSearchWrap: { position: 'relative', display: 'flex', alignItems: 'center', gap: 6, width: 208, minHeight: 34, background: TI, border: 'none', borderRadius: 10, padding: '0 10px' },
+  globalOrderSearchInput: { width: '100%', background: 'transparent', border: 'none', outline: 'none', color: TTX, fontSize: 12, fontFamily: "'Cairo', sans-serif" },
+  globalOrderResultsBox: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 50, background: TP, border: `1px solid ${TB}`, borderRadius: 11, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', overflow: 'hidden' },
+  globalOrderResultItem: { width: '100%', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 10px', border: 'none', background: 'transparent', borderRadius: 0, textAlign: 'right', color: TTX },
+  globalOrderResultTitle: { fontSize: 12, fontWeight: 700, color: TTX, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  globalOrderResultMeta: { fontSize: 10.5, color: TDM, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  globalOrderEmpty: { padding: '11px', color: TDM, fontSize: 12, textAlign: 'center' },
 
-  // ── واجهة موظف المخزن ──
-  warehouseWrap: { flex: 1, overflow: 'auto', padding: '24px 18px', maxWidth: 760, margin: '0 auto', width: '100%' },
-  warehouseHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 12,
-    paddingTop: 'env(safe-area-inset-top, 0px)',
-  },
-  warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 14 },
-  warehouseCard: {
-    background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 18, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5)',
-  },
-  warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  warehouseCardNo: { fontSize: 13, fontWeight: 800, color: '#60A5FA', fontFamily: 'monospace' },
-  warehouseCardDate: { fontSize: 11.5, color: '#5E6986' },
-  warehouseBigType: {
-    fontSize: 19, fontWeight: 800, color: '#EAF0FB', lineHeight: 1.5, letterSpacing: '-0.01em',
-    overflowWrap: 'anywhere', whiteSpace: 'pre-wrap',
-  },
-  warehouseFilterBar: { display: 'flex', gap: 8, marginBottom: 18 },
-  warehouseFilterChip: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-    padding: '11px 8px', background: '#141B2C', border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 13, color: '#8B96AD', fontSize: 13.5, fontWeight: 700,
-  },
-  warehouseFilterChipActive: {
-    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-    borderColor: 'rgba(59,130,246,0.45)', color: '#EAF0FB',
-  },
-  warehouseFilterCount: {
-    minWidth: 22, height: 22, borderRadius: 11, background: 'rgba(255,255,255,0.08)',
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 11.5, fontWeight: 800, padding: '0 6px',
-  },
-  warehouseFilterCountActive: { background: '#3B82F6', color: '#fff' },
-  warehouseReprepNote: {
-    display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 12,
-    background: 'linear-gradient(135deg, rgba(244,91,105,0.22), rgba(244,91,105,0.08))',
-    border: '1px solid rgba(244,91,105,0.55)', borderRadius: 14, padding: '12px 14px',
-    color: '#FFD0D6', boxShadow: '0 0 0 1px rgba(244,91,105,0.08), 0 10px 26px -18px rgba(244,91,105,0.9)',
-  },
-  warehouseReprepTitle: { fontSize: 13, fontWeight: 900, color: '#FF8A98', marginBottom: 3 },
-  warehouseReprepText: { fontSize: 15, fontWeight: 800, color: '#FFF1F3', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
-  warehouseItemsBox: {
-    marginTop: 12, background: 'rgba(240,168,104,0.06)', border: '1px solid rgba(240,168,104,0.18)',
-    borderRadius: 12, padding: '12px 14px',
-  },
-  warehouseItemsLabel: { fontSize: 11.5, fontWeight: 700, color: '#F0A868', marginBottom: 5 },
-  warehouseItemsText: { fontSize: 14.5, color: '#EAF0FB', lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
-  warehouseBadge: {
-    width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg,#F0A868,#E0833C)',
-    color: '#2A1606', fontSize: 19, fontWeight: 800, display: 'flex', alignItems: 'center',
-    justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 14px -4px rgba(240,168,104,0.6)',
-  },
-  warehouseActions: { display: 'flex', gap: 10, marginTop: 16 },
-  warehouseDoneBtn: {
-    flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '15px',
-    background: 'linear-gradient(135deg,#4ADE80,#16A34A)', border: 'none', borderRadius: 13,
-    color: '#06210F', fontSize: 15, fontWeight: 800, boxShadow: '0 3px 14px -3px rgba(74,222,128,0.5)',
-  },
-  warehouseRejectBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '15px',
-    background: 'rgba(244,91,105,0.12)', border: '1px solid rgba(244,91,105,0.3)', borderRadius: 13,
-    color: '#F45B69', fontSize: 14, fontWeight: 700,
-  },
+  // ── Warehouse ──
+  warehouseWrap: { flex: 1, overflow: 'auto', padding: '18px 15px', maxWidth: 700, margin: '0 auto', width: '100%' },
+  warehouseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 11, paddingTop: 'env(safe-area-inset-top,0px)' },
+  warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
+  warehouseCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
+  warehouseCardNo: { fontSize: 12, fontWeight: 800, color: TBL, fontFamily: 'monospace' },
+  warehouseCardDate: { fontSize: 11, color: TDM },
+  warehouseBigType: { fontSize: 17, fontWeight: 800, color: TTX, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
+  warehouseFilterBar: { display: 'flex', gap: 6, marginBottom: 13 },
+  warehouseFilterChip: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 7px', background: TI, border: 'none', borderRadius: 10, color: TDM, fontSize: 12.5, fontWeight: 700 },
+  warehouseFilterChipActive: { background: TAC, color: TBL },
+  warehouseFilterCount: { minWidth: 19, height: 19, borderRadius: 10, background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 800, padding: '0 5px' },
+  warehouseFilterCountActive: { background: TBL, color: '#fff' },
+  warehouseReprepNote: { display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, padding: '10px 11px', color: '#FCA5A5' },
+  warehouseReprepTitle: { fontSize: 12, fontWeight: 800, color: TRD, marginBottom: 3 },
+  warehouseReprepText: { fontSize: 13.5, fontWeight: 700, color: '#FEE2E2', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
+  warehouseItemsBox: { marginTop: 10, background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: '9px 11px' },
+  warehouseItemsLabel: { fontSize: 10.5, fontWeight: 700, color: '#FFCA28', marginBottom: 4 },
+  warehouseItemsText: { fontSize: 13.5, color: TTX, lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
+  warehouseBadge: { width: 38, height: 38, borderRadius: '50%', background: TBTN, color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  warehouseActions: { display: 'flex', gap: 8, marginTop: 12 },
+  warehouseDoneBtn: { flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '12px', background: TGBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(77,219,107,0.32)' },
+  warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
-  },
-  modal: {
-    background: 'linear-gradient(180deg,#161E30,#121826)', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 20, width: '100%', maxWidth: 460, maxHeight: '88vh', overflowY: 'auto',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 16px 50px -12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)', position: 'relative', zIndex: 1,
-  },
-  modalHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '20px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-  },
-  modalTitle: { fontSize: 16, fontWeight: 700, color: '#EAF0FB', margin: 0 },
-  modalClose: { background: 'transparent', border: 'none', color: '#5E6986', display: 'flex' },
-  modalBody: { padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 },
-  formGroup: { display: 'flex', flexDirection: 'column', gap: 7 },
-  formLabel: { fontSize: 12, fontWeight: 600, color: '#8B96AD' },
-  formInput: {
-    background: '#0A0E17', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9,
-    padding: '11px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif",
-  },
-  roleToggle: { display: 'flex', gap: 8 },
-  roleBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: '10px', background: '#0A0E17', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 9, color: '#8B96AD', fontSize: 12, fontWeight: 600,
-  },
-  roleBtnActive: { background: 'rgba(59,130,246,0.12)', borderColor: 'rgba(59,130,246,0.3)', color: '#60A5FA' },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
+  modal: { background: TP, border: `1px solid ${TB}`, borderRadius: 14, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'relative', zIndex: 1 },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
+  modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
+  modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
+  modalBody: { padding: '15px 17px', display: 'flex', flexDirection: 'column', gap: 13 },
+  formGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
+  formLabel: { fontSize: 11.5, fontWeight: 600, color: TDM },
+  formInput: { background: TI, border: 'none', borderRadius: 9, padding: '9px 12px', color: TTX, fontSize: 13, fontFamily: "'Cairo', sans-serif" },
+  roleToggle: { display: 'flex', gap: 6 },
+  roleBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px', background: TI, border: 'none', borderRadius: 9, color: TDM, fontSize: 12, fontWeight: 600 },
+  roleBtnActive: { background: TAC, color: TBL },
   permsGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
-  permCheckRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#C4CEE0', padding: '6px 0', cursor: 'pointer' },
-  modalFooter: { display: 'flex', gap: 10, padding: '18px 22px', borderTop: '1px solid rgba(255,255,255,0.06)' },
-  modalCancelBtn: {
-    flex: 1, padding: '11px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 9, color: '#8B96AD', fontSize: 13, fontWeight: 600,
-  },
-  modalSaveBtn: {
-    flex: 1, padding: '11px', background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)',
-    border: 'none', borderRadius: 9, color: '#ffffff', fontSize: 13, fontWeight: 700,
-    boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
-  },
-  detailGridRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-    paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.05)',
-  },
-  detailGridLabel: { fontSize: 12.5, color: '#5E6986', flexShrink: 0 },
-  detailGridValue: { fontSize: 13.5, color: '#EAF0FB', fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
-  detailActionBtn: {
-    flex: 1, minWidth: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: '11px 10px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 10, color: '#C4CEE0', fontSize: 12.5, fontWeight: 700,
-  },
-  statsBottomBtns: { display: 'flex', gap: 10, marginTop: 18 },
-  statsSmallBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1, padding: '13px',
-    background: '#141B2C', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 13,
-    color: '#C4CEE0', fontSize: 13, fontWeight: 700,
-  },
-  statsSummaryBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1.4, padding: '13px',
-    background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)', border: 'none', borderRadius: 13,
-    color: '#fff', fontSize: 14, fontWeight: 800, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.5)',
-  },
-  summaryRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-    padding: '13px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.02)',
-    border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8,
-  },
-  summaryRowSub: { background: 'transparent', border: 'none', padding: '6px 20px', marginBottom: 2 },
-  summaryRowLabel: { fontSize: 13.5, fontWeight: 600 },
-  summaryRowValue: { fontSize: 18, fontWeight: 800 },
-  summaryHint: { fontSize: 11.5, color: '#5E6986', textAlign: 'center', marginTop: 10 },
-  bestSellerRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
-  bestSellerRank: {
-    width: 28, height: 28, borderRadius: 9, background: 'rgba(59,130,246,0.15)', color: '#60A5FA',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0,
-  },
-  bestSellerType: { fontSize: 13.5, fontWeight: 700, color: '#EAF0FB', marginBottom: 5, overflowWrap: 'anywhere' },
-  bestSellerTrack: { height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' },
-  bestSellerFill: { height: '100%', background: 'linear-gradient(90deg,#3B82F6,#60A5FA)', borderRadius: 4 },
-  bestSellerCount: { fontSize: 15, fontWeight: 800, color: '#60A5FA', minWidth: 28, textAlign: 'center', flexShrink: 0 },
-  convertedRow: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.05)',
-  },
-  convertedCustomer: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
-  convertedSub: { fontSize: 12, color: '#93C5FD', marginTop: 2 },
-  convertedMeta: { fontSize: 11, color: '#5E6986', marginTop: 3 },
-  convertedTotal: { fontSize: 14, fontWeight: 800, color: '#60A5FA', flexShrink: 0 },
-  neglectedRow: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '12px', marginBottom: 8,
-    borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-    cursor: 'pointer',
-  },
-  neglectedRowSel: { background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.4)' },
-  neglectedCheck: {
-    width: 24, height: 24, borderRadius: 7, border: '1.5px solid rgba(255,255,255,0.2)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff',
-  },
-  neglectedCheckOn: { background: '#3B82F6', borderColor: '#3B82F6' },
+  permCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: TSB, padding: '5px 0', cursor: 'pointer' },
+  modalFooter: { display: 'flex', gap: 8, padding: '13px 17px', borderTop: `1px solid ${TB}` },
+  modalCancelBtn: { flex: 1, padding: '9px', background: 'transparent', border: `1px solid ${TB}`, borderRadius: 9, color: TDM, fontSize: 12.5, fontWeight: 600 },
+  modalSaveBtn: { flex: 1, padding: '9px', background: TBTN, border: 'none', borderRadius: 9, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.28)' },
+  detailGridRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 11, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
+  detailGridLabel: { fontSize: 11.5, color: TDM, flexShrink: 0 },
+  detailGridValue: { fontSize: 12.5, color: TTX, fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
+  detailActionBtn: { flex: 1, minWidth: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px', background: TI, border: 'none', borderRadius: 9, color: TSB, fontSize: 12, fontWeight: 700 },
+  statsBottomBtns: { display: 'flex', gap: 8, marginTop: 13 },
+  statsSmallBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '10px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 700 },
+  statsSummaryBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1.4, padding: '10px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  summaryRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 10, background: TI, border: 'none', marginBottom: 6 },
+  summaryRowSub: { background: 'transparent', border: 'none', padding: '4px 15px', marginBottom: 2 },
+  summaryRowLabel: { fontSize: 12.5, fontWeight: 600 },
+  summaryRowValue: { fontSize: 16, fontWeight: 800 },
+  summaryHint: { fontSize: 11, color: TDM, textAlign: 'center', marginTop: 8 },
+  bestSellerRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 },
+  bestSellerRank: { width: 24, height: 24, borderRadius: 8, background: 'rgba(42,171,238,0.11)', color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, flexShrink: 0 },
+  bestSellerType: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 4, overflowWrap: 'anywhere' },
+  bestSellerTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
+  bestSellerFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4 },
+  bestSellerCount: { fontSize: 14, fontWeight: 800, color: TBL, minWidth: 23, textAlign: 'center', flexShrink: 0 },
+  convertedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${TB}` },
+  convertedCustomer: { fontSize: 13, fontWeight: 700, color: TTX },
+  convertedSub: { fontSize: 11, color: TBL, marginTop: 2 },
+  convertedMeta: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  convertedTotal: { fontSize: 13, fontWeight: 800, color: TBL, flexShrink: 0 },
+  neglectedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px', marginBottom: 5, borderRadius: 10, background: TI, border: 'none', cursor: 'pointer' },
+  neglectedRowSel: { background: TAC, border: '1px solid rgba(42,171,238,0.28)' },
+  neglectedCheck: { width: 21, height: 21, borderRadius: 6, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff' },
+  neglectedCheckOn: { background: TBL, borderColor: TBL },
 };
