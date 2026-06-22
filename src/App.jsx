@@ -110,6 +110,15 @@ function fileToBase64(file) {
 
 // صوت إشعار لطيف عند تثبيت طلب جديد (نغمتان صاعدتان)
 let _audioCtx = null;
+function ensureAudioReady() {
+  // يجب استدعاؤها عند أول تفاعل من المستخدم (مثل الضغط) حتى يسمح المتصفح بالصوت
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!_audioCtx) _audioCtx = new Ctx();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  } catch (_e) { /* تجاهل */ }
+}
 function playNotificationSound() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -691,7 +700,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     // أثناء فتح المحادثة: اسحب من فيسبوك مباشرة وحدّث الرسائل كل 2.5 ثانية لأقل تأخير ممكن
     const refreshOpenChat = async () => {
       try {
-        await fetch(FB_POLL_FUNCTION_URL, { method: 'GET' });
+        await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
       } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
       await loadMessages(selectedConv.id);
     };
@@ -737,7 +746,11 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   async function sendToFacebook(payload) {
     const res = await fetch(FB_SEND_FUNCTION_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'apikey': SUPABASE_KEY,
+      },
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
@@ -1413,7 +1426,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const { base64, mediaType } = await fileToBase64(file);
       const res = await fetch(ORDER_EXTRACT_FUNCTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+        },
         body: JSON.stringify({ imageBase64: base64, mediaType }),
       });
       const data = await res.json().catch(() => ({}));
@@ -2610,12 +2627,23 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
   const [rejectOrder, setRejectOrder] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const knownPrepIdsRef = React.useRef(null);
 
   // الطلبات المثبتة (المصدر chat) التي لم تُجهَّز بعد، من كل الصفحات
   const pendingPrep = useMemo(() => {
     return orders.filter((o) => o.source === 'chat' && !o.converted && !o.prepStatus)
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [orders]);
+
+  // صوت إشعار عند وصول طلب جديد للتجهيز
+  useEffect(() => {
+    const ids = new Set(pendingPrep.map((o) => o.id));
+    if (knownPrepIdsRef.current) {
+      const hasNew = pendingPrep.some((o) => !knownPrepIdsRef.current.has(o.id));
+      if (hasNew) playNotificationSound();
+    }
+    knownPrepIdsRef.current = ids;
+  }, [pendingPrep]);
 
   async function markDone(o) {
     setSaving(true);
@@ -2638,9 +2666,12 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
   return (
     <div style={styles.warehouseWrap}>
       <div style={styles.warehouseHeader}>
-        <div>
-          <h2 style={styles.viewTitle}>طلبات التجهيز</h2>
-          <p style={styles.viewSubtitle}>أهلاً {currentUser.name} — {pendingPrep.length} طلب بانتظار التجهيز</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={styles.warehouseBadge}>{pendingPrep.length}</div>
+          <div>
+            <h2 style={styles.viewTitle}>طلبات التجهيز</h2>
+            <p style={styles.viewSubtitle}>أهلاً {currentUser.name}</p>
+          </div>
         </div>
         <button onClick={onLogout} style={styles.mobileLogoutBtn} title="خروج"><LogOut size={18} /></button>
       </div>
@@ -2651,11 +2682,42 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
         <div style={styles.warehouseGrid}>
           {pendingPrep.map((o) => (
             <div key={o.id} style={styles.warehouseCard}>
-              <div style={styles.warehouseCardNo}>#{o.orderNo}</div>
+              <div style={styles.warehouseCardTop}>
+                <div style={styles.warehouseCardNo}>طلب #{o.orderNo}</div>
+                {o.date && <div style={styles.warehouseCardDate}>{o.date}</div>}
+              </div>
+
               <div style={styles.warehouseCardCustomer}>{o.customer}</div>
               {o.orderType && <div style={styles.warehouseCardType}>{o.orderType}</div>}
-              {o.items && <div style={styles.warehouseCardItems}>{o.items}</div>}
-              {o.address && <div style={styles.warehouseCardSub}><MapPin size={12} /> {o.address}</div>}
+
+              <div style={styles.warehouseDetails}>
+                {o.phone && (
+                  <div style={styles.warehouseDetailRow}>
+                    <span style={styles.warehouseDetailLabel}><Phone size={13} /> الهاتف</span>
+                    <span style={styles.warehouseDetailValue}>{o.phone}</span>
+                  </div>
+                )}
+                {o.address && (
+                  <div style={styles.warehouseDetailRow}>
+                    <span style={styles.warehouseDetailLabel}><MapPin size={13} /> العنوان</span>
+                    <span style={styles.warehouseDetailValue}>{o.address}</span>
+                  </div>
+                )}
+                {o.total > 0 && (
+                  <div style={styles.warehouseDetailRow}>
+                    <span style={styles.warehouseDetailLabel}><Package size={13} /> المبلغ</span>
+                    <span style={{ ...styles.warehouseDetailValue, color: '#60A5FA', fontWeight: 800 }}>{Number(o.total).toLocaleString()} د.ع</span>
+                  </div>
+                )}
+              </div>
+
+              {o.items && (
+                <div style={styles.warehouseItemsBox}>
+                  <div style={styles.warehouseItemsLabel}>المنتجات / التفاصيل</div>
+                  <div style={styles.warehouseItemsText}>{o.items}</div>
+                </div>
+              )}
+
               <div style={styles.warehouseActions}>
                 <button onClick={() => markDone(o)} disabled={saving} style={styles.warehouseDoneBtn}>
                   <CheckCircle2 size={20} /> تم التجهيز
@@ -2747,6 +2809,7 @@ export default function AlFhdApp() {
 
   const knownOrderIdsRef = React.useRef(null);
   const orderSignatureRef = React.useRef('');
+  const rejectedIdsRef = React.useRef(null);
   const refreshOrders = useCallback(async () => {
     try {
       const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
@@ -2758,6 +2821,15 @@ export default function AlFhdApp() {
         if (newChatOrder) playNotificationSound();
       }
       knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
+
+      // كشف طلب رفضه المجهّز حديثاً لتشغيل صوت تنبيه للمدير
+      const rejectedNow = new Set(mapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
+      if (rejectedIdsRef.current) {
+        const newlyRejected = [...rejectedNow].some((id) => !rejectedIdsRef.current.has(id));
+        if (newlyRejected) playNotificationSound();
+      }
+      rejectedIdsRef.current = rejectedNow;
+
       // حدّث الحالة فقط إذا تغيّر شيء فعلاً
       const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}`).join('|');
       if (sig !== orderSignatureRef.current) {
@@ -2802,7 +2874,7 @@ export default function AlFhdApp() {
   // (يحدّث المحادثات أيضاً، فلا حاجة لمؤقّت منفصل)
   const pollFacebookNow = useCallback(async () => {
     try {
-      await fetch(FB_POLL_FUNCTION_URL, { method: 'GET' });
+      await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
     } catch (e) {
       console.error('active poll error:', e);
     } finally {
@@ -2831,6 +2903,7 @@ export default function AlFhdApp() {
   }, [storageReady]);
 
   const handleLogin = (user) => {
+    ensureAudioReady();
     setAuthedUser(user);
     try {
       sessionStorage.setItem('alfhd_session', JSON.stringify({ userId: user.id }));
@@ -3709,18 +3782,36 @@ const styles = {
     background: 'linear-gradient(180deg,#141B2C,#111725)', border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: 18, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5)',
   },
-  warehouseCardNo: { fontSize: 12, fontWeight: 700, color: '#5E6986', fontFamily: 'monospace', marginBottom: 4 },
-  warehouseCardCustomer: { fontSize: 18, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
+  warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  warehouseCardNo: { fontSize: 13, fontWeight: 800, color: '#60A5FA', fontFamily: 'monospace' },
+  warehouseCardDate: { fontSize: 11.5, color: '#5E6986' },
+  warehouseCardCustomer: { fontSize: 20, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
   warehouseCardType: {
-    display: 'inline-block', marginTop: 6, fontSize: 12, fontWeight: 700, color: '#93C5FD',
-    background: 'rgba(59,130,246,0.12)', borderRadius: 20, padding: '3px 11px',
+    display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 700, color: '#93C5FD',
+    background: 'rgba(59,130,246,0.12)', borderRadius: 20, padding: '4px 13px',
   },
-  warehouseCardItems: {
-    fontSize: 14, color: '#C4CEE0', background: 'rgba(255,255,255,0.03)', borderRadius: 12,
-    padding: '12px 14px', marginTop: 12, lineHeight: 1.6, border: '1px solid rgba(255,255,255,0.05)',
-    overflowWrap: 'anywhere', whiteSpace: 'pre-wrap',
+  warehouseDetails: {
+    display: 'flex', flexDirection: 'column', gap: 1, marginTop: 14,
+    background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)',
+    overflow: 'hidden',
   },
-  warehouseCardSub: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#8B96AD', marginTop: 10 },
+  warehouseDetailRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+  },
+  warehouseDetailLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#8B96AD', flexShrink: 0 },
+  warehouseDetailValue: { fontSize: 14, color: '#EAF0FB', fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
+  warehouseItemsBox: {
+    marginTop: 12, background: 'rgba(240,168,104,0.06)', border: '1px solid rgba(240,168,104,0.18)',
+    borderRadius: 12, padding: '12px 14px',
+  },
+  warehouseItemsLabel: { fontSize: 11.5, fontWeight: 700, color: '#F0A868', marginBottom: 5 },
+  warehouseItemsText: { fontSize: 14.5, color: '#EAF0FB', lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
+  warehouseBadge: {
+    width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg,#F0A868,#E0833C)',
+    color: '#2A1606', fontSize: 19, fontWeight: 800, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 14px -4px rgba(240,168,104,0.6)',
+  },
   warehouseActions: { display: 'flex', gap: 10, marginTop: 16 },
   warehouseDoneBtn: {
     flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '15px',
