@@ -857,211 +857,31 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       await markConversationRead(selectedConv.id);
     };
     const interval = setInterval(refreshOpenChat, 2500);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConv?.id]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  function touchConvLocally(convId, lastMessage) {
-    if (!setConversations) return;
-    setConversations((prev) => prev.map((c) => (
-      c.id === convId
-        ? { ...c, lastMsg: lastMessage, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }
-        : c
-    )));
-  }
-
-  async function uploadToStorage(file, ext) {
-    const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${filename}`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': file.type || 'application/octet-stream',
-        'x-upsert': 'true',
-      },
-      body: file,
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      const isBucketMissing = res.status === 404 || /bucket not found/i.test(body);
-      if (isBucketMissing) {
-        throw new Error('مخزن الملفات غير موجود. أنشئ Bucket باسم chat-media من Supabase ← Storage واجعله Public، ثم أعد المحاولة.');
-      }
-      throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تحقق من إعدادات مخزن chat-media'}`);
-    }
-    return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`;
-  }
-
-  async function sendToFacebook(payload) {
-    const res = await fetch(FB_SEND_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'apikey': SUPABASE_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data?.error) {
-      throw new Error(data?.error || `فشل الإرسال: ${res.status}`);
-    }
-    return data;
-  }
-
-  async function handleSendText() {
-    const text = composerText.trim();
-    if (!text || !selectedConv || sendingMsg) return;
-    setComposerText('');
-    setSendingMsg(true);
-    const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
-    setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
-    touchConvLocally(selectedConv.id, text);
-    try {
-      await sendToFacebook({
-        pageId: selectedConv.pageId,
-        conversationId: selectedConv.id,
-        recipientPsid: selectedConv.customerPsid,
-        text,
-      });
-      await loadMessages(selectedConv.id);
-    } catch (e) {
-      console.error('send text error:', e);
-      alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function handlePickImage(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !selectedConv) return;
-    setSendingMsg(true);
-    try {
-      const url = await uploadToStorage(file, (file.name.split('.').pop() || 'jpg').toLowerCase());
-      setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'image', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
-      touchConvLocally(selectedConv.id, '📷 صورة');
-      await sendToFacebook({
-        pageId: selectedConv.pageId,
-        conversationId: selectedConv.id,
-        recipientPsid: selectedConv.customerPsid,
-        mediaUrl: url,
-        mediaType: 'image',
-      });
-      await loadMessages(selectedConv.id);
-    } catch (e) {
-      console.error('send image error:', e);
-      alert(`تعذّر إرسال الصورة:\n${e?.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function startRecording() {
-    if (!selectedConv) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recCanceledRef.current = false;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-        if (recCanceledRef.current) { setRecSeconds(0); return; }
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setRecSeconds(0);
-        if (blob.size === 0) return;
-        setSendingMsg(true);
-        try {
-          const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-          const url = await uploadToStorage(file, 'webm');
-          setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'audio', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
-          touchConvLocally(selectedConv.id, '🎤 رسالة صوتية');
-          await sendToFacebook({
-            pageId: selectedConv.pageId,
-            conversationId: selectedConv.id,
-            recipientPsid: selectedConv.customerPsid,
-            mediaUrl: url,
-            mediaType: 'audio',
-          });
-          await loadMessages(selectedConv.id);
-        } catch (e) {
-          console.error('send audio error:', e);
-          alert(`تعذّر إرسال التسجيل الصوتي:\n${e?.message || 'خطأ غير معروف'}`);
-        } finally {
-          setSendingMsg(false);
-        }
-      };
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setRecording(true);
-      setRecSeconds(0);
-      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
-    } catch (e) {
-      alert('تعذّر الوصول إلى الميكروفون، تأكد من السماح بالإذن من المتصفح');
-    }
-  }
-
-  function stopRecording() {
-    recCanceledRef.current = false;
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  function cancelRecording() {
-    recCanceledRef.current = true;
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-    setRecSeconds(0);
-  }
-
-  // ── ألوان TG مختصرة ──
-  const TG_PANEL = '#17212B';
-  const TG_INPUT = '#242F3D';
-  const TG_BLUE  = '#2AABEE';
-  const TG_DIM   = '#546880';
-  const TG_SUB   = '#8B9AB3';
-  const TG_TEXT  = '#F5F5F5';
-  const TG_RED   = '#E53935';
-  const TG_BDR   = 'rgba(255,255,255,0.07)';
-
-  const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'ذكاء اصطناعي' };
-  const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
 
   return (
-    /* ─── حاوية ملء الشاشة بدون padding ─── */
+    /* ─── حاوية ملء الشاشة مع flex layout صحيح ─── */
     <div style={{
-      display: 'flex', height: 'calc(100vh - 0px)', overflow: 'hidden',
-      position: 'fixed', inset: 0, right: 260, direction: 'rtl',
+      display: 'flex', height: '100vh', overflow: 'hidden',
+      direction: 'rtl',
       background: '#0E1621',
     }} className="alfhd-conv-fullscreen">
 
       {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
       <div
         style={{
-          width: 340, minWidth: 280, maxWidth: 360,
+          width: 340, minWidth: 340, maxWidth: 340,
           display: 'flex', flexDirection: 'column',
           background: TG_PANEL,
-          borderLeft: `1px solid ${TG_BDR}`,
+          borderLeft: ,
           height: '100%', overflow: 'hidden', flexShrink: 0,
         }}
-        className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
+        className={}
       >
         {/* ── رأس القائمة: شعار + فلتر صفحات ── */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '13px 14px 11px',
-          borderBottom: `1px solid ${TG_BDR}`,
+          borderBottom: ,
           flexShrink: 0,
         }}>
           {/* شعار */}
@@ -1083,7 +903,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                   cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
                 }}
               >
-                <option value="all">كل الصفحات ({pages.length})</option>
+                <option value="all">كل الصفحات ({len(lines)})</option>
                 {pages.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -1095,7 +915,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           {/* أيقونة البحث */}
           <button
             onClick={() => {/* toggle search */}}
-            style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <Search size={17} />
           </button>
@@ -1120,7 +940,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
         {/* ── تبويبات الثلاثة — أفقية متساوية ── */}
         <div style={{
           display: 'flex', flexShrink: 0,
-          borderBottom: `1px solid ${TG_BDR}`,
+          borderBottom: ,
           padding: '6px 8px 0',
           gap: 4,
         }}>
@@ -1136,7 +956,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                   flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                   gap: 3, padding: '7px 4px 9px',
                   background: 'transparent', border: 'none',
-                  borderBottom: active ? `2px solid ${TG_BLUE}` : '2px solid transparent',
+                  borderBottom: active ?  : '2px solid transparent',
                   color: active ? TG_BLUE : TG_DIM,
                   fontSize: 10, fontWeight: 700,
                   transition: 'all 0.15s ease',
@@ -1153,7 +973,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                       borderRadius: 20, background: TG_RED, color: '#fff',
                       fontSize: 9, fontWeight: 800,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: `2px solid ${TG_PANEL}`,
+                      border: ,
                       lineHeight: 1,
                     }}>
                       {unreadCount}
@@ -1209,7 +1029,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                 style={{
                   display: 'flex', gap: 10, padding: '10px 14px',
                   width: '100%', background: 'transparent', border: 'none',
-                  borderRight: selectedConv?.id === c.id ? `3px solid ${TG_BLUE}` : '3px solid transparent',
+                  borderRight: selectedConv?.id === c.id ?  : '3px solid transparent',
                   borderRadius: 0, textAlign: 'right', alignItems: 'center',
                   backgroundColor: selectedConv?.id === c.id ? 'rgba(42,171,238,0.13)' : 'transparent',
                   transition: 'background 0.12s ease',
@@ -1248,14 +1068,14 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           flex: 1, display: 'flex', flexDirection: 'column',
           background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0,
         }}
-        className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
+        className={}
       >
         {selectedConv ? (
           <>
             {/* ── هيدر المحادثة ── */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 11,
-              padding: '12px 16px', borderBottom: `1px solid ${TG_BDR}`,
+              padding: '12px 16px', borderBottom: ,
               background: TG_PANEL, flexShrink: 0,
             }} className="alfhd-chat-detail-header">
               <button
@@ -1272,7 +1092,6 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                   {pages.find((p) => p.id === selectedConv.pageId)?.name}
                 </div>
               </div>
-              {!selectedConv.orderId && (
                 <button
                   onClick={() => onCreateOrderFromConv?.(selectedConv)}
                   style={{
@@ -1289,7 +1108,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             {/* ── كرت الطلب المثبّت ── */}
             {linkedOrder && (
               <div style={{
-                background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`,
+                background: 'rgba(42,171,238,0.06)', borderBottom: ,
                 padding: '10px 16px', flexShrink: 0,
               }} className="alfhd-linked-order">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: TG_BLUE, marginBottom: 8 }}>
@@ -1368,187 +1187,38 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             {/* ── شريط الكتابة ── */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: TG_PANEL, borderTop: `1px solid ${TG_BDR}`,
+              background: TG_PANEL, borderTop: ,
               padding: '10px 14px', flexShrink: 0,
             }} className="alfhd-composer-bar">
               <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
-              {recording ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' }}>
-                  <button style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TG_RED, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelRecording}><Trash2 size={17} /></button>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: TG_RED }} className="alfhd-rec-dot" />
-                    <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
-                    <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
-                  </div>
-                  <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
-                </div>
-              ) : (
-                <>
-                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
-                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
-                  <input
-                    value={composerText}
-                    onChange={(e) => setComposerText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
-                    placeholder="اكتب رسالة..."
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" }}
-                    disabled={sendingMsg}
-                  />
-                  <button
-                    style={{ width: 36, height: 36, borderRadius: '50%', background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
-                    onClick={handleSendText}
-                    disabled={sendingMsg || !composerText.trim()}
-                  >
-                    <Send size={16} />
-                  </button>
-                </>
+              <button onClick={() => fileInputRef.current?.click()} style={{ width: 32, height: 32, borderRadius: 9, background: TG_INPUT, border: 'none', color: TG_BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} title="إرسال صورة">
+                <Image size={18} />
+              </button>
+              <button onClick={recording ? stopRecording : startRecording} style={{ width: 32, height: 32, borderRadius: 9, background: recording ? 'rgba(244,91,105,0.15)' : TG_INPUT, border: 'none', color: recording ? TG_RED : TG_BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} title={recording ? 'إيقاف التسجيل' : 'تسجيل صوتي'}>
+                {recording ? <StopCircle size={18} /> : <Mic size={18} />}
+              </button>
+              {recording && (
+                <span style={{ fontSize: 11, color: TG_RED, fontWeight: 700, minWidth: 40 }}>
+                  {formatRecTime(recSeconds)}
+                </span>
               )}
+              <input
+                type="text"
+                placeholder="اكتب رسالة..."
+                value={composerText}
+                onChange={(e) => setComposerText(e.target.value)}
+                style={{ flex: 1, background: TG_INPUT, border: 'none', borderRadius: 9, padding: '8px 12px', color: TG_TEXT, fontSize: 13, fontFamily: "'Cairo', sans-serif" }}
+              />
+                <Send size={18} />
+              </button>
             </div>
           </>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 14, color: TG_DIM }}>
-            <MessageSquare size={52} color={TG_DIM} strokeWidth={1.5} />
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: TG_SUB, marginBottom: 5 }}>اختر محادثة</div>
-              <div style={{ fontSize: 12.5, color: TG_DIM }}>للعرض والتواصل مع الزبون</div>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 11, color: TG_DIM, fontSize: 13 }}>
+            <MessageSquare size={40} color={TG_DIM} />
+            <p>اختر محادثة لبدء الدردشة</p>
           </div>
         )}
-      </div>
-
-      <style>{`
-        @media (max-width: 860px) {
-          .alfhd-conv-fullscreen {
-            right: 0 !important;
-            position: fixed !important;
-            inset: 0 !important;
-          }
-          .alfhd-conv-list-hidden-mobile { display: none !important; }
-          .alfhd-conv-detail-empty { display: none !important; }
-          .alfhd-conv-detail-active-mobile {
-            position: fixed !important;
-            inset: 0 !important;
-            z-index: 200 !important;
-            width: 100% !important;
-          }
-          .alfhd-conv-back-btn { display: flex !important; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// شارة الحالة
-// ──────────────────────────────────────────────
-function StatusPill({ status }) {
-  const cfg = STATUS_CONFIG[status];
-  if (!cfg) return null;
-  const Icon = cfg.icon;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}33`,
-    }}>
-      <Icon size={12} />
-      {cfg.label}
-    </span>
-  );
-}
-
-function OrderStagePill({ order }) {
-  const cfg = getOrderStageInfo(order);
-  const Icon = cfg.icon || Package;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 800,
-      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}44`,
-      whiteSpace: 'nowrap',
-    }}>
-      <Icon size={12} />
-      {cfg.label}
-    </span>
-  );
-}
-
-// ──────────────────────────────────────────────
-// أدوات الفلترة المشتركة (تاريخ + صفحات + بحث)
-// ──────────────────────────────────────────────
-function startOfDayTs(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
-
-const DATE_PRESETS = [
-  { id: 'today', label: 'اليوم' },
-  { id: 'yesterday', label: 'أمس' },
-  { id: 'dayBefore', label: 'أول أمس' },
-  { id: 'week', label: 'هذا الأسبوع' },
-  { id: 'custom', label: 'اختيار شهر وسنة' },
-  { id: 'all', label: 'الكل' },
-];
-
-const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-
-function dateInRange(dateStr, preset, customMonth, customYear) {
-  if (preset === 'all') return true;
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return false;
-  const now = new Date();
-  const today = startOfDayTs(now);
-  const dDay = startOfDayTs(d);
-  if (preset === 'today') return dDay === today;
-  if (preset === 'yesterday') return dDay === today - 86400000;
-  if (preset === 'dayBefore') return dDay === today - 2 * 86400000;
-  if (preset === 'week') { const w = today - 7 * 86400000; return d.getTime() >= w && d.getTime() <= now.getTime(); }
-  if (preset === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
-  return true;
-}
-
-// شريط فلترة موحّد: تاريخ + صفحات + بحث
-function OrderFilters({
-  pages, datePreset, setDatePreset, customMonth, setCustomMonth, customYear, setCustomYear,
-  pageFilter, setPageFilter, search, setSearch, searchPlaceholder,
-}) {
-  const years = [];
-  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
-  return (
-    <div style={styles.filtersWrap} className="alfhd-no-print">
-      <div style={styles.filterBottomRow}>
-        <div style={styles.pageSelectWrap}>
-          <Calendar size={15} color="#60A5FA" />
-          <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)} style={styles.pageSelect}>
-            {DATE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
-        </div>
-        {datePreset === 'custom' && (
-          <>
-            <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
-              {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-            </select>
-            <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </>
-        )}
-        <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#3B82F6" />
-          <select value={pageFilter} onChange={(e) => setPageFilter(e.target.value)} style={styles.pageSelect}>
-            <option value="all">كل الصفحات</option>
-            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
-        </div>
-        <div style={styles.searchBox}>
-          <Search size={15} color="#5E6986" />
-          <input
-            placeholder={searchPlaceholder || 'بحث...'}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={styles.searchInput}
-          />
-        </div>
       </div>
     </div>
   );
