@@ -28,6 +28,29 @@ const FB_SUBSCRIBE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-subscribe-pag
 const FB_SEND_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-send-message`;
 const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-from-image`;
 const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
+const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shipment`;
+
+// محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
+const IRAQ_GOVERNORATES = [
+  { code: 'BGD', name: 'بغداد' },
+  { code: 'BAS', name: 'البصرة' },
+  { code: 'NIN', name: 'نينوى' },
+  { code: 'ARB', name: 'أربيل' },
+  { code: 'NJF', name: 'النجف' },
+  { code: 'KRB', name: 'كربلاء' },
+  { code: 'BBL', name: 'بابل' },
+  { code: 'DHI', name: 'ذي قار' },
+  { code: 'DYL', name: 'ديالى' },
+  { code: 'ANB', name: 'الأنبار' },
+  { code: 'KRK', name: 'كركوك' },
+  { code: 'WST', name: 'واسط' },
+  { code: 'SAH', name: 'صلاح الدين' },
+  { code: 'QAD', name: 'القادسية' },
+  { code: 'MYS', name: 'ميسان' },
+  { code: 'MTH', name: 'المثنى' },
+  { code: 'DOH', name: 'دهوك' },
+  { code: 'SMH', name: 'السليمانية' },
+];
 
 function startFacebookLogin() {
   const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
@@ -227,6 +250,16 @@ function mapOrderFromDb(row) {
     reprepByName: row.reprep_by_name || null,
     // شركة التوصيل
     deliveryStatus: row.delivery_status || null,
+    governorateCode: row.governorate_code || '',
+    governorateName: row.governorate_name || '',
+    area: row.area || '',
+    jenniShipmentId: row.jenni_shipment_id || null,
+    jenniSent: !!row.jenni_sent,
+    jenniTracking: row.jenni_tracking || null,
+    deliveryStep: row.delivery_step || null,
+    deliveryStepAr: row.delivery_step_ar || null,
+    deliveryNote: row.delivery_note || null,
+    deliveryUpdatedAt: row.delivery_updated_at || null,
   };
 }
 
@@ -1530,6 +1563,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           customer_name: editingOrder.customer,
           phone: editingOrder.phone,
           address: editingOrder.address,
+          governorate_code: editingOrder.governorateCode || null,
+          governorate_name: editingOrder.governorateName || null,
+          area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
           total: Number(editingOrder.total) || 0,
@@ -1542,6 +1578,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           ...o,
           pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
           address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
+          governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
           total: Number(editingOrder.total) || 0, status: editingOrder.status,
           conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (o.source || 'manual'),
@@ -1554,6 +1591,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           customer_name: editingOrder.customer,
           phone: editingOrder.phone,
           address: editingOrder.address,
+          governorate_code: editingOrder.governorateCode || null,
+          governorate_name: editingOrder.governorateName || null,
+          area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
           total: Number(editingOrder.total) || 0,
@@ -1644,6 +1684,45 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     } catch (e) {
       console.error('mark printed error:', e);
     }
+    // إرسال صامت لشركة التوصيل Jenni (بالخلفية، لا يعطّل الطباعة)
+    const toSend = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
+    toSend.forEach((o) => { sendOrderToJenni(o); });
+  }
+
+  // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
+  async function sendOrderToJenni(o) {
+    // لا نرسل بدون محافظة أو هاتف (Jenni ترفضه)
+    if (!o.governorateCode || !o.phone) return;
+    try {
+      const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({
+          external_shipment_id: o.id,
+          shipment_number: o.orderNo,
+          receiver_name: o.customer,
+          receiver_phone_1: o.phone,
+          governorate_code: o.governorateCode,
+          city: o.area || '',
+          address: o.address || '',
+          amount_iqd: Number(o.total) || 0,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        const patch = { jenni_sent: true, jenni_shipment_id: data.shipment_id || null, jenni_tracking: data.tracking_number || null };
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniShipmentId: data.shipment_id || null, jenniTracking: data.tracking_number || null } : x)));
+        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
+      } else {
+        console.warn('Jenni send failed for order', o.orderNo, data?.error);
+      }
+    } catch (e) {
+      console.warn('Jenni send error:', e);
+    }
   }
 
   function triggerPrint(target, idsToMove) {
@@ -1726,8 +1805,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           {o.phone && (
             <div style={styles.orderDetailRow}><Phone size={12} color="#5E6986" /><span>{o.phone}</span></div>
           )}
-          {o.address && (
-            <div style={styles.orderDetailRow}><MapPin size={12} color="#5E6986" /><span>{o.address}</span></div>
+          {(o.governorateName || o.address) && (
+            <div style={styles.orderDetailRow}><MapPin size={12} color="#5E6986" /><span>{[o.governorateName, o.area, o.address].filter(Boolean).join(' - ')}</span></div>
+          )}
+          {section === 'delivery' && o.deliveryStepAr && (
+            <div style={styles.deliveryStepRow}><Truck size={12} color="#60A5FA" /><span>حالة الشركة: {o.deliveryStepAr}</span></div>
           )}
           {o.items && <div style={styles.orderTicketItems}>{o.items}</div>}
         </div>
@@ -1918,8 +2000,26 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <input value={editingOrder.phone} onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })} style={styles.formInput} placeholder="07XXXXXXXXX" />
               </div>
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>العنوان</label>
-                <input value={editingOrder.address} onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })} style={styles.formInput} placeholder="المحافظة - المنطقة" />
+                <label style={styles.formLabel}>المحافظة</label>
+                <select
+                  value={editingOrder.governorateCode || ''}
+                  onChange={(e) => {
+                    const gov = IRAQ_GOVERNORATES.find((g) => g.code === e.target.value);
+                    setEditingOrder({ ...editingOrder, governorateCode: e.target.value, governorateName: gov?.name || '' });
+                  }}
+                  style={styles.formInput}
+                >
+                  <option value="">اختر المحافظة</option>
+                  {IRAQ_GOVERNORATES.map((g) => <option key={g.code} value={g.code}>{g.name}</option>)}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>المنطقة</label>
+                <input value={editingOrder.area || ''} onChange={(e) => setEditingOrder({ ...editingOrder, area: e.target.value })} style={styles.formInput} placeholder="مثال: الكرادة" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>العنوان التفصيلي</label>
+                <input value={editingOrder.address} onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })} style={styles.formInput} placeholder="أقرب نقطة دالة، رقم الدار..." />
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>المنتجات / التفاصيل</label>
@@ -1985,7 +2085,10 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
           {page && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الصفحة</span><span style={styles.detailGridValue}>{page.avatar} {page.name}</span></div>}
           {o.orderType && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>نوع الطلب</span><span style={styles.detailGridValue}>{o.orderType}</span></div>}
           {o.phone && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الهاتف</span><span style={styles.detailGridValue}>{o.phone}</span></div>}
+          {o.governorateName && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المحافظة</span><span style={styles.detailGridValue}>{o.governorateName}</span></div>}
+          {o.area && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المنطقة</span><span style={styles.detailGridValue}>{o.area}</span></div>}
           {o.address && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العنوان</span><span style={styles.detailGridValue}>{o.address}</span></div>}
+          {o.deliveryStepAr && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>حالة الشركة</span><span style={{ ...styles.detailGridValue, color: '#60A5FA', fontWeight: 700 }}>{o.deliveryStepAr}</span></div>}
           {o.items && (
             <div style={{ ...styles.detailGridRow, flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
               <span style={styles.detailGridLabel}>المنتجات</span>
@@ -4156,6 +4259,7 @@ const styles = {
     padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 7,
   },
   orderDetailRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#8B96AD' },
+  deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#60A5FA', fontWeight: 700, marginTop: 2 },
   orderTicketItems: {
     fontSize: 12.5, color: '#C4CEE0', background: 'rgba(255,255,255,0.03)', borderRadius: 11,
     padding: '10px 12px', marginTop: 2, lineHeight: 1.55, border: '1px solid rgba(255,255,255,0.04)',
