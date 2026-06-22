@@ -606,11 +606,20 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   const [composerText, setComposerText] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
 
   const fileInputRef = React.useRef(null);
   const mediaRecorderRef = React.useRef(null);
   const audioChunksRef = React.useRef([]);
   const scrollRef = React.useRef(null);
+  const recTimerRef = React.useRef(null);
+  const recCanceledRef = React.useRef(false);
+
+  function formatRecTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  }
 
   const markConversationRead = useCallback(async (convId) => {
     if (!convId) return;
@@ -793,10 +802,14 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
+      recCanceledRef.current = false;
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        if (recCanceledRef.current) { setRecSeconds(0); return; }
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setRecSeconds(0);
         if (blob.size === 0) return;
         setSendingMsg(true);
         try {
@@ -822,14 +835,25 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       recorder.start();
       mediaRecorderRef.current = recorder;
       setRecording(true);
+      setRecSeconds(0);
+      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e) {
       alert('تعذّر الوصول إلى الميكروفون، تأكد من السماح بالإذن من المتصفح');
     }
   }
 
   function stopRecording() {
+    recCanceledRef.current = false;
     mediaRecorderRef.current?.stop();
     setRecording(false);
+  }
+
+  function cancelRecording() {
+    recCanceledRef.current = true;
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+    setRecSeconds(0);
   }
 
   return (
@@ -1058,39 +1082,63 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                   onChange={handlePickImage}
                   style={{ display: 'none' }}
                 />
-                <button
-                  style={styles.composerIconBtn}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={sendingMsg}
-                  title="إرسال صورة"
-                >
-                  <Image size={18} />
-                </button>
-                <button
-                  style={{
-                    ...styles.composerIconBtn,
-                    ...(recording ? styles.composerIconBtnActive : {}),
-                  }}
-                  onClick={recording ? stopRecording : startRecording}
-                  title={recording ? 'إيقاف التسجيل وإرسال' : 'تسجيل صوتي'}
-                >
-                  {recording ? <Square size={16} /> : <Mic size={18} />}
-                </button>
-                <input
-                  value={composerText}
-                  onChange={(e) => setComposerText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
-                  placeholder="اكتب رسالة..."
-                  style={styles.composerInput}
-                  disabled={sendingMsg}
-                />
-                <button
-                  style={styles.composerSendBtn}
-                  onClick={handleSendText}
-                  disabled={sendingMsg || !composerText.trim()}
-                >
-                  <Send size={17} />
-                </button>
+                {recording ? (
+                  <div style={styles.recordingBar}>
+                    <button
+                      style={styles.recordingCancelBtn}
+                      onClick={cancelRecording}
+                      title="إلغاء"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                    <div style={styles.recordingInfo}>
+                      <span style={styles.recordingDot} className="alfhd-rec-dot" />
+                      <span style={styles.recordingTime}>{formatRecTime(recSeconds)}</span>
+                      <span style={styles.recordingLabel}>جارٍ التسجيل…</span>
+                    </div>
+                    <button
+                      style={styles.recordingSendBtn}
+                      onClick={stopRecording}
+                      title="إرسال التسجيل"
+                    >
+                      <Send size={17} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      style={styles.composerIconBtn}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sendingMsg}
+                      title="إرسال صورة"
+                    >
+                      <Image size={18} />
+                    </button>
+                    <button
+                      style={styles.composerIconBtn}
+                      onClick={startRecording}
+                      disabled={sendingMsg}
+                      title="تسجيل صوتي"
+                    >
+                      <Mic size={18} />
+                    </button>
+                    <input
+                      value={composerText}
+                      onChange={(e) => setComposerText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
+                      placeholder="اكتب رسالة..."
+                      style={styles.composerInput}
+                      disabled={sendingMsg}
+                    />
+                    <button
+                      style={styles.composerSendBtn}
+                      onClick={handleSendText}
+                      disabled={sendingMsg || !composerText.trim()}
+                    >
+                      <Send size={17} />
+                    </button>
+                  </>
+                )}
               </div>
             </>
           ) : (
@@ -2677,6 +2725,7 @@ export default function AlFhdApp() {
   const [authedUser, setAuthedUser] = useState(null);
 
   // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
+  const convSignatureRef = React.useRef('');
   const refreshConversations = useCallback(async () => {
     try {
       const dbConversations = await sbSelect(
@@ -2684,7 +2733,12 @@ export default function AlFhdApp() {
         '&order=last_message_time.desc'
       );
       if (dbConversations) {
-        setConversations(dbConversations.map(mapConversationFromDb));
+        // وقّع البيانات؛ حدّث الحالة فقط إذا تغيّر شيء فعلاً (يمنع إعادة الرسم غير الضرورية)
+        const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.unread_count}:${c.tab}`).join('|');
+        if (sig !== convSignatureRef.current) {
+          convSignatureRef.current = sig;
+          setConversations(dbConversations.map(mapConversationFromDb));
+        }
       }
     } catch (e) {
       console.error('Supabase conversations load error:', e);
@@ -2692,6 +2746,7 @@ export default function AlFhdApp() {
   }, []);
 
   const knownOrderIdsRef = React.useRef(null);
+  const orderSignatureRef = React.useRef('');
   const refreshOrders = useCallback(async () => {
     try {
       const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
@@ -2703,7 +2758,12 @@ export default function AlFhdApp() {
         if (newChatOrder) playNotificationSound();
       }
       knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
-      setOrders(mapped);
+      // حدّث الحالة فقط إذا تغيّر شيء فعلاً
+      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}`).join('|');
+      if (sig !== orderSignatureRef.current) {
+        orderSignatureRef.current = sig;
+        setOrders(mapped);
+      }
     } catch (e) {
       console.error('orders refresh error:', e);
     }
@@ -2738,14 +2798,8 @@ export default function AlFhdApp() {
     })();
   }, [refreshConversations]);
 
-  // تحديث المحادثات تلقائياً كل 8 ثواني عشان الرسائل الجديدة تظهر بدون تحديث الصفحة يدوياً
-  useEffect(() => {
-    const interval = setInterval(refreshConversations, 8000);
-    return () => clearInterval(interval);
-  }, [refreshConversations]);
-
   // سحب فعّال للرسائل الجديدة من فيسبوك مباشرة كل 7 ثواني طالما التطبيق مفتوح
-  // (إضافة لمهمة الـ Cron الخارجية، لتقليل وقت وصول الرسائل بشكل كبير)
+  // (يحدّث المحادثات أيضاً، فلا حاجة لمؤقّت منفصل)
   const pollFacebookNow = useCallback(async () => {
     try {
       await fetch(FB_POLL_FUNCTION_URL, { method: 'GET' });
@@ -2947,6 +3001,11 @@ function GlobalStyles() {
         50% { box-shadow: 0 0 0 6px rgba(244,20,60,0); }
       }
       .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
+      @keyframes recPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.8); }
+      }
+      .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
       input:focus, select:focus, textarea:focus { outline: none; }
       button {
         font-family: 'Cairo', sans-serif; cursor: pointer;
@@ -3367,7 +3426,23 @@ const styles = {
     border: 'none', color: '#8B96AD', display: 'flex', alignItems: 'center',
     justifyContent: 'center', flexShrink: 0,
   },
-  composerIconBtnActive: { background: 'rgba(244,91,105,0.15)', color: '#F45B69' },
+  recordingBar: {
+    display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '4px 6px',
+  },
+  recordingInfo: { flex: 1, display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'center' },
+  recordingDot: { width: 11, height: 11, borderRadius: '50%', background: '#F4143C', flexShrink: 0 },
+  recordingTime: { fontSize: 15, fontWeight: 800, color: '#EAF0FB', fontFamily: 'monospace', minWidth: 44 },
+  recordingLabel: { fontSize: 12.5, color: '#8B96AD' },
+  recordingCancelBtn: {
+    width: 40, height: 40, borderRadius: 12, background: 'rgba(244,91,105,0.12)',
+    border: '1px solid rgba(244,91,105,0.25)', color: '#F45B69',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  recordingSendBtn: {
+    width: 44, height: 44, borderRadius: 13, background: 'linear-gradient(135deg, #60A5FA, #2563EB)',
+    border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.6)',
+  },
   composerInput: {
     flex: 1, background: 'transparent', border: 'none', color: '#EAF0FB',
     fontSize: 13.5, padding: '6px 4px', fontFamily: "'Cairo', sans-serif",
