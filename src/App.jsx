@@ -77,6 +77,14 @@ async function sbSelect(table, query = '') {
   return res.json();
 }
 
+async function sbSelectColumns(table, columns, query = '') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}${query}`, {
+    headers: sbHeaders,
+  });
+  if (!res.ok) throw new Error(`sbSelectColumns ${table} failed: ${res.status}`);
+  return res.json();
+}
+
 async function sbInsert(table, payload) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
@@ -770,8 +778,9 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
   const markConversationRead = useCallback(async (convId) => {
     if (!convId) return;
+    setSelectedConv((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
     setConversations?.((prev) => prev.map((c) => (
-      c.id === convId && c.unread ? { ...c, unread: 0 } : c
+      c.id === convId ? { ...c, unread: 0 } : c
     )));
     try {
       await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() });
@@ -1366,7 +1375,7 @@ const DATE_PRESETS = [
   { id: 'yesterday', label: 'أمس' },
   { id: 'dayBefore', label: 'أول أمس' },
   { id: 'week', label: 'هذا الأسبوع' },
-  { id: 'custom', label: 'شهر/سنة' },
+  { id: 'custom', label: 'اختيار شهر وسنة' },
   { id: 'all', label: 'الكل' },
 ];
 
@@ -2376,34 +2385,11 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
 
-  const TIME_FILTERS = [
-    { id: 'today', label: 'اليوم' },
-    { id: 'yesterday', label: 'أمس' },
-    { id: 'dayBeforeYesterday', label: 'أول أمس' },
-    { id: 'week', label: 'آخر أسبوع' },
-    { id: 'month', label: 'هذا الشهر' },
-    { id: 'custom', label: 'شهر محدد' },
-    { id: 'all', label: 'الكل' },
-  ];
-
-  const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-
-  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
   function isInRange(dateStr) {
-    if (timeFilter === 'all') return true;
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    const now = new Date();
-    const today = startOfDay(now);
-    if (timeFilter === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (timeFilter === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
-    if (timeFilter === 'dayBeforeYesterday') { const y2 = new Date(today); y2.setDate(y2.getDate() - 2); return startOfDay(d).getTime() === y2.getTime(); }
-    if (timeFilter === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w && d <= now; }
-    if (timeFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    if (timeFilter === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
-    return true;
+    return dateInRange(dateStr, timeFilter, customMonth, customYear);
   }
 
   // كل الإحصائيات تحترم فلتر الصفحة + فلتر الوقت
@@ -2448,8 +2434,6 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   }, [pages, scopedOrders, conversations, statsPage]);
 
   const maxRevenue = Math.max(...perPage.map((p) => p.revenue), 1);
-  const years = [];
-  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
   // ── بيانات قسم الخلاصة ──
   const summary = useMemo(() => {
@@ -2511,24 +2495,27 @@ function StatsView({ orders, pages, conversations, setOrders }) {
         </div>
       </div>
 
-      <div style={styles.timeFilterBar}>
-        {TIME_FILTERS.map((f) => (
-          <button key={f.id} onClick={() => setTimeFilter(f.id)} style={{ ...styles.chip, ...(timeFilter === f.id ? styles.chipActive : {}) }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {timeFilter === 'custom' && (
-        <div style={styles.customDateRow}>
-          <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelect}>
-            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelect}>
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+      <div style={styles.filtersWrap} className="alfhd-no-print">
+        <div style={styles.filterBottomRow}>
+          <div style={styles.pageSelectWrap}>
+            <Calendar size={15} color="#60A5FA" />
+            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={styles.pageSelect}>
+              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+            <ChevronDown size={14} color="#5E6986" />
+          </div>
+          {timeFilter === 'custom' && (
+            <>
+              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <div style={styles.statsRow} className="alfhd-stats-row">
         <StatCard icon={Package} label="إجمالي الطلبات" value={breakdown.total} color="#3B82F6" />
@@ -3345,30 +3332,17 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
 function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp }) {
   const [filter, setFilter] = useState('all'); // all | done | rejected
   const [timeFilter, setTimeFilter] = useState('all');
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
 
-  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function inTime(dateStr) {
-    if (timeFilter === 'all') return true;
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    const now = new Date();
-    const today = startOfDay(now);
-    if (timeFilter === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (timeFilter === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
-    if (timeFilter === 'dayBefore') { const y = new Date(today); y.setDate(y.getDate() - 2); return startOfDay(d).getTime() === y.getTime(); }
-    if (timeFilter === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w && d <= now; }
-    if (timeFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    if (timeFilter === 'year') return d.getFullYear() === now.getFullYear();
-    return true;
+    return dateInRange(dateStr, timeFilter, customMonth, customYear);
   }
 
   const shown = orders.filter((o) => (filter === 'all' || o.prepStatus === filter) && inTime(o.prepAt));
 
-  const TIME_FILTERS = [
-    ['today', 'اليوم'], ['yesterday', 'أمس'], ['dayBefore', 'أول أمس'],
-    ['week', 'الأسبوع'], ['month', 'الشهر'], ['year', 'السنة'], ['all', 'الكل'],
-  ];
 
   if (orders.length === 0) {
     return <div style={styles.emptyState}><CheckCircle2 size={32} color="#39425C" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
@@ -3381,10 +3355,26 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
           <button key={id} onClick={() => setFilter(id)} style={{ ...styles.chip, ...(filter === id ? styles.chipActive : {}) }}>{label}</button>
         ))}
       </div>
-      <div style={{ ...styles.timeFilterBar, marginTop: 10 }} className="alfhd-no-print">
-        {TIME_FILTERS.map(([id, label]) => (
-          <button key={id} onClick={() => setTimeFilter(id)} style={{ ...styles.chip, ...(timeFilter === id ? styles.chipActive : {}) }}>{label}</button>
-        ))}
+      <div style={{ ...styles.filtersWrap, marginTop: 10 }} className="alfhd-no-print">
+        <div style={styles.filterBottomRow}>
+          <div style={styles.pageSelectWrap}>
+            <Calendar size={15} color="#60A5FA" />
+            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={styles.pageSelect}>
+              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+            <ChevronDown size={14} color="#5E6986" />
+          </div>
+          {timeFilter === 'custom' && (
+            <>
+              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
+        </div>
       </div>
 
       <div style={{ ...styles.ordersGrid, marginTop: 14 }}>
@@ -3466,6 +3456,10 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [dayFilter, setDayFilter] = useState('all');
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
   const knownPrepIdsRef = React.useRef(null);
 
   // الطلبات المثبتة (المصدر chat) التي لم تُجهَّز بعد، من كل الصفحات
@@ -3484,24 +3478,15 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
     knownPrepIdsRef.current = ids;
   }, [pendingPrep]);
 
-  // فلتر اليوم
-  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function dayMatch(dateStr, which) {
-    if (which === 'all') return true;
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return false;
-    const today = startOfDay(new Date());
-    if (which === 'today') return startOfDay(d).getTime() === today.getTime();
-    if (which === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
-    return true;
+    return dateInRange(dateStr, which, customMonth, customYear);
   }
 
-  const dayCounts = useMemo(() => ({
-    all: pendingPrep.length,
-    today: pendingPrep.filter((o) => dayMatch(o.createdAt, 'today')).length,
-    yesterday: pendingPrep.filter((o) => dayMatch(o.createdAt, 'yesterday')).length,
-  }), [pendingPrep]);
+  const dayCounts = useMemo(() => {
+    const out = {};
+    DATE_PRESETS.forEach((f) => { out[f.id] = pendingPrep.filter((o) => dayMatch(o.createdAt, f.id)).length; });
+    return out;
+  }, [pendingPrep, customMonth, customYear]);
 
   const shownPrep = useMemo(
     () => pendingPrep.filter((o) => dayMatch(o.createdAt, dayFilter)),
@@ -3539,19 +3524,26 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
         <button onClick={onLogout} style={styles.mobileLogoutBtn} title="خروج"><LogOut size={18} /></button>
       </div>
 
-      <div style={styles.warehouseFilterBar}>
-        {[['all', 'الكل'], ['today', 'اليوم'], ['yesterday', 'أمس']].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setDayFilter(id)}
-            style={{ ...styles.warehouseFilterChip, ...(dayFilter === id ? styles.warehouseFilterChipActive : {}) }}
-          >
-            {label}
-            <span style={{ ...styles.warehouseFilterCount, ...(dayFilter === id ? styles.warehouseFilterCountActive : {}) }}>
-              {dayCounts[id]}
-            </span>
-          </button>
-        ))}
+      <div style={styles.filtersWrap}>
+        <div style={styles.filterBottomRow}>
+          <div style={styles.pageSelectWrap}>
+            <Calendar size={15} color="#60A5FA" />
+            <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} style={styles.pageSelect}>
+              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label} ({dayCounts[f.id] || 0})</option>)}
+            </select>
+            <ChevronDown size={14} color="#5E6986" />
+          </div>
+          {dayFilter === 'custom' && (
+            <>
+              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
+                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </>
+          )}
+        </div>
       </div>
 
       {shownPrep.length === 0 ? (
@@ -3729,7 +3721,7 @@ export default function AlFhdApp() {
     (async () => {
       try {
         const [dbPages, dbOrders, dbUsers] = await Promise.all([
-          sbSelect('alfhd_pages', '&order=created_at.asc'),
+          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at', '&order=created_at.asc'),
           sbSelect('alfhd_orders', '&order=created_at.desc'),
           sbSelect('alfhd_users', '&order=created_at.asc'),
         ]);
@@ -4447,7 +4439,7 @@ const styles = {
     padding: 24, display: 'flex', flexDirection: 'column', minHeight: 580, minWidth: 0, overflow: 'hidden',
     boxShadow: '0 24px 70px -38px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.055)',
   },
-  detailHeader: { display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 14 },
+  detailHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: '0 0 18px', borderBottom: '1px solid rgba(147,197,253,0.10)', marginBottom: 16, position: 'relative' },
   convBackBtn: {
     display: 'none', width: 36, height: 36, borderRadius: 11, background: '#1A2235',
     border: '1px solid rgba(255,255,255,0.06)', color: '#C4CEE0', alignItems: 'center',
@@ -4466,19 +4458,22 @@ const styles = {
   },
   chatScroll: {
     flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column',
-    padding: '8px 2px', minHeight: 240, maxHeight: 480,
+    padding: '14px 10px', minHeight: 260, maxHeight: 520,
+    background: 'radial-gradient(circle at 50% 0%, rgba(96,165,250,0.055), transparent 30%), rgba(2,6,23,0.20)',
+    border: '1px solid rgba(255,255,255,0.035)', borderRadius: 20,
   },
   msgBubbleIn: {
-    background: '#1E2740', borderRadius: '18px 6px 18px 18px', padding: '10px 14px',
-    fontSize: 13, color: '#EAF0FB', maxWidth: '78%', lineHeight: 1.6,
-    display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    background: 'linear-gradient(180deg, rgba(30,41,59,0.92), rgba(15,23,42,0.94))',
+    border: '1px solid rgba(148,163,184,0.12)', borderRadius: '20px 20px 6px 20px', padding: '11px 15px',
+    fontSize: 13.5, color: '#EAF0FB', maxWidth: '76%', lineHeight: 1.7,
+    display: 'flex', flexDirection: 'column', gap: 5, boxShadow: '0 10px 26px -20px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.04)',
     overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
   },
   msgBubbleOut: {
-    background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
-    borderRadius: '6px 18px 18px 18px', padding: '10px 14px',
-    fontSize: 13, color: '#ffffff', maxWidth: '78%', lineHeight: 1.6,
-    display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 2px 12px -2px rgba(59,130,246,0.45)',
+    background: 'linear-gradient(135deg, #2563EB 0%, #3B82F6 48%, #60A5FA 100%)',
+    border: '1px solid rgba(191,219,254,0.22)', borderRadius: '20px 20px 20px 6px', padding: '11px 15px',
+    fontSize: 13.5, color: '#ffffff', maxWidth: '76%', lineHeight: 1.7,
+    display: 'flex', flexDirection: 'column', gap: 5, boxShadow: '0 14px 30px -18px rgba(59,130,246,0.9), inset 0 1px 0 rgba(255,255,255,0.16)',
     overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0,
   },
   msgImage: { width: '100%', maxWidth: 220, borderRadius: 12, display: 'block' },
@@ -4486,8 +4481,8 @@ const styles = {
   msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.5)', alignSelf: 'flex-end' },
   composerBar: {
     display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
-    background: '#1A2235', border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 16, padding: 8,
+    background: 'linear-gradient(180deg, rgba(26,34,53,0.92), rgba(15,23,42,0.88))', border: '1px solid rgba(147,197,253,0.12)',
+    borderRadius: 18, padding: 9, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
   },
   composerIconBtn: {
     width: 38, height: 38, borderRadius: 11, background: 'transparent',
