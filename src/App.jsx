@@ -149,6 +149,36 @@ function playNotificationSound() {
   }
 }
 
+// صوت إنذار قوي وواضح لطلب مرفوض (ثلاث نغمات حادّة متكررة)
+function playAlarmSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!_audioCtx) _audioCtx = new Ctx();
+    const ctx = _audioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    // ثلاث نبضات حادّة متتالية بنبرة تحذيرية
+    const beeps = [0, 0.22, 0.44];
+    beeps.forEach((start) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, now + start);
+      osc.frequency.setValueAtTime(740, now + start + 0.09);
+      gain.gain.setValueAtTime(0, now + start);
+      gain.gain.linearRampToValueAtTime(0.22, now + start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + 0.18);
+    });
+  } catch (_e) {
+    // تجاهل
+  }
+}
+
 // ── تحويل بين أعمدة قاعدة البيانات (snake_case) وحقول الواجهة (camelCase) ──
 function mapPageFromDb(row) {
   return {
@@ -738,7 +768,11 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تأكد من إنشاء Storage Bucket باسم chat-media وجعله Public'}`);
+      const isBucketMissing = res.status === 404 || /bucket not found/i.test(body);
+      if (isBucketMissing) {
+        throw new Error('مخزن الملفات غير موجود. أنشئ Bucket باسم chat-media من Supabase ← Storage واجعله Public، ثم أعد المحاولة.');
+      }
+      throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تحقق من إعدادات مخزن chat-media'}`);
     }
     return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`;
   }
@@ -2555,7 +2589,31 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
 
 function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp }) {
   const [filter, setFilter] = useState('all'); // all | done | rejected
-  const shown = orders.filter((o) => filter === 'all' || o.prepStatus === filter);
+  const [timeFilter, setTimeFilter] = useState('all');
+
+  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  function inTime(dateStr) {
+    if (timeFilter === 'all') return true;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    const today = startOfDay(now);
+    if (timeFilter === 'today') return startOfDay(d).getTime() === today.getTime();
+    if (timeFilter === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
+    if (timeFilter === 'dayBefore') { const y = new Date(today); y.setDate(y.getDate() - 2); return startOfDay(d).getTime() === y.getTime(); }
+    if (timeFilter === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w && d <= now; }
+    if (timeFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (timeFilter === 'year') return d.getFullYear() === now.getFullYear();
+    return true;
+  }
+
+  const shown = orders.filter((o) => (filter === 'all' || o.prepStatus === filter) && inTime(o.prepAt));
+
+  const TIME_FILTERS = [
+    ['today', 'اليوم'], ['yesterday', 'أمس'], ['dayBefore', 'أول أمس'],
+    ['week', 'الأسبوع'], ['month', 'الشهر'], ['year', 'السنة'], ['all', 'الكل'],
+  ];
 
   if (orders.length === 0) {
     return <div style={styles.emptyState}><CheckCircle2 size={32} color="#39425C" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
@@ -2568,24 +2626,49 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
           <button key={id} onClick={() => setFilter(id)} style={{ ...styles.chip, ...(filter === id ? styles.chipActive : {}) }}>{label}</button>
         ))}
       </div>
+      <div style={{ ...styles.timeFilterBar, marginTop: 10 }} className="alfhd-no-print">
+        {TIME_FILTERS.map(([id, label]) => (
+          <button key={id} onClick={() => setTimeFilter(id)} style={{ ...styles.chip, ...(timeFilter === id ? styles.chipActive : {}) }}>{label}</button>
+        ))}
+      </div>
+
       <div style={{ ...styles.ordersGrid, marginTop: 14 }}>
         {shown.map((o) => {
           const prepUser = users.find((u) => u.id === o.prepBy);
           const isDone = o.prepStatus === 'done';
+          const prepTime = o.prepAt ? new Date(o.prepAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' }) : null;
           return (
-            <div key={o.id} style={styles.orderCard} className="alfhd-order-card">
+            <div
+              key={o.id}
+              style={{ ...styles.orderCard, ...(isDone ? {} : styles.rejectedCard) }}
+              className="alfhd-order-card"
+            >
+              {!isDone && (
+                <div style={styles.rejectedBanner}>
+                  <AlertCircle size={16} />
+                  <span>طلب لم يُجهَّز — يحتاج متابعة عاجلة</span>
+                </div>
+              )}
+
               <div style={styles.orderTicketHead}>
-                <div style={{ ...styles.orderTicketAvatar, background: isDone ? 'rgba(74,222,128,0.15)' : 'rgba(244,91,105,0.15)', color: isDone ? '#4ADE80' : '#F45B69', border: 'none' }}>
+                <div style={{ ...styles.orderTicketAvatar, background: isDone ? 'rgba(74,222,128,0.15)' : 'rgba(244,91,105,0.18)', color: isDone ? '#4ADE80' : '#F45B69', border: 'none' }}>
                   {isDone ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={styles.orderCardCustomer}>{o.customer} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
                   <div style={styles.orderTicketPage}>المجهّز: {o.prepByName || prepUser?.name || 'غير معروف'}</div>
                 </div>
-                <div style={{ ...styles.orderStatusPill, color: isDone ? '#4ADE80' : '#F45B69', background: isDone ? 'rgba(74,222,128,0.12)' : 'rgba(244,91,105,0.12)' }}>
+                <div style={{ ...styles.orderStatusPill, color: isDone ? '#4ADE80' : '#F45B69', background: isDone ? 'rgba(74,222,128,0.12)' : 'rgba(244,91,105,0.16)' }}>
                   {isDone ? 'تم التجهيز' : 'لم يتم'}
                 </div>
               </div>
+
+              {prepTime && (
+                <div style={styles.prepTimeRow}>
+                  <Calendar size={12} color="#5E6986" />
+                  <span>{isDone ? 'وقت التجهيز' : 'وقت الرفض'}: {prepTime}</span>
+                </div>
+              )}
 
               {!isDone && o.prepReason && (
                 <div style={styles.rejectReasonBox}>
@@ -2627,6 +2710,7 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
   const [rejectOrder, setRejectOrder] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dayFilter, setDayFilter] = useState('all');
   const knownPrepIdsRef = React.useRef(null);
 
   // الطلبات المثبتة (المصدر chat) التي لم تُجهَّز بعد، من كل الصفحات
@@ -2644,6 +2728,30 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
     }
     knownPrepIdsRef.current = ids;
   }, [pendingPrep]);
+
+  // فلتر اليوم
+  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  function dayMatch(dateStr, which) {
+    if (which === 'all') return true;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
+    const today = startOfDay(new Date());
+    if (which === 'today') return startOfDay(d).getTime() === today.getTime();
+    if (which === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return startOfDay(d).getTime() === y.getTime(); }
+    return true;
+  }
+
+  const dayCounts = useMemo(() => ({
+    all: pendingPrep.length,
+    today: pendingPrep.filter((o) => dayMatch(o.createdAt, 'today')).length,
+    yesterday: pendingPrep.filter((o) => dayMatch(o.createdAt, 'yesterday')).length,
+  }), [pendingPrep]);
+
+  const shownPrep = useMemo(
+    () => pendingPrep.filter((o) => dayMatch(o.createdAt, dayFilter)),
+    [pendingPrep, dayFilter]
+  );
 
   async function markDone(o) {
     setSaving(true);
@@ -2667,7 +2775,7 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
     <div style={styles.warehouseWrap}>
       <div style={styles.warehouseHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={styles.warehouseBadge}>{pendingPrep.length}</div>
+          <div style={styles.warehouseBadge}>{shownPrep.length}</div>
           <div>
             <h2 style={styles.viewTitle}>طلبات التجهيز</h2>
             <p style={styles.viewSubtitle}>أهلاً {currentUser.name}</p>
@@ -2676,44 +2784,41 @@ function WarehouseView({ orders, setOrders, currentUser, onLogout }) {
         <button onClick={onLogout} style={styles.mobileLogoutBtn} title="خروج"><LogOut size={18} /></button>
       </div>
 
-      {pendingPrep.length === 0 ? (
-        <div style={styles.emptyStateLg}><CheckCircle2 size={40} color="#4ADE80" /><p>كل الطلبات مُجهّزة! 🎉</p></div>
+      <div style={styles.warehouseFilterBar}>
+        {[['all', 'الكل'], ['today', 'اليوم'], ['yesterday', 'أمس']].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setDayFilter(id)}
+            style={{ ...styles.warehouseFilterChip, ...(dayFilter === id ? styles.warehouseFilterChipActive : {}) }}
+          >
+            {label}
+            <span style={{ ...styles.warehouseFilterCount, ...(dayFilter === id ? styles.warehouseFilterCountActive : {}) }}>
+              {dayCounts[id]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {shownPrep.length === 0 ? (
+        <div style={styles.emptyStateLg}><CheckCircle2 size={40} color="#4ADE80" /><p>لا توجد طلبات للتجهيز في هذه الفترة 🎉</p></div>
       ) : (
         <div style={styles.warehouseGrid}>
-          {pendingPrep.map((o) => (
+          {shownPrep.map((o) => (
             <div key={o.id} style={styles.warehouseCard}>
               <div style={styles.warehouseCardTop}>
                 <div style={styles.warehouseCardNo}>طلب #{o.orderNo}</div>
-                {o.date && <div style={styles.warehouseCardDate}>{o.date}</div>}
-              </div>
-
-              <div style={styles.warehouseCardCustomer}>{o.customer}</div>
-              {o.orderType && <div style={styles.warehouseCardType}>{o.orderType}</div>}
-
-              <div style={styles.warehouseDetails}>
-                {o.phone && (
-                  <div style={styles.warehouseDetailRow}>
-                    <span style={styles.warehouseDetailLabel}><Phone size={13} /> الهاتف</span>
-                    <span style={styles.warehouseDetailValue}>{o.phone}</span>
-                  </div>
-                )}
-                {o.address && (
-                  <div style={styles.warehouseDetailRow}>
-                    <span style={styles.warehouseDetailLabel}><MapPin size={13} /> العنوان</span>
-                    <span style={styles.warehouseDetailValue}>{o.address}</span>
-                  </div>
-                )}
-                {o.total > 0 && (
-                  <div style={styles.warehouseDetailRow}>
-                    <span style={styles.warehouseDetailLabel}><Package size={13} /> المبلغ</span>
-                    <span style={{ ...styles.warehouseDetailValue, color: '#60A5FA', fontWeight: 800 }}>{Number(o.total).toLocaleString()} د.ع</span>
+                {o.createdAt && (
+                  <div style={styles.warehouseCardDate}>
+                    {new Date(o.createdAt).toLocaleString('ar-IQ', { dateStyle: 'short', timeStyle: 'short' })}
                   </div>
                 )}
               </div>
+
+              {o.orderType && <div style={styles.warehouseBigType}>{o.orderType}</div>}
 
               {o.items && (
                 <div style={styles.warehouseItemsBox}>
-                  <div style={styles.warehouseItemsLabel}>المنتجات / التفاصيل</div>
+                  <div style={styles.warehouseItemsLabel}>تفاصيل الطلب</div>
                   <div style={styles.warehouseItemsText}>{o.items}</div>
                 </div>
               )}
@@ -2822,11 +2927,11 @@ export default function AlFhdApp() {
       }
       knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
 
-      // كشف طلب رفضه المجهّز حديثاً لتشغيل صوت تنبيه للمدير
+      // كشف طلب رفضه المجهّز حديثاً لتشغيل صوت إنذار قوي للمدير
       const rejectedNow = new Set(mapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
       if (rejectedIdsRef.current) {
         const newlyRejected = [...rejectedNow].some((id) => !rejectedIdsRef.current.has(id));
-        if (newlyRejected) playNotificationSound();
+        if (newlyRejected) playAlarmSound();
       }
       rejectedIdsRef.current = rejectedNow;
 
@@ -3770,6 +3875,20 @@ const styles = {
     display: 'flex', flexDirection: 'column', gap: 3,
   },
   rejectReasonLabel: { fontSize: 11, color: '#F45B69', fontWeight: 700 },
+  rejectedCard: {
+    border: '1.5px solid rgba(244,91,105,0.45)',
+    boxShadow: '0 0 0 1px rgba(244,91,105,0.15), 0 8px 24px -8px rgba(244,91,105,0.35)',
+  },
+  rejectedBanner: {
+    display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center',
+    background: 'linear-gradient(135deg, #F4143C, #C0143C)', color: '#fff',
+    fontSize: 12.5, fontWeight: 800, padding: '9px 12px',
+    borderRadius: '16px 16px 0 0', margin: '-1px -1px 0',
+  },
+  prepTimeRow: {
+    display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8B96AD',
+    margin: '0 16px 10px', paddingTop: 2,
+  },
 
   // ── واجهة موظف المخزن ──
   warehouseWrap: { flex: 1, overflow: 'auto', padding: '24px 18px', maxWidth: 760, margin: '0 auto', width: '100%' },
@@ -3785,22 +3904,26 @@ const styles = {
   warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   warehouseCardNo: { fontSize: 13, fontWeight: 800, color: '#60A5FA', fontFamily: 'monospace' },
   warehouseCardDate: { fontSize: 11.5, color: '#5E6986' },
-  warehouseCardCustomer: { fontSize: 20, fontWeight: 800, color: '#EAF0FB', letterSpacing: '-0.01em' },
-  warehouseCardType: {
-    display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 700, color: '#93C5FD',
-    background: 'rgba(59,130,246,0.12)', borderRadius: 20, padding: '4px 13px',
+  warehouseBigType: {
+    fontSize: 19, fontWeight: 800, color: '#EAF0FB', lineHeight: 1.5, letterSpacing: '-0.01em',
+    overflowWrap: 'anywhere', whiteSpace: 'pre-wrap',
   },
-  warehouseDetails: {
-    display: 'flex', flexDirection: 'column', gap: 1, marginTop: 14,
-    background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)',
-    overflow: 'hidden',
+  warehouseFilterBar: { display: 'flex', gap: 8, marginBottom: 18 },
+  warehouseFilterChip: {
+    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+    padding: '11px 8px', background: '#141B2C', border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: 13, color: '#8B96AD', fontSize: 13.5, fontWeight: 700,
   },
-  warehouseDetailRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-    padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+  warehouseFilterChipActive: {
+    background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
+    borderColor: 'rgba(59,130,246,0.45)', color: '#EAF0FB',
   },
-  warehouseDetailLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#8B96AD', flexShrink: 0 },
-  warehouseDetailValue: { fontSize: 14, color: '#EAF0FB', fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
+  warehouseFilterCount: {
+    minWidth: 22, height: 22, borderRadius: 11, background: 'rgba(255,255,255,0.08)',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 11.5, fontWeight: 800, padding: '0 6px',
+  },
+  warehouseFilterCountActive: { background: '#3B82F6', color: '#fff' },
   warehouseItemsBox: {
     marginTop: 12, background: 'rgba(240,168,104,0.06)', border: '1px solid rgba(240,168,104,0.18)',
     borderRadius: 12, padding: '12px 14px',
