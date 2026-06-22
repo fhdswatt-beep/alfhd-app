@@ -209,6 +209,8 @@ function mapOrderFromDb(row) {
     conversationId: row.conversation_id || null,
     converted: !!row.converted,
     convertedAt: row.converted_at || null,
+    convertedBy: row.converted_by || null,
+    convertedByName: row.converted_by_name || null,
     createdAt: row.created_at || row.order_date,
     printed: !!row.printed,
     printBatchId: row.print_batch_id || null,
@@ -221,6 +223,8 @@ function mapOrderFromDb(row) {
     prepByName: row.prep_by_name || null,
     prepReason: row.prep_reason || null,
     prepAt: row.prep_at || null,
+    reprepNote: row.reprep_note || null,
+    reprepByName: row.reprep_by_name || null,
     // شركة التوصيل
     deliveryStatus: row.delivery_status || null,
   };
@@ -1220,12 +1224,96 @@ function StatusPill({ status }) {
 }
 
 // ──────────────────────────────────────────────
+// أدوات الفلترة المشتركة (تاريخ + صفحات + بحث)
+// ──────────────────────────────────────────────
+function startOfDayTs(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
+
+const DATE_PRESETS = [
+  { id: 'today', label: 'اليوم' },
+  { id: 'yesterday', label: 'أمس' },
+  { id: 'dayBefore', label: 'أول أمس' },
+  { id: 'week', label: 'هذا الأسبوع' },
+  { id: 'custom', label: 'شهر/سنة' },
+  { id: 'all', label: 'الكل' },
+];
+
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+function dateInRange(dateStr, preset, customMonth, customYear) {
+  if (preset === 'all') return true;
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  const today = startOfDayTs(now);
+  const dDay = startOfDayTs(d);
+  if (preset === 'today') return dDay === today;
+  if (preset === 'yesterday') return dDay === today - 86400000;
+  if (preset === 'dayBefore') return dDay === today - 2 * 86400000;
+  if (preset === 'week') { const w = today - 7 * 86400000; return d.getTime() >= w && d.getTime() <= now.getTime(); }
+  if (preset === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
+  return true;
+}
+
+// شريط فلترة موحّد: تاريخ + صفحات + بحث
+function OrderFilters({
+  pages, datePreset, setDatePreset, customMonth, setCustomMonth, customYear, setCustomYear,
+  pageFilter, setPageFilter, search, setSearch, searchPlaceholder,
+}) {
+  const years = [];
+  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
+  return (
+    <div style={styles.filtersWrap} className="alfhd-no-print">
+      <div style={styles.dateChipsRow}>
+        {DATE_PRESETS.map((p) => (
+          <button key={p.id} onClick={() => setDatePreset(p.id)} style={{ ...styles.chip, ...(datePreset === p.id ? styles.chipActive : {}) }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {datePreset === 'custom' && (
+        <div style={styles.customDateRow}>
+          <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelect}>
+            {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelect}>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      )}
+      <div style={styles.filterBottomRow}>
+        <div style={styles.pageSelectWrap}>
+          <Facebook size={15} color="#3B82F6" />
+          <select value={pageFilter} onChange={(e) => setPageFilter(e.target.value)} style={styles.pageSelect}>
+            <option value="all">كل الصفحات</option>
+            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <ChevronDown size={14} color="#5E6986" />
+        </div>
+        <div style={styles.searchBox}>
+          <Search size={15} color="#5E6986" />
+          <input
+            placeholder={searchPlaceholder || 'بحث...'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={styles.searchInput}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // عرض الطلبات
 // ──────────────────────────────────────────────
 function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId }) {
   const [selectedPage, setSelectedPage] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [datePreset, setDatePreset] = useState('all');
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [editingOrder, setEditingOrder] = useState(null);
   const [detailOrder, setDetailOrder] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1233,6 +1321,18 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const ocrInputRef = React.useRef(null);
   const [section, setSection] = useState('ready');
   const [printTarget, setPrintTarget] = useState(null);
+
+  // مطابقة الفلاتر المشتركة (صفحة + تاريخ + بحث) على طلب
+  function passesCommon(o) {
+    if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
+    if (!dateInRange(o.createdAt || o.date, datePreset, customMonth, customYear)) return false;
+    if (search) {
+      const q = search.trim().toLowerCase();
+      const hay = [o.customer, o.orderNo, o.phone, o.orderType, o.address].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }
 
   useEffect(() => {
     if (!pendingNewOrderFromConv) return;
@@ -1263,29 +1363,36 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   // الطلب المحوّل يُستبعد من القوائم كلها (يبقى بالإحصائيات فقط)
   const visibleOrders = useMemo(() => orders.filter((o) => !o.converted), [orders]);
 
+  const THREE_DAYS = 3 * 86400000;
+  function isWithinPrepWindow(o) {
+    // طلبات "قيد التجهيز" تبقى ظاهرة 3 أيام فقط، بعدها تنتقل للمهملة
+    const ref = o.printedAt || o.createdAt || o.date;
+    if (!ref) return true;
+    return (Date.now() - new Date(ref).getTime()) <= THREE_DAYS;
+  }
+
   const stageOrders = useMemo(() => {
     return visibleOrders.filter((o) => {
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
       if (stage !== section) return false;
-      if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
+      if (!passesCommon(o)) return false;
+      if (section === 'prep' && !isWithinPrepWindow(o)) return false;
       if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
-      if (search) {
-        const q = search.trim().toLowerCase();
-        const hay = [o.customer, o.orderNo, o.phone, o.orderType].filter(Boolean).join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
       return true;
     });
-  }, [visibleOrders, section, selectedPage, statusFilter, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleOrders, section, selectedPage, statusFilter, search, datePreset, customMonth, customYear]);
 
   const stageCounts = useMemo(() => {
     const c = { ready: 0, prep: 0, delivery: 0 };
     visibleOrders.forEach((o) => {
       if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
+      if (stage === 'prep' && !isWithinPrepWindow(o)) return;
       if (c[stage] !== undefined) c[stage]++;
     });
     return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleOrders, selectedPage]);
 
   const stats = useMemo(() => {
@@ -1347,11 +1454,32 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   async function markOrderConverted(o) {
     // التحويل: يُشال من القوائم، يبقى بالإحصائيات، ويصير "قيد التوصيل" بمحادثة الزبون
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, converted: true, convertedAt: new Date().toISOString(), status: 'pending' } : x)));
+    const now = new Date().toISOString();
+    const byName = currentUser?.name || null;
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, converted: true, convertedAt: now, convertedByName: byName, status: 'pending' } : x)));
     try {
-      await sbUpdate('alfhd_orders', o.id, { converted: true, converted_at: new Date().toISOString(), status: 'pending' });
+      await sbUpdate('alfhd_orders', o.id, { converted: true, converted_at: now, converted_by: currentUser?.id || null, converted_by_name: byName, status: 'pending' });
     } catch (e) {
       console.error('convert order error:', e);
+    }
+  }
+
+  // إعادة الطلب المرفوض للتجهيز من جديد، مع ملاحظة اختيارية من المدير
+  async function reprepOrder(o, note) {
+    const byName = currentUser?.name || 'المدير';
+    const patch = {
+      prep_status: null, prep_by: null, prep_by_name: null, prep_reason: null, prep_at: null,
+      reprep_note: note || null, reprep_by_name: byName,
+    };
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+      ...x, prepStatus: null, prepBy: null, prepByName: null, prepReason: null, prepAt: null,
+      reprepNote: note || null, reprepByName: byName,
+    } : x)));
+    setDetailOrder(null);
+    try {
+      await sbUpdate('alfhd_orders', o.id, patch);
+    } catch (e) {
+      console.error('reprep error:', e);
     }
   }
 
@@ -1561,12 +1689,20 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function renderOrderCard(o, index = 0) {
     const page = pages.find((p) => p.id === o.pageId);
+    const isRejected = o.prepStatus === 'rejected';
     return (
       <div
         key={o.id}
-        style={{ ...styles.orderCard, animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
+        style={{ ...styles.orderCard, ...(isRejected ? styles.rejectedCard : {}), animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
         className="alfhd-order-card alfhd-card-enter"
       >
+        {isRejected && (
+          <div style={styles.rejectedBanner}>
+            <AlertCircle size={16} />
+            <span>لم يُجهَّز من قبل المخزن — تحقق قبل الطباعة</span>
+          </div>
+        )}
+
         <div style={styles.orderTicketHead}>
           <div style={styles.orderTicketAvatar}>{o.customer?.[0] || '؟'}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1575,6 +1711,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
           <StageStatusBadge o={o} />
         </div>
+
+        {isRejected && o.prepReason && (
+          <div style={styles.rejectReasonBox}>
+            <span style={styles.rejectReasonLabel}>سبب المخزن:</span>
+            <span>{o.prepReason}{o.prepByName ? ` — ${o.prepByName}` : ''}</span>
+          </div>
+        )}
 
         <div style={styles.orderTicketBody}>
           {o.orderType && (
@@ -1679,31 +1822,25 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         ))}
       </div>
 
-      <div style={styles.ordersToolbar} className="alfhd-no-print">
-        <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#3B82F6" />
-          <select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)} style={styles.pageSelect}>
-            <option value="all">كل الصفحات</option>
-            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
-        </div>
+      <OrderFilters
+        pages={pages}
+        datePreset={datePreset} setDatePreset={setDatePreset}
+        customMonth={customMonth} setCustomMonth={setCustomMonth}
+        customYear={customYear} setCustomYear={setCustomYear}
+        pageFilter={selectedPage} setPageFilter={setSelectedPage}
+        search={search} setSearch={setSearch}
+        searchPlaceholder="رقم الطلب، الاسم، الهاتف، أو نوع الطلب..."
+      />
 
-        {isDelivery && (
-          <div style={styles.filterChips}>
-            {['all', 'pending', 'delivered', 'returned'].map((s) => (
-              <button key={s} onClick={() => setStatusFilter(s)} style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}>
-                {s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div style={styles.searchBox}>
-          <Search size={15} color="#5E6986" />
-          <input placeholder="رقم الطلب، الاسم، الهاتف، أو نوع الطلب..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.searchInput} />
+      {isDelivery && (
+        <div style={{ ...styles.filterChips, marginBottom: 16 }} className="alfhd-no-print">
+          {['all', 'pending', 'delivered', 'returned'].map((s) => (
+            <button key={s} onClick={() => setStatusFilter(s)} style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}>
+              {s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
+            </button>
+          ))}
         </div>
-      </div>
+      )}
 
       {isPrep ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -1749,6 +1886,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           onShare={() => handleShare(detailOrder)}
           onViewConversation={detailOrder.conversationId ? () => { onViewConversation?.(detailOrder.conversationId); setDetailOrder(null); } : null}
           onMoveToDelivery={isPrep ? () => moveToDelivery(detailOrder) : null}
+          onReprep={detailOrder.prepStatus === 'rejected' ? (note) => reprepOrder(detailOrder, note) : null}
+          onContactCustomer={onContactCustomer}
         />
       )}
 
@@ -1823,8 +1962,11 @@ function ClickableStat({ icon: Icon, label, value, color, active, onClick }) {
   );
 }
 
-function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery }) {
+function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery, onReprep, onContactCustomer }) {
   const o = order;
+  const [reprepMode, setReprepMode] = useState(false);
+  const [reprepNote, setReprepNote] = useState('');
+  const isRejected = o.prepStatus === 'rejected';
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
       <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
@@ -1833,6 +1975,12 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
           <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
         </div>
         <div style={styles.modalBody}>
+          {isRejected && (
+            <div style={{ ...styles.rejectReasonBox, margin: 0 }}>
+              <span style={styles.rejectReasonLabel}>لم يُجهَّز من المخزن{o.prepByName ? ` (${o.prepByName})` : ''}:</span>
+              <span>{o.prepReason || 'بدون سبب محدد'}</span>
+            </div>
+          )}
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العميل</span><span style={styles.detailGridValue}>{o.customer}</span></div>
           {page && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الصفحة</span><span style={styles.detailGridValue}>{page.avatar} {page.name}</span></div>}
           {o.orderType && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>نوع الطلب</span><span style={styles.detailGridValue}>{o.orderType}</span></div>}
@@ -1847,17 +1995,41 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المبلغ</span><span style={{ ...styles.detailGridValue, color: '#60A5FA', fontWeight: 800, fontSize: 16 }}>{Number(o.total).toLocaleString()} د.ع</span></div>
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>التاريخ</span><span style={styles.detailGridValue}>{o.date}</span></div>
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الرقم المرجعي</span><span style={{ ...styles.detailGridValue, fontFamily: 'monospace' }}>{o.fahdRef}</span></div>
+
+          {reprepMode && (
+            <div style={styles.formGroup}>
+              <label style={styles.formLabel}>ملاحظة للمجهّز (اختياري)</label>
+              <textarea value={reprepNote} onChange={(e) => setReprepNote(e.target.value)} style={{ ...styles.formInput, minHeight: 70, resize: 'vertical' }} placeholder="مثال: المنتج وصل المخزن، جهّزه من فضلك" autoFocus />
+            </div>
+          )}
         </div>
         <div style={{ ...styles.modalFooter, flexWrap: 'wrap' }}>
-          {onMoveToDelivery && (
-            <button onClick={onMoveToDelivery} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4 }}>
-              <Truck size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> نقل لشركة التوصيل
-            </button>
+          {reprepMode ? (
+            <>
+              <button onClick={() => { setReprepMode(false); setReprepNote(''); }} style={styles.modalCancelBtn}>إلغاء</button>
+              <button onClick={() => onReprep?.(reprepNote.trim())} style={styles.modalSaveBtn}>تأكيد إعادة التجهيز</button>
+            </>
+          ) : (
+            <>
+              {onReprep && (
+                <button onClick={() => setReprepMode(true)} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4, background: 'linear-gradient(135deg,#F0A868,#E0833C)' }}>
+                  <RefreshCw size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> إعادة الطلب للتجهيز
+                </button>
+              )}
+              {onMoveToDelivery && (
+                <button onClick={onMoveToDelivery} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4 }}>
+                  <Truck size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> نقل لشركة التوصيل
+                </button>
+              )}
+              <button onClick={onEdit} style={styles.detailActionBtn}><Edit3 size={14} /> تعديل</button>
+              <button onClick={onShare} style={styles.detailActionBtn}><Send size={14} /> تحويل</button>
+              {onViewConversation && <button onClick={onViewConversation} style={styles.detailActionBtn}><MessageSquare size={14} /> المحادثة</button>}
+              {!onViewConversation && o.phone && onContactCustomer && (
+                <button onClick={() => onContactCustomer(o.phone)} style={styles.detailActionBtn}><Phone size={14} /> الزبون</button>
+              )}
+              <button onClick={onDelete} style={{ ...styles.detailActionBtn, color: '#F45B69', borderColor: 'rgba(244,91,105,0.3)' }}><Trash2 size={14} /> حذف</button>
+            </>
           )}
-          <button onClick={onEdit} style={styles.detailActionBtn}><Edit3 size={14} /> تعديل</button>
-          <button onClick={onShare} style={styles.detailActionBtn}><Send size={14} /> تحويل</button>
-          {onViewConversation && <button onClick={onViewConversation} style={styles.detailActionBtn}><MessageSquare size={14} /> المحادثة</button>}
-          <button onClick={onDelete} style={{ ...styles.detailActionBtn, color: '#F45B69', borderColor: 'rgba(244,91,105,0.3)' }}><Trash2 size={14} /> حذف</button>
         </div>
       </div>
     </div>
@@ -1881,7 +2053,7 @@ function StatCard({ icon: Icon, label, value, color }) {
 // ──────────────────────────────────────────────
 // عرض الإحصائيات
 // ──────────────────────────────────────────────
-function StatsView({ orders, pages, conversations }) {
+function StatsView({ orders, pages, conversations, setOrders }) {
   const [statsPage, setStatsPage] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
   const [customYear, setCustomYear] = useState(new Date().getFullYear());
@@ -1961,6 +2133,49 @@ function StatsView({ orders, pages, conversations }) {
   const maxRevenue = Math.max(...perPage.map((p) => p.revenue), 1);
   const years = [];
   for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
+
+  // ── بيانات قسم الخلاصة ──
+  const summary = useMemo(() => {
+    const booked = scopedOrders;
+    const converted = scopedOrders.filter((o) => o.converted);
+    const sentToCompany = scopedOrders.filter((o) => o.stage === 'delivery');
+    const sortingC = sentToCompany.filter((o) => o.deliveryStatus === 'sorting' || (!o.deliveryStatus && o.status === 'pending'));
+    const deliveredC = sentToCompany.filter((o) => o.status === 'delivered');
+    const returnedC = sentToCompany.filter((o) => o.status === 'returned');
+    const neglected = scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery');
+    return {
+      booked: booked.length,
+      converted: converted.length,
+      sentToCompany: sentToCompany.length,
+      sorting: sortingC.length,
+      delivered: deliveredC.length,
+      returned: returnedC.length,
+      neglected: neglected.length,
+    };
+  }, [scopedOrders]);
+
+  // ── الأكثر مبيعاً (حسب نوع السيارة/الطلب) ──
+  const bestSellers = useMemo(() => {
+    const counts = {};
+    scopedOrders.forEach((o) => {
+      const key = (o.orderType || '').trim();
+      if (!key) return;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.entries(counts).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
+  }, [scopedOrders]);
+
+  const convertedOrders = useMemo(
+    () => scopedOrders.filter((o) => o.converted).sort((a, b) => new Date(b.convertedAt || 0) - new Date(a.convertedAt || 0)),
+    [scopedOrders]
+  );
+
+  const neglectedOrders = useMemo(
+    () => scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery'),
+    [scopedOrders]
+  );
+
+  const [panel, setPanel] = useState(null); // null | 'summary' | 'bestSellers' | 'converted' | 'neglected'
 
   return (
     <div style={styles.viewWrap}>
@@ -2060,6 +2275,233 @@ function StatsView({ orders, pages, conversations }) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div style={styles.statsBottomBtns}>
+        <button onClick={() => setPanel('bestSellers')} style={styles.statsSmallBtn}>
+          <Sparkles size={15} /> الأكثر مبيعاً
+        </button>
+        <button onClick={() => setPanel('summary')} style={styles.statsSummaryBtn}>
+          <BarChart3 size={16} /> الخلاصة الكاملة
+        </button>
+      </div>
+
+      {panel === 'summary' && (
+        <StatsSummaryPanel
+          summary={summary}
+          onClose={() => setPanel(null)}
+          onOpenConverted={() => setPanel('converted')}
+          onOpenNeglected={() => setPanel('neglected')}
+        />
+      )}
+      {panel === 'bestSellers' && (
+        <BestSellersPanel data={bestSellers} onClose={() => setPanel(null)} />
+      )}
+      {panel === 'converted' && (
+        <ConvertedOrdersPanel orders={convertedOrders} pages={pages} onClose={() => setPanel('summary')} />
+      )}
+      {panel === 'neglected' && (
+        <NeglectedOrdersPanel orders={neglectedOrders} pages={pages} setOrders={setOrders} onClose={() => setPanel('summary')} />
+      )}
+    </div>
+  );
+}
+
+// لوحة الخلاصة الكاملة
+function StatsSummaryPanel({ summary, onClose, onOpenConverted, onOpenNeglected }) {
+  const rows = [
+    { label: 'الطلبات المحجوزة', value: summary.booked, color: '#3B82F6' },
+    { label: 'الطلبات المحوّلة', value: summary.converted, color: '#A78BFA', onClick: onOpenConverted },
+    { label: 'أُرسلت لشركة التوصيل', value: summary.sentToCompany, color: '#60A5FA' },
+    { label: '— قيد التوصيل', value: summary.sorting, color: '#3B82F6', sub: true },
+    { label: '— مستلمة', value: summary.delivered, color: '#4ADE80', sub: true },
+    { label: '— راجعة', value: summary.returned, color: '#F45B69', sub: true },
+    { label: 'الطلبات المهملة', value: summary.neglected, color: '#F0A868', onClick: onOpenNeglected },
+  ];
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>الخلاصة الكاملة</h3>
+          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+        </div>
+        <div style={styles.modalBody}>
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              onClick={r.onClick}
+              style={{
+                ...styles.summaryRow,
+                ...(r.sub ? styles.summaryRowSub : {}),
+                ...(r.onClick ? { cursor: 'pointer' } : {}),
+              }}
+            >
+              <span style={{ ...styles.summaryRowLabel, color: r.sub ? '#8B96AD' : '#EAF0FB' }}>
+                {r.label}
+                {r.onClick && <ArrowUpRight size={13} style={{ marginRight: 4, display: 'inline', verticalAlign: 'middle', color: r.color }} />}
+              </span>
+              <span style={{ ...styles.summaryRowValue, color: r.color }}>{r.value}</span>
+            </div>
+          ))}
+          <p style={styles.summaryHint}>اضغط على "المحوّلة" أو "المهملة" لعرض تفاصيلها</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// لوحة الأكثر مبيعاً
+function BestSellersPanel({ data, onClose }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>الأكثر مبيعاً</h3>
+          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+        </div>
+        <div style={styles.modalBody}>
+          {data.length === 0 ? (
+            <div style={styles.emptyState}><Package size={28} color="#39425C" /><p>لا توجد بيانات كافية</p></div>
+          ) : data.map((d, i) => (
+            <div key={i} style={styles.bestSellerRow}>
+              <div style={styles.bestSellerRank}>{i + 1}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={styles.bestSellerType}>{d.type}</div>
+                <div style={styles.bestSellerTrack}>
+                  <div style={{ ...styles.bestSellerFill, width: `${(d.count / max) * 100}%` }} />
+                </div>
+              </div>
+              <div style={styles.bestSellerCount}>{d.count}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// لوحة الطلبات المحوّلة (مع بحث وفلتر)
+function ConvertedOrdersPanel({ orders, pages, onClose }) {
+  const [q, setQ] = useState('');
+  const shown = orders.filter((o) => {
+    if (!q) return true;
+    const s = q.trim().toLowerCase();
+    return [o.customer, o.orderNo, o.phone, o.orderType, o.convertedByName].filter(Boolean).join(' ').toLowerCase().includes(s);
+  });
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={{ ...styles.modal, maxHeight: '85vh' }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>الطلبات المحوّلة ({orders.length})</h3>
+          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+        </div>
+        <div style={styles.modalBody}>
+          <div style={{ ...styles.searchBox, marginBottom: 14 }}>
+            <Search size={15} color="#5E6986" />
+            <input placeholder="بحث بالاسم، الرقم، الهاتف، أو المدير..." value={q} onChange={(e) => setQ(e.target.value)} style={styles.searchInput} />
+          </div>
+          {shown.length === 0 ? (
+            <div style={styles.emptyState}><Send size={28} color="#39425C" /><p>لا توجد طلبات محوّلة</p></div>
+          ) : shown.map((o) => {
+            const page = pages.find((p) => p.id === o.pageId);
+            return (
+              <div key={o.id} style={styles.convertedRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                  {o.orderType && <div style={styles.convertedSub}>{o.orderType}</div>}
+                  <div style={styles.convertedMeta}>
+                    {page && <span>{page.avatar} {page.name}</span>}
+                    {o.convertedByName && <span> · حوّله: {o.convertedByName}</span>}
+                    {o.convertedAt && <span> · {new Date(o.convertedAt).toLocaleDateString('ar-IQ')}</span>}
+                  </div>
+                </div>
+                <div style={styles.convertedTotal}>{Number(o.total).toLocaleString()} د.ع</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// لوحة الطلبات المهملة (تحديد متعدد + إعادة طباعة)
+function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
+  const [selected, setSelected] = useState(new Set());
+  const [q, setQ] = useState('');
+  const shown = orders.filter((o) => {
+    if (!q) return true;
+    const s = q.trim().toLowerCase();
+    return [o.customer, o.orderNo, o.phone, o.orderType, o.address].filter(Boolean).join(' ').toLowerCase().includes(s);
+  });
+
+  function toggle(id) {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  async function reprintSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) { alert('حدّد طلباً واحداً على الأقل'); return; }
+    const batchId = `batch-${Date.now()}`;
+    const printedAt = new Date().toISOString();
+    // أعدها لمرحلة التجهيز بدفعة طباعة جديدة
+    setOrders((prev) => prev.map((o) => (
+      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
+    )));
+    try {
+      await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
+        printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
+      })));
+    } catch (e) { console.error('reprint neglected error:', e); }
+    setTimeout(() => window.print(), 80);
+    setSelected(new Set());
+  }
+
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={{ ...styles.modal, maxHeight: '85vh' }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>الطلبات المهملة ({orders.length})</h3>
+          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+        </div>
+        <div style={styles.modalBody}>
+          <p style={styles.summaryHint}>طلبات طُبعت لكن لم تُحوّل ولم تُرسل لشركة التوصيل. حدّد ما تريد وأعد طباعته.</p>
+          <div style={{ ...styles.searchBox, marginBottom: 12 }}>
+            <Search size={15} color="#5E6986" />
+            <input placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} style={styles.searchInput} />
+          </div>
+          {shown.length === 0 ? (
+            <div style={styles.emptyState}><Package size={28} color="#39425C" /><p>لا توجد طلبات مهملة</p></div>
+          ) : shown.map((o) => {
+            const page = pages.find((p) => p.id === o.pageId);
+            const isSel = selected.has(o.id);
+            return (
+              <div key={o.id} onClick={() => toggle(o.id)} style={{ ...styles.neglectedRow, ...(isSel ? styles.neglectedRowSel : {}) }}>
+                <div style={{ ...styles.neglectedCheck, ...(isSel ? styles.neglectedCheckOn : {}) }}>
+                  {isSel && <CheckCircle2 size={14} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                  {o.orderType && <div style={styles.convertedSub}>{o.orderType}</div>}
+                  {page && <div style={styles.convertedMeta}>{page.avatar} {page.name}</div>}
+                </div>
+                <div style={styles.convertedTotal}>{Number(o.total).toLocaleString()} د.ع</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={styles.modalFooter}>
+          <button onClick={onClose} style={styles.modalCancelBtn}>إغلاق</button>
+          <button onClick={reprintSelected} style={styles.modalSaveBtn}>
+            <Printer size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} />
+            إعادة طباعة ({selected.size})
+          </button>
         </div>
       </div>
     </div>
@@ -3105,7 +3547,7 @@ export default function AlFhdApp() {
             />
           )}
           {activeView === 'stats' && (
-            <StatsView orders={orders} pages={pages} conversations={conversations} />
+            <StatsView orders={orders} pages={pages} conversations={conversations} setOrders={setOrders} />
           )}
           {activeView === 'users' && (authedUser.role === 'admin' || (authedUser.permissions || []).includes('users_manage')) && (
             <AdminView
@@ -3680,7 +4122,6 @@ const styles = {
     background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
     borderColor: 'rgba(59,130,246,0.32)', color: '#93C5FD',
   },
-  ordersToolbar: { display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' },
   filterChips: { display: 'flex', gap: 6 },
   chip: {
     padding: '8px 14px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.06)',
@@ -3765,6 +4206,12 @@ const styles = {
     background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 11,
     padding: '10px 14px', color: '#EAF0FB', fontSize: 13, fontFamily: "'Cairo', sans-serif", flex: 1,
   },
+  filtersWrap: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
+  dateChipsRow: {
+    display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2,
+    WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+  },
+  filterBottomRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },
   chartTitle: { fontSize: 15, fontWeight: 700, color: '#EAF0FB', margin: '0 0 18px' },
   barChartArea: { display: 'flex', flexDirection: 'column', gap: 16 },
   barChartRow: { display: 'grid', gridTemplateColumns: '180px 1fr 120px', gap: 14, alignItems: 'center' },
@@ -4000,4 +4447,52 @@ const styles = {
     padding: '11px 10px', background: '#1A2235', border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 10, color: '#C4CEE0', fontSize: 12.5, fontWeight: 700,
   },
+  statsBottomBtns: { display: 'flex', gap: 10, marginTop: 18 },
+  statsSmallBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1, padding: '13px',
+    background: '#141B2C', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 13,
+    color: '#C4CEE0', fontSize: 13, fontWeight: 700,
+  },
+  statsSummaryBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1.4, padding: '13px',
+    background: 'linear-gradient(135deg,#60A5FA,#1D4ED8)', border: 'none', borderRadius: 13,
+    color: '#fff', fontSize: 14, fontWeight: 800, boxShadow: '0 3px 14px -3px rgba(59,130,246,0.5)',
+  },
+  summaryRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    padding: '13px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.02)',
+    border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8,
+  },
+  summaryRowSub: { background: 'transparent', border: 'none', padding: '6px 20px', marginBottom: 2 },
+  summaryRowLabel: { fontSize: 13.5, fontWeight: 600 },
+  summaryRowValue: { fontSize: 18, fontWeight: 800 },
+  summaryHint: { fontSize: 11.5, color: '#5E6986', textAlign: 'center', marginTop: 10 },
+  bestSellerRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
+  bestSellerRank: {
+    width: 28, height: 28, borderRadius: 9, background: 'rgba(59,130,246,0.15)', color: '#60A5FA',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0,
+  },
+  bestSellerType: { fontSize: 13.5, fontWeight: 700, color: '#EAF0FB', marginBottom: 5, overflowWrap: 'anywhere' },
+  bestSellerTrack: { height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' },
+  bestSellerFill: { height: '100%', background: 'linear-gradient(90deg,#3B82F6,#60A5FA)', borderRadius: 4 },
+  bestSellerCount: { fontSize: 15, fontWeight: 800, color: '#60A5FA', minWidth: 28, textAlign: 'center', flexShrink: 0 },
+  convertedRow: {
+    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
+  },
+  convertedCustomer: { fontSize: 14, fontWeight: 700, color: '#EAF0FB' },
+  convertedSub: { fontSize: 12, color: '#93C5FD', marginTop: 2 },
+  convertedMeta: { fontSize: 11, color: '#5E6986', marginTop: 3 },
+  convertedTotal: { fontSize: 14, fontWeight: 800, color: '#60A5FA', flexShrink: 0 },
+  neglectedRow: {
+    display: 'flex', alignItems: 'center', gap: 12, padding: '12px', marginBottom: 8,
+    borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+    cursor: 'pointer',
+  },
+  neglectedRowSel: { background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.4)' },
+  neglectedCheck: {
+    width: 24, height: 24, borderRadius: 7, border: '1.5px solid rgba(255,255,255,0.2)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff',
+  },
+  neglectedCheckOn: { background: '#3B82F6', borderColor: '#3B82F6' },
 };
