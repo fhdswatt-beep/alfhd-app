@@ -1025,319 +1025,414 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     setRecSeconds(0);
   }
 
+  // ── ألوان TG مختصرة ──
+  const TG_PANEL = '#17212B';
+  const TG_INPUT = '#242F3D';
+  const TG_BLUE  = '#2AABEE';
+  const TG_DIM   = '#546880';
+  const TG_SUB   = '#8B9AB3';
+  const TG_TEXT  = '#F5F5F5';
+  const TG_RED   = '#E53935';
+  const TG_BDR   = 'rgba(255,255,255,0.07)';
+
+  const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'ذكاء اصطناعي' };
+  const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
+
   return (
-    <div style={styles.viewWrap}>
-      <div style={styles.viewHeader} className="alfhd-view-header">
-        <div>
-          <h2 style={styles.viewTitle}>المحادثات</h2>
-          <p style={styles.viewSubtitle}>إدارة محادثات صفحاتك في مكان واحد</p>
-        </div>
-        <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#3B82F6" />
-          <select
-            value={selectedPage}
-            onChange={(e) => setSelectedPage(e.target.value)}
-            style={styles.pageSelect}
+    /* ─── حاوية ملء الشاشة بدون padding ─── */
+    <div style={{
+      display: 'flex', height: 'calc(100vh - 0px)', overflow: 'hidden',
+      position: 'fixed', inset: 0, right: 260, direction: 'rtl',
+      background: '#0E1621',
+    }} className="alfhd-conv-fullscreen">
+
+      {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
+      <div
+        style={{
+          width: 340, minWidth: 280, maxWidth: 360,
+          display: 'flex', flexDirection: 'column',
+          background: TG_PANEL,
+          borderLeft: `1px solid ${TG_BDR}`,
+          height: '100%', overflow: 'hidden', flexShrink: 0,
+        }}
+        className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
+      >
+        {/* ── رأس القائمة: شعار + فلتر صفحات ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '13px 14px 11px',
+          borderBottom: `1px solid ${TG_BDR}`,
+          flexShrink: 0,
+        }}>
+          {/* شعار */}
+          <div style={{ fontSize: 15, fontWeight: 800, color: TG_TEXT, letterSpacing: '-0.01em', flexShrink: 0 }}>AlFhd</div>
+
+          {/* فلتر الصفحات — في الوسط */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: TG_INPUT, borderRadius: 20, padding: '5px 11px',
+            }}>
+              <Facebook size={13} color={TG_BLUE} />
+              <select
+                value={selectedPage}
+                onChange={(e) => setSelectedPage(e.target.value)}
+                style={{
+                  background: 'transparent', border: 'none', color: TG_TEXT,
+                  fontSize: 12, fontWeight: 600, appearance: 'none',
+                  cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
+                }}
+              >
+                <option value="all">كل الصفحات ({pages.length})</option>
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} color={TG_DIM} />
+            </div>
+          </div>
+
+          {/* أيقونة البحث */}
+          <button
+            onClick={() => {/* toggle search */}}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >
-            <option value="all">كل الصفحات ({pages.length})</option>
-            {pages.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
+            <Search size={17} />
+          </button>
         </div>
-      </div>
 
-      <div style={styles.convTabs}>
-        {CONV_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
-              style={{ ...styles.convTab, ...(active ? styles.convTabActive : {}), position: 'relative' }}
-            >
-              <Icon size={15} />
-              {tab.label}
-              <span style={{
-                ...styles.convTabCount,
-                ...(active ? styles.convTabCountActive : {}),
-              }}>
-                {counts.total[tab.id]}
-              </span>
-              {counts.unread[tab.id] > 0 && (
-                <span style={styles.unreadPulse} className="alfhd-unread-pulse">
-                  {counts.unread[tab.id]}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={styles.convLayout} className="alfhd-conv-layout">
-        <div
-          style={styles.convList}
-          className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
-        >
-          <div style={styles.searchBox}>
-            <Search size={15} color="#5E6986" />
+        {/* ── بحث ── */}
+        <div style={{ padding: '8px 10px 4px', flexShrink: 0 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: TG_INPUT, borderRadius: 20, padding: '7px 13px',
+          }}>
+            <Search size={14} color={TG_DIM} />
             <input
               placeholder="بحث باسم العميل..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={styles.searchInput}
+              style={{ background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13, width: '100%', fontFamily: "'Cairo', sans-serif" }}
             />
           </div>
+        </div>
 
-          <button
-            onClick={() => markAllRead(filtered)}
-            style={{
-              ...styles.markAllReadBtn,
-              ...(filtered.reduce((s, c) => s + Number(c.unread || 0), 0) === 0 ? styles.markAllReadBtnDisabled : {}),
-            }}
-            disabled={filtered.reduce((s, c) => s + Number(c.unread || 0), 0) === 0}
-          >
-            <CheckCircle2 size={14} />
-            تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
-          </button>
+        {/* ── تبويبات الثلاثة — أفقية متساوية ── */}
+        <div style={{
+          display: 'flex', flexShrink: 0,
+          borderBottom: `1px solid ${TG_BDR}`,
+          padding: '6px 8px 0',
+          gap: 4,
+        }}>
+          {CONV_TABS.map((tab) => {
+            const Icon = tabIcons[tab.id] || MessageSquare;
+            const active = activeTab === tab.id;
+            const unreadCount = counts.unread[tab.id] || 0;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
+                style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: 3, padding: '7px 4px 9px',
+                  background: 'transparent', border: 'none',
+                  borderBottom: active ? `2px solid ${TG_BLUE}` : '2px solid transparent',
+                  color: active ? TG_BLUE : TG_DIM,
+                  fontSize: 10, fontWeight: 700,
+                  transition: 'all 0.15s ease',
+                  position: 'relative', cursor: 'pointer',
+                }}
+              >
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
+                  {/* عداد الرسائل الجديدة — أحمر */}
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -7, right: -10,
+                      minWidth: 16, height: 16, padding: '0 4px',
+                      borderRadius: 20, background: TG_RED, color: '#fff',
+                      fontSize: 9, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: `2px solid ${TG_PANEL}`,
+                      lineHeight: 1,
+                    }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
+                  {tabLabels[tab.id]}
+                </span>
+                {/* عدد إجمالي التاب */}
+                {counts.total[tab.id] > 0 && (
+                  <span style={{
+                    fontSize: 9, color: active ? TG_BLUE : TG_DIM,
+                    background: active ? 'rgba(42,171,238,0.12)' : 'rgba(255,255,255,0.06)',
+                    borderRadius: 20, padding: '1px 5px', fontWeight: 700,
+                  }}>
+                    {counts.total[tab.id]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── قائمة المحادثات ── */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {/* زر تعليم الكل كمقروء */}
+          {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && (
+            <button
+              onClick={() => markAllRead(filtered)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                width: '100%', padding: '7px', background: 'rgba(42,171,238,0.07)',
+                border: 'none', color: TG_BLUE, fontSize: 11.5, fontWeight: 600,
+              }}
+            >
+              <CheckCircle2 size={13} />
+              تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
+            </button>
+          )}
 
           {filtered.length === 0 ? (
-            <div style={styles.emptyState}>
-              <MessageSquare size={32} color="#39425C" />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TG_DIM, fontSize: 13 }}>
+              <MessageSquare size={32} color={TG_DIM} />
               <p>لا توجد محادثات هنا</p>
             </div>
           ) : (
-            filtered.map((c) => {
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
-                  className="alfhd-conv-item"
-                  style={{
-                    ...styles.convItem,
-                    ...(selectedConv?.id === c.id ? styles.convItemActive : {}),
-                  }}
-                >
-                  <ConvAvatar conv={c} />
-                  <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                    <div style={styles.convItemTop}>
-                      <span style={styles.convCustomer}>{c.customer}</span>
-                      <span style={styles.convTime}>{c.time}</span>
-                    </div>
-                    <div style={styles.convItemBottom}>
-                      <span style={styles.convLastMsg}>{c.lastMsg}</span>
-                      {c.unread > 0 && <span style={styles.unreadBadge}>{c.unread}</span>}
-                    </div>
-                    <div style={styles.convMiniMetaRow}>
-                      {c.orderId && <span style={styles.convMiniMetaPill}><Package size={10} /> طلب مثبت</span>}
-                      {c.tab === 'handoff' && <span style={{ ...styles.convMiniMetaPill, color: '#C4B5FD', borderColor: 'rgba(167,139,250,0.22)', background: 'rgba(167,139,250,0.08)' }}><Bot size={10} /> ذكاء اصطناعي</span>}
-                      {Number(c.unread || 0) > 0 && <span style={{ ...styles.convMiniMetaPill, color: '#FCA5A5', borderColor: 'rgba(248,113,113,0.22)', background: 'rgba(248,113,113,0.08)' }}>غير مقروء</span>}
-                    </div>
+            filtered.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
+                className="alfhd-conv-item"
+                style={{
+                  display: 'flex', gap: 10, padding: '10px 14px',
+                  width: '100%', background: 'transparent', border: 'none',
+                  borderRight: selectedConv?.id === c.id ? `3px solid ${TG_BLUE}` : '3px solid transparent',
+                  borderRadius: 0, textAlign: 'right', alignItems: 'center',
+                  backgroundColor: selectedConv?.id === c.id ? 'rgba(42,171,238,0.13)' : 'transparent',
+                  transition: 'background 0.12s ease',
+                }}
+              >
+                <ConvAvatar conv={c} />
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: TG_TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.customer}</span>
+                    <span style={{ fontSize: 10.5, color: TG_DIM, flexShrink: 0, marginRight: 6 }}>{c.time}</span>
                   </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div
-          style={styles.convDetail}
-          className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
-        >
-          {selectedConv ? (
-            <>
-              <div style={styles.detailHeader} className="alfhd-chat-detail-header">
-                <button
-                  onClick={() => setSelectedConv(null)}
-                  style={styles.convBackBtn}
-                  className="alfhd-conv-back-btn"
-                >
-                  <ArrowRight size={18} />
-                </button>
-                <ConvAvatar conv={selectedConv} size="lg" />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.detailName}>{selectedConv.customer}</div>
-                  <div style={styles.detailPage}>
-                    {pages.find((p) => p.id === selectedConv.pageId)?.name}
-                  </div>
-                  <div style={styles.chatHeaderMetaRow}>
-                    <span style={styles.chatHeaderMetaPill}><Facebook size={10} /> Facebook</span>
-                    {selectedConv.orderId ? <span style={styles.chatHeaderMetaPill}><Pin size={10} /> طلب مثبت</span> : <span style={styles.chatHeaderMetaPill}>بدون طلب</span>}
-                    {Number(selectedConv.unread || 0) > 0 && <span style={{ ...styles.chatHeaderMetaPill, color: '#FCA5A5', borderColor: 'rgba(248,113,113,0.25)' }}>{selectedConv.unread} غير مقروء</span>}
-                  </div>
-                </div>
-                {!selectedConv.orderId && (
-                  <button
-                    onClick={() => onCreateOrderFromConv?.(selectedConv)}
-                    style={styles.pinOrderBtn}
-                    title="تثبيت طلب من هذه المحادثة"
-                  >
-                    <Pin size={14} />
-                    تثبيت طلب
-                  </button>
-                )}
-              </div>
-
-              {linkedOrder && (
-                <div style={styles.linkedOrderCard} className="alfhd-linked-order">
-                  <div style={styles.linkedOrderHeader}>
-                    <Pin size={14} color="#3B82F6" />
-                    <span>طلب مثبّت بهذه المحادثة</span>
-                  </div>
-                  <div style={styles.linkedOrderBody}>
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>رقم الطلب</span>
-                      <span style={styles.linkedOrderValue}>#{linkedOrder.orderNo}</span>
-                    </div>
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>مرحلة الطلب</span>
-                      <OrderStagePill order={linkedOrder} />
-                    </div>
-                    {linkedOrder.stage === 'delivery' && (
-                      <div style={styles.linkedOrderRow}>
-                        <span style={styles.linkedOrderLabel}>حالة التوصيل</span>
-                        <StatusPill status={linkedOrder.status} />
-                      </div>
-                    )}
-                    {linkedOrder.orderType && (
-                      <div style={styles.linkedOrderRow}>
-                        <span style={styles.linkedOrderLabel}>نوع الطلب</span>
-                        <span style={styles.linkedOrderValue}>{linkedOrder.orderType}</span>
-                      </div>
-                    )}
-                    <div style={styles.linkedOrderRow}>
-                      <span style={styles.linkedOrderLabel}>المبلغ</span>
-                      <span style={{ ...styles.linkedOrderValue, color: '#60A5FA', fontWeight: 700 }}>
-                        {linkedOrder.total.toLocaleString()} د.ع
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: TG_SUB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.lastMsg}</span>
+                    {/* عدد الرسائل الجديدة — أحمر */}
+                    {c.unread > 0 && (
+                      <span style={{
+                        background: TG_RED, color: '#fff', borderRadius: 20,
+                        fontSize: 10.5, fontWeight: 800, padding: '2px 7px',
+                        minWidth: 18, height: 18, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        {c.unread}
                       </span>
-                    </div>
+                    )}
                   </div>
-                  <button
-                    onClick={() => onOpenOrderDetails?.(linkedOrder)}
-                    style={styles.linkedOrderDetailBtn}
-                  >
-                    <Eye size={14} /> عرض تفاصيل الطلب وإدارته
-                  </button>
                 </div>
-              )}
-
-              <div style={styles.chatScroll} ref={scrollRef} className="alfhd-chat-scroll">
-                {loadingMsgs ? (
-                  <div style={styles.emptyStateLg}>
-                    <RefreshCw size={22} color="#39425C" style={{ animation: 'spin 1s linear infinite' }} />
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div style={styles.emptyStateLg}>
-                    <MessageSquare size={32} color="#39425C" />
-                    <p>لا توجد رسائل بعد</p>
-                  </div>
-                ) : (
-                  messages.map((m, idx) => (
-                    <React.Fragment key={m.id}>
-                      {idx === 0 && <div style={styles.chatDateDivider}>اليوم</div>}
-                      <div
-                        className="alfhd-chat-bubble-row"
-                        style={{
-                          display: 'flex',
-                          justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start',
-                          marginBottom: 10,
-                          width: '100%',
-                          minWidth: 0,
-                        }}
-                      >
-                        <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
-                          {m.type === 'image' && m.mediaUrl && (
-                            <img src={m.mediaUrl} alt="" style={styles.msgImage} />
-                          )}
-                          {m.type === 'audio' && m.mediaUrl && (
-                            <audio controls src={m.mediaUrl} style={styles.msgAudio} />
-                          )}
-                          {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
-                          <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
-                        </div>
-                      </div>
-                    </React.Fragment>
-                  ))
-                )}
-              </div>
-
-              <div style={styles.composerBar} className="alfhd-composer-bar">
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  onChange={handlePickImage}
-                  style={{ display: 'none' }}
-                />
-                {recording ? (
-                  <div style={styles.recordingBar}>
-                    <button
-                      style={styles.recordingCancelBtn}
-                      onClick={cancelRecording}
-                      title="إلغاء"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                    <div style={styles.recordingInfo}>
-                      <span style={styles.recordingDot} className="alfhd-rec-dot" />
-                      <span style={styles.recordingTime}>{formatRecTime(recSeconds)}</span>
-                      <span style={styles.recordingLabel}>جارٍ التسجيل…</span>
-                    </div>
-                    <button
-                      style={styles.recordingSendBtn}
-                      onClick={stopRecording}
-                      title="إرسال التسجيل"
-                    >
-                      <Send size={17} />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      style={styles.composerIconBtn}
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={sendingMsg}
-                      title="إرسال صورة"
-                    >
-                      <Image size={18} />
-                    </button>
-                    <button
-                      style={styles.composerIconBtn}
-                      onClick={startRecording}
-                      disabled={sendingMsg}
-                      title="تسجيل صوتي"
-                    >
-                      <Mic size={18} />
-                    </button>
-                    <input
-                      value={composerText}
-                      onChange={(e) => setComposerText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
-                      placeholder="اكتب رسالة..."
-                      style={styles.composerInput}
-                      disabled={sendingMsg}
-                    />
-                    <button
-                      style={styles.composerSendBtn}
-                      onClick={handleSendText}
-                      disabled={sendingMsg || !composerText.trim()}
-                    >
-                      <Send size={17} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <div style={styles.emptyStateLg}>
-              <MessageSquare size={40} color="#39425C" />
-              <p>اختر محادثة لعرض التفاصيل</p>
-            </div>
+              </button>
+            ))
           )}
         </div>
       </div>
+
+      {/* ══════════════ منطقة المحادثة (يسار) ══════════════ */}
+      <div
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0,
+        }}
+        className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
+      >
+        {selectedConv ? (
+          <>
+            {/* ── هيدر المحادثة ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 11,
+              padding: '12px 16px', borderBottom: `1px solid ${TG_BDR}`,
+              background: TG_PANEL, flexShrink: 0,
+            }} className="alfhd-chat-detail-header">
+              <button
+                onClick={() => setSelectedConv(null)}
+                style={{ display: 'none', width: 32, height: 32, borderRadius: 9, background: TG_INPUT, border: 'none', color: TG_SUB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                className="alfhd-conv-back-btn"
+              >
+                <ArrowRight size={18} />
+              </button>
+              <ConvAvatar conv={selectedConv} size="lg" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: TG_TEXT }}>{selectedConv.customer}</div>
+                <div style={{ fontSize: 11, color: TG_DIM, fontWeight: 500 }}>
+                  {pages.find((p) => p.id === selectedConv.pageId)?.name}
+                </div>
+              </div>
+              {!selectedConv.orderId && (
+                <button
+                  onClick={() => onCreateOrderFromConv?.(selectedConv)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
+                    background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
+                    color: TG_BLUE, fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  }}
+                >
+                  <Pin size={13} /> تثبيت طلب
+                </button>
+              )}
+            </div>
+
+            {/* ── كرت الطلب المثبّت ── */}
+            {linkedOrder && (
+              <div style={{
+                background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`,
+                padding: '10px 16px', flexShrink: 0,
+              }} className="alfhd-linked-order">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: TG_BLUE, marginBottom: 8 }}>
+                  <Pin size={13} color={TG_BLUE} /> طلب مثبّت بهذه المحادثة
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: TG_DIM }}>رقم الطلب</span>
+                    <span style={{ fontSize: 12.5, color: TG_TEXT, fontWeight: 600 }}>#{linkedOrder.orderNo}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: TG_DIM }}>مرحلة الطلب</span>
+                    <OrderStagePill order={linkedOrder} />
+                  </div>
+                  {linkedOrder.stage === 'delivery' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11.5, color: TG_DIM }}>حالة التوصيل</span>
+                      <StatusPill status={linkedOrder.status} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11.5, color: TG_DIM }}>المبلغ</span>
+                    <span style={{ fontSize: 12.5, color: TG_BLUE, fontWeight: 700 }}>{linkedOrder.total.toLocaleString()} د.ع</span>
+                  </div>
+                </div>
+                <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '7px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
+                  <Eye size={13} /> عرض تفاصيل الطلب
+                </button>
+              </div>
+            )}
+
+            {/* ── منطقة الرسائل ── */}
+            <div
+              style={{
+                flex: 1, overflowY: 'auto', overflowX: 'hidden',
+                display: 'flex', flexDirection: 'column',
+                padding: '14px 16px', background: '#0E1621',
+              }}
+              ref={scrollRef}
+              className="alfhd-chat-scroll"
+            >
+              {loadingMsgs ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                  <RefreshCw size={22} color={TG_DIM} style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : messages.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 11, color: TG_DIM, fontSize: 13 }}>
+                  <MessageSquare size={34} color={TG_DIM} />
+                  <p>لا توجد رسائل بعد</p>
+                </div>
+              ) : (
+                messages.map((m, idx) => (
+                  <React.Fragment key={m.id}>
+                    {idx === 0 && (
+                      <div style={{ alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TG_SUB, fontSize: 10, fontWeight: 600 }}>
+                        اليوم
+                      </div>
+                    )}
+                    <div
+                      className="alfhd-chat-bubble-row"
+                      style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: 6, width: '100%', minWidth: 0 }}
+                    >
+                      <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
+                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} />}
+                        {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
+                        {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
+                        <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                ))
+              )}
+            </div>
+
+            {/* ── شريط الكتابة ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: TG_PANEL, borderTop: `1px solid ${TG_BDR}`,
+              padding: '10px 14px', flexShrink: 0,
+            }} className="alfhd-composer-bar">
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
+              {recording ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' }}>
+                  <button style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TG_RED, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelRecording}><Trash2 size={17} /></button>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: TG_RED }} className="alfhd-rec-dot" />
+                    <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
+                    <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
+                  </div>
+                  <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
+                </div>
+              ) : (
+                <>
+                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
+                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
+                  <input
+                    value={composerText}
+                    onChange={(e) => setComposerText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
+                    placeholder="اكتب رسالة..."
+                    style={{ flex: 1, background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" }}
+                    disabled={sendingMsg}
+                  />
+                  <button
+                    style={{ width: 36, height: 36, borderRadius: '50%', background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
+                    onClick={handleSendText}
+                    disabled={sendingMsg || !composerText.trim()}
+                  >
+                    <Send size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 14, color: TG_DIM }}>
+            <MessageSquare size={52} color={TG_DIM} strokeWidth={1.5} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: TG_SUB, marginBottom: 5 }}>اختر محادثة</div>
+              <div style={{ fontSize: 12.5, color: TG_DIM }}>للعرض والتواصل مع الزبون</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @media (max-width: 860px) {
+          .alfhd-conv-fullscreen {
+            right: 0 !important;
+            position: fixed !important;
+            inset: 0 !important;
+          }
+          .alfhd-conv-list-hidden-mobile { display: none !important; }
+          .alfhd-conv-detail-empty { display: none !important; }
+          .alfhd-conv-detail-active-mobile {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 200 !important;
+            width: 100% !important;
+          }
+          .alfhd-conv-back-btn { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -3889,7 +3984,7 @@ export default function AlFhdApp() {
           currentUser={authedUser}
           pages={pages}
         />
-        <main style={styles.mainArea} className="alfhd-main-area">
+        <main style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden' } : {}) }} className="alfhd-main-area">
           {activeView === 'conversations' && (
             <ConversationsView
               conversations={conversations}
