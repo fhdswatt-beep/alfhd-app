@@ -1149,30 +1149,30 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               >
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
-                  {/* عداد الرسائل الجديدة — أحمر */}
+                  {/* عداد الغير مقروء فقط — أحمر */}
                   {unreadCount > 0 && (
                     <span style={{
                       position: 'absolute', top: -7, right: -10,
                       minWidth: 16, height: 16, padding: '0 4px',
-                      borderRadius: 20, background: TG_RED, color: '#fff',
+                      borderRadius: 20, background: '#E53935', color: '#fff',
                       fontSize: 9, fontWeight: 800,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: `2px solid ${TG_PANEL}`,
+                      border: `2px solid #17212B`,
                       lineHeight: 1,
                     }}>
-                      {unreadCount}
+                      {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}
                 </div>
                 <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
                   {tabLabels[tab.id]}
                 </span>
-                {/* عدد إجمالي التاب */}
+                {/* عدد إجمالي التاب — صغير وهادئ */}
                 {counts.total[tab.id] > 0 && (
                   <span style={{
                     fontSize: 9, color: active ? TG_BLUE : TG_DIM,
-                    background: active ? 'rgba(42,171,238,0.12)' : 'rgba(255,255,255,0.06)',
-                    borderRadius: 20, padding: '1px 5px', fontWeight: 700,
+                    background: active ? 'rgba(42,171,238,0.12)' : 'rgba(255,255,255,0.05)',
+                    borderRadius: 20, padding: '1px 5px', fontWeight: 600,
                   }}>
                     {counts.total[tab.id]}
                   </span>
@@ -1205,43 +1205,87 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               <p>لا توجد محادثات هنا</p>
             </div>
           ) : (
-            filtered.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
-                className="alfhd-conv-item"
-                style={{
-                  display: 'flex', gap: 10, padding: '10px 14px',
-                  width: '100%', background: 'transparent', border: 'none',
-                  borderRight: selectedConv?.id === c.id ? `3px solid ${TG_BLUE}` : '3px solid transparent',
-                  borderRadius: 0, textAlign: 'right', alignItems: 'center',
-                  backgroundColor: selectedConv?.id === c.id ? 'rgba(42,171,238,0.13)' : 'transparent',
-                  transition: 'background 0.12s ease',
-                }}
-              >
-                <ConvAvatar conv={c} />
-                <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: TG_TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.customer}</span>
-                    <span style={{ fontSize: 10.5, color: TG_DIM, flexShrink: 0, marginRight: 6 }}>{c.time}</span>
+            filtered.map((c) => {
+              const isActive = selectedConv?.id === c.id;
+              const hasUnread = c.unread > 0;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
+                  className="alfhd-conv-item"
+                  style={{
+                    display: 'flex', gap: 12, padding: '11px 14px',
+                    width: '100%', background: 'transparent', border: 'none',
+                    borderRight: isActive ? `3px solid ${TG_BLUE}` : '3px solid transparent',
+                    borderRadius: 0, textAlign: 'right', alignItems: 'center',
+                    backgroundColor: isActive ? 'rgba(42,171,238,0.13)' : 'transparent',
+                    transition: 'background 0.12s ease',
+                    minHeight: 72,
+                  }}
+                >
+                  {/* أفاتار أكبر */}
+                  <div style={{ flexShrink: 0 }}>
+                    <ConvAvatar conv={c} size="lg" />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: TG_SUB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.lastMsg}</span>
-                    {/* عدد الرسائل الجديدة — أحمر */}
-                    {c.unread > 0 && (
+
+                  {/* المحتوى */}
+                  <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
+                    {/* السطر الأول: الاسم + الوقت */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <span style={{
-                        background: TG_RED, color: '#fff', borderRadius: 20,
-                        fontSize: 10.5, fontWeight: 800, padding: '2px 7px',
-                        minWidth: 18, height: 18, display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', flexShrink: 0,
+                        fontSize: 14, fontWeight: hasUnread ? 800 : 600,
+                        color: TG_TEXT,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        maxWidth: 'calc(100% - 60px)',
+                      }}>{c.customer}</span>
+                      <span style={{
+                        fontSize: 11, color: hasUnread ? TG_BLUE : TG_DIM,
+                        flexShrink: 0, fontWeight: hasUnread ? 700 : 400,
+                      }}>{c.time}</span>
+                    </div>
+
+                    {/* السطر الثاني: آخر رسالة + عداد */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
+                      <span style={{
+                        fontSize: 12.5,
+                        color: hasUnread ? '#A8B8CC' : TG_SUB,
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap', flex: 1,
+                        fontWeight: hasUnread ? 500 : 400,
+                      }}>{c.lastMsg || 'لا توجد رسائل'}</span>
+
+                      {/* عداد الغير مقروء — أحمر واضح */}
+                      {hasUnread && (
+                        <span style={{
+                          background: '#E53935',
+                          color: '#fff',
+                          borderRadius: 20,
+                          fontSize: 11, fontWeight: 800,
+                          padding: '2px 7px',
+                          minWidth: 20, height: 20,
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', flexShrink: 0,
+                          boxShadow: '0 2px 6px rgba(229,57,53,0.4)',
+                        }}>
+                          {c.unread > 99 ? '99+' : c.unread}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* طلب مثبّت — صغير تحت */}
+                    {c.orderId && (
+                      <div style={{
+                        marginTop: 3, display: 'inline-flex', alignItems: 'center', gap: 3,
+                        fontSize: 10, color: TG_BLUE, fontWeight: 600,
+                        background: 'rgba(42,171,238,0.10)', borderRadius: 10, padding: '1px 6px',
                       }}>
-                        {c.unread}
-                      </span>
+                        📦 طلب مثبّت
+                      </div>
                     )}
                   </div>
-                </div>
-              </button>
-            ))
+                </button>
+              );
+            })
           )}
         </div>
       </div>
@@ -2281,18 +2325,22 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   return (
     <div style={styles.viewWrap}>
+      {/* ── هيدر الطلبات ── */}
       <div style={styles.viewHeader} className="alfhd-view-header alfhd-no-print">
         <div>
           <h2 style={styles.viewTitle}>الطلبات</h2>
-          <p style={styles.viewSubtitle}>متابعة كاملة لطلباتك عبر مراحل التجهيز والتوصيل</p>
+          <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+        {/* أزرار الإجراءات — صف أنيق */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+
+          {/* بحث عام */}
           <div style={styles.globalOrderSearchWrap}>
             <Search size={14} color="#60A5FA" />
             <input
               value={globalOrderSearch}
               onChange={(e) => setGlobalOrderSearch(e.target.value)}
-              placeholder="بحث عام بالطلبات..."
+              placeholder="بحث سريع..."
               style={styles.globalOrderSearchInput}
             />
             {globalOrderSearch.trim().length >= 2 && (
@@ -2314,17 +2362,55 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               </div>
             )}
           </div>
+
           <input type="file" accept="image/*" ref={ocrInputRef} onChange={handlePickOcrImage} style={{ display: 'none' }} />
-          <button onClick={() => ocrInputRef.current?.click()} style={styles.secondaryBtn} disabled={ocrLoading}>
-            {ocrLoading ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Image size={15} />}
-            إضافة بالصورة
+
+          {/* زر إضافة بالصورة */}
+          <button
+            onClick={() => ocrInputRef.current?.click()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 13px', background: 'rgba(42,171,238,0.10)',
+              border: '1px solid rgba(42,171,238,0.22)', borderRadius: 10,
+              color: '#2AABEE', fontSize: 12.5, fontWeight: 700,
+            }}
+            disabled={ocrLoading}
+          >
+            {ocrLoading
+              ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Image size={14} />}
+            {ocrLoading ? 'جارٍ الاستخراج...' : 'إضافة بصورة'}
           </button>
-          <button onClick={startNewOrder} style={styles.secondaryBtn}>
-            <Plus size={15} /> إضافة طلب
+
+          {/* زر إضافة طلب */}
+          <button
+            onClick={startNewOrder}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px',
+              background: 'linear-gradient(135deg,#2AABEE,#229ED9)',
+              border: 'none', borderRadius: 10,
+              color: '#fff', fontSize: 12.5, fontWeight: 700,
+              boxShadow: '0 2px 8px rgba(42,171,238,0.35)',
+            }}
+          >
+            <Plus size={15} /> طلب جديد
           </button>
+
+          {/* زر طباعة — فقط في قسم جاهز */}
           {isReady && (
-            <button onClick={handlePrintReady} style={styles.printBtn}>
-              <Printer size={15} /> طباعة الآن
+            <button
+              onClick={handlePrintReady}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px',
+                background: 'linear-gradient(135deg,#4DDB6B,#22C55E)',
+                border: 'none', borderRadius: 10,
+                color: '#fff', fontSize: 12.5, fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(77,219,107,0.35)',
+              }}
+            >
+              <Printer size={15} /> طباعة الكل ({stageOrders.length})
             </button>
           )}
         </div>
@@ -3400,86 +3486,215 @@ function PagesView({ pages, setPages }) {
       <div style={styles.viewHeader} className="alfhd-view-header">
         <div>
           <h2 style={styles.viewTitle}>الصفحات المرتبطة</h2>
-          <p style={styles.viewSubtitle}>اربط صفحات فيسبوك الحقيقية التي تديرها لإدارة محادثاتها وطلباتها</p>
+          <p style={styles.viewSubtitle}>صفحات فيسبوك المرتبطة بنظام AlFhd لإدارة المحادثات والطلبات</p>
         </div>
-        <button onClick={startFacebookLogin} style={styles.addBtn} disabled={exchanging}>
-          <Facebook size={16} />
-          {exchanging ? 'جارٍ الاتصال بفيسبوك...' : 'ربط صفحة جديدة'}
+        <button
+          onClick={startFacebookLogin}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 18px',
+            background: 'linear-gradient(135deg,#1877F2,#0D5FBF)',
+            border: 'none', borderRadius: 12,
+            color: '#fff', fontSize: 13, fontWeight: 700,
+            boxShadow: '0 4px 16px rgba(24,119,242,0.4)',
+            transition: 'all 0.2s ease',
+          }}
+          disabled={exchanging}
+        >
+          <Facebook size={17} />
+          {exchanging ? 'جارٍ الاتصال...' : 'ربط صفحة جديدة'}
         </button>
       </div>
 
       {fbError && (
-        <div style={styles.fbErrorBox}>
-          <XCircle size={16} />
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          marginBottom: 16, padding: '12px 14px',
+          background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.22)',
+          borderRadius: 12, color: '#F25050', fontSize: 13, lineHeight: 1.6,
+        }}>
+          <XCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>{fbError}</span>
         </div>
       )}
 
       {exchanging && (
-        <div style={styles.fbExchangingBox}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+          padding: '12px 14px',
+          background: 'rgba(42,171,238,0.07)', border: '1px solid rgba(42,171,238,0.18)',
+          borderRadius: 12, color: '#2AABEE', fontSize: 13,
+        }}>
+          <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
           جارٍ التحقق من حسابك على فيسبوك وجلب صفحاتك...
         </div>
       )}
 
+      {/* صفحات مرشحة للربط */}
       {fbCandidates && fbCandidates.length > 0 && (
-        <div style={styles.fbCandidatesWrap}>
-          <div style={styles.fbCandidatesTitle}>اختر الصفحة (أو الصفحات) التي تريد ربطها:</div>
+        <div style={{
+          marginBottom: 20, background: 'linear-gradient(145deg,#17212B,#1A2736)',
+          border: '1px solid rgba(42,171,238,0.22)', borderRadius: 14, padding: 16,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Facebook size={15} color="#2AABEE" />
+            اختر الصفحة للربط
+          </div>
           {fbCandidates.map((c) => (
-            <div key={c.fb_page_id} style={styles.fbCandidateRow}>
-              {c.avatar ? (
-                <img src={c.avatar} alt="" style={styles.fbCandidateAvatarImg} />
-              ) : (
-                <div style={styles.pageCardAvatar}>📘</div>
-              )}
-              <div style={{ flex: 1 }}>
-                <div style={styles.pageCardName}>{c.name}</div>
-                <div style={styles.fbCandidateId}>معرّف الصفحة: {c.fb_page_id}</div>
+            <div key={c.fb_page_id} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              {c.avatar
+                ? <img src={c.avatar} alt="" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Facebook size={20} color="#fff" /></div>
+              }
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#F5F5F5' }}>{c.name}</div>
+                <div style={{ fontSize: 10.5, color: '#546880', marginTop: 2 }}>ID: {c.fb_page_id}</div>
               </div>
-              <button onClick={() => confirmAddPage(c)} style={styles.confirmBtn}>
-                ربط هذه الصفحة
+              <button
+                onClick={() => confirmAddPage(c)}
+                style={{
+                  padding: '7px 14px', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)',
+                  border: 'none', borderRadius: 9, color: '#fff', fontSize: 12, fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(24,119,242,0.35)', flexShrink: 0,
+                }}
+              >
+                ربط
               </button>
             </div>
           ))}
         </div>
       )}
 
-      <div style={styles.pagesGrid} className="alfhd-pages-grid">
-        {pages.map((p) => (
-          <div key={p.id} style={styles.pageCard} className="alfhd-order-card">
-            <div style={styles.pageCardTopLine} />
-            <div style={styles.pageCardHeader}>
-              <div style={styles.pageCardAvatar}>{p.avatar}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={styles.pageCardName}>{p.name}</div>
-                <div style={styles.pageCardMeta}>Facebook Page · {p.fbPageId || 'غير معروف'}</div>
-              </div>
-              <button onClick={() => removePage(p.id)} style={styles.iconBtnDanger} title="حذف الصفحة">
-                <Trash2 size={15} />
-              </button>
-            </div>
-            <div style={{ ...styles.pageStatusPill, ...(p.connected ? styles.pageStatusPillOk : styles.pageStatusPillWait) }}>
-              <span style={{ ...styles.liveDot, background: p.connected ? '#4ADE80' : '#60A5FA' }} />
-              {p.connected ? 'متصلة وتستقبل البيانات' : 'بانتظار إكمال الربط'}
-            </div>
-            {p.connected && (
-              <button
-                onClick={() => subscribePage(p.id)}
-                style={styles.subscribeBtn}
-                disabled={subscribingId === p.id}
-              >
-                {subscribingId === p.id ? 'جارٍ التفعيل...' : 'تفعيل/تحديث استقبال الرسائل'}
-              </button>
-            )}
+      {/* الصفحات المرتبطة — تصميم جديد فخم */}
+      {pages.length === 0 ? (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 16, padding: '60px 20px',
+          background: 'linear-gradient(145deg,#17212B,#1A2736)',
+          border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
+        }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(24,119,242,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Facebook size={32} color="#1877F2" />
           </div>
-        ))}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#8B9AB3', marginBottom: 6 }}>لا توجد صفحات مرتبطة</div>
+            <div style={{ fontSize: 12, color: '#546880' }}>اضغط "ربط صفحة جديدة" لبدء ربط صفحاتك</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }} className="alfhd-pages-grid">
+          {pages.map((p) => (
+            <div key={p.id} style={{
+              position: 'relative', overflow: 'hidden',
+              background: 'linear-gradient(145deg,#17212B,#1A2736)',
+              border: p.connected ? '1px solid rgba(29,209,107,0.22)' : '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 16,
+              boxShadow: p.connected
+                ? '0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(29,209,107,0.08)'
+                : '0 4px 20px rgba(0,0,0,0.5)',
+              transition: 'all 0.25s ease',
+            }}>
+              {/* شريط علوي ملوّن */}
+              <div style={{
+                position: 'absolute', top: 0, right: 0, left: 0, height: 3,
+                background: p.connected
+                  ? 'linear-gradient(90deg,transparent,#1DDB6B,transparent)'
+                  : 'linear-gradient(90deg,transparent,#1877F2,transparent)',
+                opacity: 0.8,
+              }} />
 
-        {pages.length === 0 && (
-          <div style={styles.emptyStateLg}>
-            <Facebook size={40} color="#39425C" />
-            <p>لا توجد صفحات مرتبطة بعد</p>
-          </div>
-        )}
-      </div>
+              {/* رأس الكرت */}
+              <div style={{ padding: '18px 16px 14px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                {/* أفاتار الصفحة */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: 16,
+                    background: 'linear-gradient(135deg,#1877F2,#0D5FBF)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 26, border: '2px solid rgba(24,119,242,0.3)',
+                    boxShadow: '0 4px 12px rgba(24,119,242,0.3)',
+                  }}>
+                    {p.avatar && p.avatar !== '📄' ? p.avatar : <Facebook size={28} color="#fff" />}
+                  </div>
+                  {/* نقطة الاتصال */}
+                  <div style={{
+                    position: 'absolute', bottom: -2, left: -2,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: p.connected ? '#1DDB6B' : '#546880',
+                    border: '2.5px solid #17212B',
+                    boxShadow: p.connected ? '0 0 8px rgba(29,219,107,0.6)' : 'none',
+                  }} />
+                </div>
+
+                {/* معلومات الصفحة */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {p.name}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#546880' }}>
+                    <Facebook size={10} color="#1877F2" />
+                    <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{p.fbPageId ? p.fbPageId.slice(0, 16) + '...' : 'معرّف غير متاح'}</span>
+                  </div>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5,
+                    padding: '3px 9px', borderRadius: 20,
+                    background: p.connected ? 'rgba(29,219,107,0.12)' : 'rgba(84,104,128,0.15)',
+                    fontSize: 10.5, fontWeight: 700,
+                    color: p.connected ? '#1DDB6B' : '#8B9AB3',
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+                    {p.connected ? 'متصلة' : 'غير متصلة'}
+                  </div>
+                </div>
+
+                {/* زر الحذف */}
+                <button
+                  onClick={() => removePage(p.id)}
+                  title="حذف الصفحة"
+                  style={{
+                    width: 32, height: 32, borderRadius: 10,
+                    background: 'rgba(242,80,80,0.08)',
+                    border: '1px solid rgba(242,80,80,0.15)',
+                    color: '#F25050', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+
+              {/* فاصل */}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0 16px' }} />
+
+              {/* تذييل الكرت */}
+              <div style={{ padding: '12px 16px' }}>
+                <button
+                  onClick={() => subscribePage(p.id)}
+                  disabled={subscribingId === p.id}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    padding: '9px',
+                    background: p.connected ? 'rgba(29,219,107,0.08)' : 'rgba(42,171,238,0.08)',
+                    border: p.connected ? '1px solid rgba(29,219,107,0.22)' : '1px solid rgba(42,171,238,0.22)',
+                    borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                    color: p.connected ? '#1DDB6B' : '#2AABEE',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {subscribingId === p.id
+                    ? <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التفعيل...</>
+                    : <><CheckCircle2 size={13} /> {p.connected ? 'تحديث الربط' : 'تفعيل الربط'}</>
+                  }
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
