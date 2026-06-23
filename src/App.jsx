@@ -4629,7 +4629,25 @@ function GlobalStyles() {
   return (
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
-      * { box-sizing: border-box; font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
+
+      /* ── نعومة عالمية — Telegram Level ── */
+      *, *::before, *::after {
+        box-sizing: border-box;
+        font-family: 'Cairo', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* تسريع GPU لكل العناصر */
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--tg-bg);
+        color: var(--tg-text);
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+      }
 
       :root {
         --tg-bg:      #0E1621;
@@ -4645,26 +4663,57 @@ function GlobalStyles() {
         --tg-dim:     #546880;
         --tg-hover:   rgba(255,255,255,0.05);
         --tg-active:  rgba(42,171,238,0.15);
+        /* Telegram easing curves */
+        --ease-tg:       cubic-bezier(0.4, 0.0, 0.2, 1);
+        --ease-tg-out:   cubic-bezier(0.0, 0.0, 0.2, 1);
+        --ease-tg-in:    cubic-bezier(0.4, 0.0, 1.0, 1);
+        --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+        --ease-bounce:   cubic-bezier(0.22, 1, 0.36, 1);
       }
 
-      body { margin: 0; background: var(--tg-bg); color: var(--tg-text); }
       input::placeholder, textarea::placeholder { color: var(--tg-dim); }
       input:focus, select:focus, textarea:focus { outline: none; }
       input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
         outline: 2px solid rgba(42,171,238,0.5); outline-offset: 1px;
       }
-      ::-webkit-scrollbar { width: 4px; height: 4px; }
+
+      /* سكرولبار ناعم */
+      ::-webkit-scrollbar { width: 3px; height: 3px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.22); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(42,171,238,0.18);
+        border-radius: 10px;
+        transition: background 0.2s ease;
+      }
       ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.4); }
       select, input, textarea { color-scheme: dark; }
-      button {
-        font-family: 'Cairo', sans-serif; cursor: pointer;
-        transition: background 0.15s ease, opacity 0.12s ease, transform 0.1s ease, box-shadow 0.15s ease;
-      }
-      button:active { transform: scale(0.96); }
-      button:disabled { opacity: 0.45; cursor: default; transform: none !important; }
 
+      /* ── أزرار — نفس Telegram ── */
+      button {
+        font-family: 'Cairo', sans-serif;
+        cursor: pointer;
+        transition:
+          background 0.18s var(--ease-tg),
+          color 0.18s var(--ease-tg),
+          opacity 0.15s var(--ease-tg),
+          transform 0.12s var(--ease-spring),
+          box-shadow 0.18s var(--ease-tg),
+          border-color 0.18s var(--ease-tg);
+        will-change: transform;
+      }
+      button:hover { filter: brightness(1.06); }
+      button:active {
+        transform: scale(0.94) !important;
+        transition-duration: 0.08s !important;
+      }
+      button:disabled {
+        opacity: 0.42;
+        cursor: default;
+        transform: none !important;
+        filter: none !important;
+      }
+
+      /* ── Nav items ── */
       .alfhd-app-wrap { background: var(--tg-bg) !important; }
       .alfhd-app-wrap > aside {
         width: 260px !important;
@@ -4674,7 +4723,11 @@ function GlobalStyles() {
         box-shadow: 2px 0 16px rgba(0,0,0,0.4) !important;
       }
       .alfhd-main-area { padding: 0 !important; background: var(--tg-bg) !important; }
-      .alfhd-nav-item { border-radius: 10px !important; font-weight: 700 !important; }
+      .alfhd-nav-item {
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        transition: background 0.16s var(--ease-tg), color 0.16s var(--ease-tg) !important;
+      }
       .alfhd-nav-item:hover { background: var(--tg-hover) !important; }
       .alfhd-bottom-nav-item-active,
       .alfhd-nav-item.alfhd-bottom-nav-item-active {
@@ -4683,6 +4736,8 @@ function GlobalStyles() {
         border-color: rgba(42,171,238,0.22) !important;
         box-shadow: none !important;
       }
+
+      /* ── قائمة المحادثات ── */
       .alfhd-conv-layout {
         grid-template-columns: 320px minmax(0,1fr) !important;
         gap: 0 !important;
@@ -4697,19 +4752,38 @@ function GlobalStyles() {
         gap: 0 !important;
         max-height: 100vh !important;
         box-shadow: none !important;
+        scroll-behavior: smooth !important;
       }
+
+      /* ── عنصر محادثة — ripple + hover ناعم ── */
       .alfhd-conv-item {
         border-radius: 0 !important;
         border: none !important;
         border-right: 3px solid transparent !important;
         padding: 10px 14px !important;
         margin: 0 !important;
+        transition:
+          background 0.15s var(--ease-tg),
+          border-color 0.15s var(--ease-tg) !important;
+        position: relative !important;
+        overflow: hidden !important;
       }
-      .alfhd-conv-item:hover { background: var(--tg-hover) !important; }
-      .alfhd-conv-item[style*="rgba(59,130,246"],
-      .alfhd-conv-item[style*="rgba(43,124,233"] {
-        background: var(--tg-active) !important;
-        border-right-color: var(--tg-blue) !important;
+      .alfhd-conv-item::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(42,171,238,0.07);
+        opacity: 0;
+        transition: opacity 0.15s var(--ease-tg);
+        pointer-events: none;
+      }
+      .alfhd-conv-item:hover::after { opacity: 1; }
+      .alfhd-conv-item:active::after { opacity: 0; }
+
+      /* ── فقاعات الرسائل ── */
+      .alfhd-chat-bubble-row {
+        animation: msgSlideIn 0.22s var(--ease-bounce) both;
+        will-change: transform, opacity;
       }
       .alfhd-conv-detail {
         background: var(--tg-bg) !important;
@@ -4723,14 +4797,16 @@ function GlobalStyles() {
         background: var(--tg-panel) !important;
         border-bottom: 1px solid var(--tg-border) !important;
         padding: 12px 16px !important;
+        transition: background 0.2s var(--ease-tg) !important;
       }
       .alfhd-chat-scroll {
         background: var(--tg-bg) !important;
         border: none !important;
         border-radius: 0 !important;
         padding: 14px 16px !important;
-        -webkit-overflow-scrolling: touch;
-        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch !important;
+        scroll-behavior: smooth !important;
+        overscroll-behavior: contain !important;
       }
       .alfhd-composer-bar {
         background: var(--tg-panel) !important;
@@ -4739,46 +4815,92 @@ function GlobalStyles() {
         border-radius: 0 !important;
         padding: 10px 14px !important;
         box-shadow: none !important;
+        transition: background 0.2s var(--ease-tg) !important;
       }
       .alfhd-linked-order {
         border-radius: 10px !important;
         background: var(--tg-input) !important;
         border-color: var(--tg-border) !important;
+        animation: slideDown 0.22s var(--ease-bounce) both !important;
       }
+
+      /* ── كروت الطلبات ── */
       .alfhd-order-card {
         background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
         border: 1px solid rgba(255,255,255,0.09) !important;
         border-radius: 14px !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3) !important;
-        transition: all 0.2s ease !important;
+        transition:
+          transform 0.22s var(--ease-spring),
+          box-shadow 0.22s var(--ease-tg),
+          border-color 0.22s var(--ease-tg),
+          background 0.18s var(--ease-tg) !important;
+        will-change: transform !important;
       }
-      .alfhd-order-card:hover { background: linear-gradient(145deg, #1e2d3d, #1F3347) !important; border-color: rgba(42,171,238,0.22) !important; transform: translateY(-1px) !important; box-shadow: 0 6px 20px rgba(0,0,0,0.6), 0 2px 6px rgba(42,171,238,0.1) !important; }
+      .alfhd-order-card:hover {
+        background: linear-gradient(145deg, #1e2d3d, #1F3347) !important;
+        border-color: rgba(42,171,238,0.25) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(42,171,238,0.12) !important;
+      }
+      .alfhd-order-card:active {
+        transform: translateY(0px) scale(0.99) !important;
+        transition-duration: 0.1s !important;
+      }
+
+      /* ── موديلات ── */
       .alfhd-modal {
         background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
         border: 1px solid rgba(255,255,255,0.10) !important;
         border-radius: 16px !important;
         box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4) !important;
+        animation: modalSlideUp 0.28s var(--ease-bounce) both !important;
+        will-change: transform, opacity !important;
       }
+
+      /* ── كروت المستخدمين والصفحات ── */
       .alfhd-users-grid > *, .alfhd-pages-grid > * {
         background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
         border: 1px solid rgba(255,255,255,0.09) !important;
         border-radius: 14px !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
         backdrop-filter: none !important;
-        transition: all 0.2s ease !important;
+        transition:
+          transform 0.22s var(--ease-spring),
+          box-shadow 0.22s var(--ease-tg),
+          border-color 0.22s var(--ease-tg) !important;
+        will-change: transform !important;
       }
-      .alfhd-stats-row > *:hover, .alfhd-stats-grid-2 > *:hover,
-      .alfhd-pages-grid > *:hover, .alfhd-users-grid > *:hover {
-        transform: translateY(-2px) !important;
-        background: linear-gradient(145deg, #1e2d3d, #1F3347) !important;
+      .alfhd-stats-row > *:hover,
+      .alfhd-stats-grid-2 > *:hover,
+      .alfhd-pages-grid > *:hover,
+      .alfhd-users-grid > *:hover {
+        transform: translateY(-3px) !important;
         border-color: rgba(42,171,238,0.25) !important;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(42,171,238,0.12) !important;
+        box-shadow: 0 10px 28px rgba(0,0,0,0.6), 0 3px 10px rgba(42,171,238,0.13) !important;
       }
+
+      /* ── تبويبات ── */
       .alfhd-view-header { padding: 14px 18px 10px !important; margin-bottom: 12px !important; }
-      .alfhd-chat-bubble-row { animation: msgPop 0.17s ease; }
-      .alfhd-card-enter { animation: cardEnter 0.28s ease backwards; }
-      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg { transition: transform 0.15s ease !important; }
-      .alfhd-bottom-nav-item-active svg { transform: scale(1.08) !important; }
+      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg {
+        transition: transform 0.2s var(--ease-spring) !important;
+      }
+      .alfhd-bottom-nav-item-active svg {
+        transform: scale(1.12) !important;
+      }
+
+      /* ── Bottom nav ── */
+      .alfhd-bottom-nav-item {
+        transition:
+          color 0.18s var(--ease-tg),
+          background 0.18s var(--ease-tg) !important;
+      }
+      .alfhd-bottom-nav-item:active {
+        transform: scale(0.88) !important;
+        transition-duration: 0.08s !important;
+      }
+
+      /* ── Login card ── */
       .alfhd-login-card {
         background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
         border: 1px solid rgba(42,171,238,0.15) !important;
@@ -4786,6 +4908,46 @@ function GlobalStyles() {
         box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(42,171,238,0.05), inset 0 1px 0 rgba(255,255,255,0.05) !important;
       }
 
+      /* ══════════ KEYFRAMES ══════════ */
+
+      /* دخول فقاعة رسالة — مثل Telegram */
+      @keyframes msgSlideIn {
+        from { opacity: 0; transform: scale(0.88) translateY(6px); }
+        to   { opacity: 1; transform: scale(1)    translateY(0); }
+      }
+
+      /* دخول محادثة من اليمين على الموبايل */
+      @keyframes chatSlideIn {
+        from { opacity: 0; transform: translateX(100%); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+
+      /* دخول محتوى للأعلى */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* دخول موديل من الأسفل */
+      @keyframes modalSlideUp {
+        from { opacity: 0; transform: translateY(20px) scale(0.97); }
+        to   { opacity: 1; transform: translateY(0)    scale(1); }
+      }
+
+      /* انزلاق للأسفل */
+      @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* دخول الكروت */
+      @keyframes cardEnter {
+        from { opacity: 0; transform: translateY(12px) scale(0.98); }
+        to   { opacity: 1; transform: translateY(0)    scale(1); }
+      }
+      .alfhd-card-enter { animation: cardEnter 0.26s var(--ease-bounce) both; }
+
+      /* باقي الـ keyframes */
       @keyframes shake {
         0%,100% { transform: translateX(0); }
         20% { transform: translateX(-8px); }
@@ -4794,28 +4956,49 @@ function GlobalStyles() {
         80% { transform: translateX(5px); }
       }
       @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-      @keyframes chatSlideIn { from { transform:translateX(20px); opacity:0; } to { transform:translateX(0); opacity:1; } }
-      @keyframes msgPop { from { transform:scale(0.95); opacity:0; } to { transform:scale(1); opacity:1; } }
-      @keyframes cardEnter { from { transform:translateY(8px); opacity:0; } to { transform:translateY(0); opacity:1; } }
       @keyframes unreadPulse {
-        0%,100% { box-shadow: 0 0 0 0 rgba(244,20,60,0.5); }
-        50% { box-shadow: 0 0 0 5px rgba(244,20,60,0); }
+        0%,100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.5); }
+        50% { box-shadow: 0 0 0 5px rgba(229,57,53,0); }
       }
       .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
-      @keyframes recPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.8); } }
+      @keyframes recPulse {
+        0%,100% { opacity:1; transform:scale(1); }
+        50% { opacity:0.4; transform:scale(0.8); }
+      }
       .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
-      @keyframes loginFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
-      @keyframes starDrift { from { transform:translate3d(0,0,0); } to { transform:translate3d(-80px,100px,0); } }
-      @keyframes starDriftReverse { from { transform:translate3d(0,0,0); } to { transform:translate3d(80px,-80px,0); } }
-      @keyframes orbitSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-      @keyframes auroraMove { 0%,100% { opacity:0.6; } 50% { opacity:0.85; } }
-      .alfhd-stars-layer { animation: starDrift 30s linear infinite; }
+      @keyframes loginFloat {
+        0%,100% { transform:translateY(0); }
+        50% { transform:translateY(-6px); }
+      }
+      @keyframes starDrift {
+        from { transform:translate3d(0,0,0); }
+        to   { transform:translate3d(-80px,100px,0); }
+      }
+      @keyframes starDriftReverse {
+        from { transform:translate3d(0,0,0); }
+        to   { transform:translate3d(80px,-80px,0); }
+      }
+      @keyframes orbitSpin {
+        from { transform:rotate(0deg); }
+        to   { transform:rotate(360deg); }
+      }
+      .alfhd-stars-layer  { animation: starDrift 30s linear infinite; }
       .alfhd-stars-layer-2 { animation: starDriftReverse 44s linear infinite; }
-      .alfhd-login-orbit { animation: orbitSpin 36s linear infinite; }
+      .alfhd-login-orbit  { animation: orbitSpin 36s linear infinite; }
 
+      /* Ripple effect على المحادثات عند الضغط */
+      @keyframes ripple {
+        from { transform: scale(0); opacity: 0.35; }
+        to   { transform: scale(4); opacity: 0; }
+      }
+
+      /* تقليل الحركة للمستخدمين الذين يفضلون ذلك */
       @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
       }
 
       @media (max-width: 860px) {
@@ -5017,7 +5200,7 @@ const styles = {
   bottomNavLabel: { fontSize: 9.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
   mainArea: { flex: 1, overflow: 'auto', padding: '0', position: 'relative', background: TG },
-  viewWrap: { animation: 'fadeUp 0.26s ease', maxWidth: 1480, margin: '0 auto', padding: '16px 18px' },
+  viewWrap: { animation: 'fadeUp 0.24s var(--ease-bounce) both', maxWidth: 1480, margin: '0 auto', padding: '16px 18px', willChange: 'opacity, transform' },
   viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap', gap: 11 },
   viewTitle: { fontSize: 19, fontWeight: 800, color: TTX, margin: 0, letterSpacing: '-0.02em' },
   viewSubtitle: { fontSize: 12, color: TDM, margin: '3px 0 0', fontWeight: 500 },
@@ -5060,8 +5243,8 @@ const styles = {
   chatHeaderMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 999, background: TI, color: TSB, fontSize: 9.5, fontWeight: 600 },
   pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 11.5, fontWeight: 700, flexShrink: 0 },
   chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
-  msgBubbleIn: { background: '#182533', border: 'none', borderRadius: '16px 16px 16px 4px', padding: '8px 12px', fontSize: 13.5, color: TTX, maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 },
-  msgBubbleOut: { background: '#2B5278', border: 'none', borderRadius: '16px 16px 4px 16px', padding: '8px 12px', fontSize: 13.5, color: '#fff', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 },
+  msgBubbleIn: { background: '#182533', border: 'none', borderRadius: '16px 16px 16px 4px', padding: '8px 12px', fontSize: 13.5, color: '#F5F5F5', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
+  msgBubbleOut: { background: '#2B5278', border: 'none', borderRadius: '16px 16px 4px 16px', padding: '8px 12px', fontSize: 13.5, color: '#fff', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
   chatDateDivider: { alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 10, fontWeight: 600 },
   msgImage: { width: '100%', maxWidth: 260, borderRadius: 10, display: 'block' },
   msgAudio: { width: 240, maxWidth: '100%', height: 34 },
