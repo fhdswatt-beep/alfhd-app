@@ -1422,21 +1422,20 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       <style>{`
         @media (max-width: 860px) {
           .alfhd-conv-fullscreen {
-            position: fixed !important;
-            top: 52px !important;
-            bottom: 66px !important;
-            right: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: auto !important;
+            position: static !important;
+            width: 100% !important;
+            height: 100% !important;
+            flex: 1 !important;
             overflow: hidden !important;
             display: flex !important;
-            z-index: 10 !important;
           }
           .alfhd-conv-list {
             height: 100% !important;
             width: 100% !important;
             overflow-y: auto !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            flex-shrink: 0 !important;
           }
           .alfhd-conv-list-hidden-mobile { display: none !important; }
           .alfhd-conv-detail-empty { display: none !important; }
@@ -4295,7 +4294,7 @@ export default function AlFhdApp() {
           pages={pages}
         />
         <main
-          style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100vh' } : {}) }}
+          style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { overflow: 'hidden', display: 'flex', flexDirection: 'column' } : {}) }}
           className={`alfhd-main-area${activeView === 'conversations' ? ' alfhd-main-conv' : ''}`}
         >
           {activeView === 'conversations' && (
@@ -4557,26 +4556,30 @@ function GlobalStyles() {
           box-sizing: border-box !important;
         }
 
-        /* صفحة المحادثات فقط: لا padding إطلاقاً — الـ fixed child يتولى */
+        /* صفحة المحادثات: padding عادي مثل باقي الصفحات */
         .alfhd-main-conv {
-          padding: 0 !important;
-          height: 0 !important;
+          padding: 52px 0 66px !important;
+          height: 100vh !important;
           min-height: 0 !important;
-          overflow: visible !important;
-        }
-
-        /* حاوية المحادثات: fixed تماماً بين الهيدر 52px والنافيجيشن 66px */
-        .alfhd-conv-fullscreen {
-          position: fixed !important;
-          top: 52px !important;
-          bottom: 66px !important;
-          right: 0 !important;
-          left: 0 !important;
-          width: 100vw !important;
-          height: auto !important;
           overflow: hidden !important;
           display: flex !important;
-          z-index: 10 !important;
+          flex-direction: column !important;
+          box-sizing: border-box !important;
+        }
+
+        /* حاوية المحادثات: تملأ المساحة المتبقية بعد الهيدر والنافيجيشن */
+        .alfhd-conv-fullscreen {
+          position: static !important;
+          top: auto !important;
+          bottom: auto !important;
+          right: auto !important;
+          left: auto !important;
+          width: 100% !important;
+          height: 100% !important;
+          flex: 1 !important;
+          overflow: hidden !important;
+          display: flex !important;
+          z-index: auto !important;
         }
 
         .alfhd-conv-layout { grid-template-columns: 1fr !important; }
