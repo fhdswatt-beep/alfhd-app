@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   MessageSquare, Package, Users, Settings, LogOut, Search,
@@ -1041,8 +1042,8 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   return (
     /* ─── حاوية ملء الشاشة بدون padding ─── */
     <div style={{
-      display: 'flex', height: 'calc(100vh - 0px)', overflow: 'hidden',
-      position: 'fixed', inset: 0, right: 260, direction: 'rtl',
+      display: 'flex', height: '100%', overflow: 'hidden',
+      position: 'relative', direction: 'rtl',
       background: '#0E1621',
     }} className="alfhd-conv-fullscreen">
 
@@ -1071,7 +1072,9 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: TG_INPUT, borderRadius: 20, padding: '5px 11px',
+              background: TG_INPUT, borderRadius: 22, padding: '6px 13px',
+              border: '1px solid rgba(255,255,255,0.07)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
             }}>
               <Facebook size={13} color={TG_BLUE} />
               <select
@@ -1418,17 +1421,26 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       <style>{`
         @media (max-width: 860px) {
           .alfhd-conv-fullscreen {
-            right: 0 !important;
             position: fixed !important;
-            inset: 0 !important;
+            top: 52px !important;
+            bottom: 66px !important;
+            right: 0 !important;
+            left: 0 !important;
+            height: auto !important;
           }
+          .alfhd-conv-list { height: 100% !important; }
           .alfhd-conv-list-hidden-mobile { display: none !important; }
           .alfhd-conv-detail-empty { display: none !important; }
           .alfhd-conv-detail-active-mobile {
             position: fixed !important;
             inset: 0 !important;
-            z-index: 200 !important;
+            z-index: 300 !important;
             width: 100% !important;
+            height: 100dvh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            background: #0E1621 !important;
+            animation: chatSlideIn 0.2s ease !important;
           }
           .alfhd-conv-back-btn { display: flex !important; }
         }
@@ -1794,9 +1806,64 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // Jenni Validation — الحقول المطلوبة من جيني بدقة 100%
+  // المصدر: https://sys.fuhood.com/api/v2/docs (Create Shipment)
+  // ══════════════════════════════════════════════════════════════
+  function validateJenniFields(order) {
+    const errors = {};
+
+    // 1. اسم المستلم — receiver_name (إجباري)
+    if (!String(order.customer || '').trim()) {
+      errors.customer = 'اسم العميل مطلوب';
+    }
+
+    // 2. رقم الهاتف — receiver_phone_1 (إجباري، صيغة 07XXXXXXXXX)
+    const rawPhone = String(order.phone || '').trim();
+    if (!rawPhone) {
+      errors.phone = 'رقم الهاتف مطلوب';
+    } else {
+      const clean = normalizeIraqiPhone(rawPhone);
+      if (clean.length !== 11 || !clean.startsWith('07')) {
+        errors.phone = `رقم الهاتف غير صالح — المطلوب: 07XXXXXXXXX (المُدخَل: ${rawPhone})`;
+      }
+    }
+
+    // 3. كود المحافظة — governorate_code (إجباري، من قائمة Jenni)
+    if (!order.governorateCode) {
+      errors.governorateCode = 'المحافظة مطلوبة — إجبارية من جيني';
+    } else {
+      const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
+      if (!validCodes.includes(order.governorateCode)) {
+        errors.governorateCode = `كود المحافظة غير صالح: ${order.governorateCode}`;
+      }
+    }
+
+    // 4. المدينة/المنطقة — city (إجباري)
+    if (!String(order.area || '').trim()) {
+      errors.area = 'المنطقة/المدينة مطلوبة — إجبارية من جيني';
+    }
+
+    // 5. المبلغ — amount_iqd (إجباري، > 0)
+    const total = Number(order.total);
+    if (!total || total <= 0) {
+      errors.total = 'المبلغ مطلوب ويجب أن يكون أكبر من صفر';
+    }
+
+    return errors; // {} = لا أخطاء
+  }
+
   async function handleSaveOrder() {
-    if (!editingOrder.customer.trim()) { alert('أدخل اسم العميل'); return; }
     if (!editingOrder.pageId) { alert('اختر الصفحة'); return; }
+
+    // ── تحقق إجباري من كل حقول جيني قبل الحفظ ──
+    const validationErrors = validateJenniFields(editingOrder);
+    if (Object.keys(validationErrors).length > 0) {
+      const msgs = Object.values(validationErrors).join('\n• ');
+      alert(`⛔ لا يمكن حفظ الطلب — أخطاء إجبارية:\n\n• ${msgs}\n\nهذه الحقول مطلوبة من جيني ولا يمكن إرسال الشحنة بدونها.`);
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingOrder.id) {
@@ -1921,6 +1988,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setOrders((prev) => prev.map((o) => (
       ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
     )));
+    // حفظ في قاعدة البيانات أولاً — مهم للتزامن مع Jenni
     try {
       await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
         printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
@@ -1928,9 +1996,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     } catch (e) {
       console.error('mark printed error:', e);
     }
+    // إرسال لجيني بعد التأكد من الحفظ (صامت، لا يوقف العمل)
     // مهم: بعد الطباعة مباشرة يدخل الطلب إلى Jenni، لكنه يبقى عندنا باسم "قيد التجهيز"
     // حتى يتطابق موقعك 100% مع ظهور الطلب في Jenni بقسم جاهز للنقل للشركة.
-    toSendToJenni.forEach((o) => { sendOrderToJenni(o, { silent: true }); });
+    for (const o of toSendToJenni) {
+      await sendOrderToJenni(o, { silent: true });
+    }
   }
 
   // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
@@ -1945,7 +2016,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function sendOrderToJenni(o, { silent = false } = {}) {
-    // لا نرسل بدون محافظة أو هاتف (Jenni ترفضه)
+    // ── خط دفاع ثانٍ: التحقق من كل الحقول الإجبارية قبل الإرسال ──
     if (!o.governorateCode || !o.phone) {
       const msg = 'لا يمكن الإرسال لجيني: المحافظة ورقم الهاتف مطلوبان';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
@@ -1954,7 +2025,22 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
     const cleanPhone = normalizeIraqiPhone(o.phone);
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('07')) {
-      const msg = `رقم الهاتف غير صالح لجيني: ${o.phone}`;
+      const msg = `رقم الهاتف غير صالح لجيني: ${o.phone} — يجب أن يكون بصيغة 07XXXXXXXXX`;
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+      if (!silent) alert(msg);
+      return false;
+    }
+    // تحقق من المدينة/المنطقة (city — إجباري)
+    const cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1] || '';
+    if (!cityValue) {
+      const msg = 'المنطقة/المدينة مطلوبة لجيني (city) — عدّل الطلب وأضف المنطقة';
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+      if (!silent) alert(msg);
+      return false;
+    }
+    // تحقق من المبلغ
+    if (!Number(o.total) || Number(o.total) <= 0) {
+      const msg = 'المبلغ يجب أن يكون أكبر من صفر قبل الإرسال لجيني';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
@@ -1973,7 +2059,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           receiver_name: o.customer || '',
           receiver_phone_1: cleanPhone,
           governorate_code: o.governorateCode,
-          city: o.area || o.address?.split(' - ')[1] || '',
+          city: cityValue,
           address: o.address || '',
           amount_iqd: Number(o.total) || 0,
           note: o.orderType || undefined,
@@ -1981,23 +2067,42 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.success) {
-        const patch = { jenni_sent: true, jenni_shipment_id: data.shipment_id || null, jenni_tracking: data.tracking_number || null };
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniShipmentId: data.shipment_id || null, jenniTracking: data.tracking_number || null, jenniError: null } : x)));
+        const patch = {
+          jenni_sent: true,
+          jenni_shipment_id: data.shipment_id || null,
+          jenni_tracking: data.tracking_number || null,
+          delivery_status: 'sorting', // حالة Jenni الابتدائية: تجميع
+        };
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+          ...x,
+          jenniSent: true,
+          jenniShipmentId: data.shipment_id || null,
+          jenniTracking: data.tracking_number || null,
+          jenniError: null,
+          deliveryStatus: 'sorting',
+        } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
+        return true;
+      }
+      // معالجة رمز الخطأ 409 = الشحنة موجودة مسبقاً في Jenni
+      if (res.status === 409) {
+        const msg = 'هذا الطلب مُسجَّل مسبقاً في جيني';
+        const patch = { jenni_sent: true, delivery_status: 'sorting' };
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniError: null, deliveryStatus: 'sorting' } : x)));
+        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
+        if (!silent) alert(msg);
         return true;
       }
       const errMsg = data?.error || data?.message || `فشل الإرسال لجيني (${res.status})`;
       console.warn('Jenni send failed for order', o.orderNo, errMsg);
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`فشل الإرسال لجيني:
-${errMsg}`);
+      if (!silent) alert(`فشل الإرسال لجيني:\n${errMsg}`);
       return false;
     } catch (e) {
       const errMsg = e?.message || 'خطأ اتصال غير معروف';
       console.warn('Jenni send error:', e);
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`تعذّر الاتصال بجيني:
-${errMsg}`);
+      if (!silent) alert(`تعذّر الاتصال بجيني:\n${errMsg}`);
       return false;
     }
   }
@@ -2026,8 +2131,10 @@ ${errMsg}`);
   async function moveToDelivery(o) {
     const sentOk = o.jenniSent || await sendOrderToJenni(o);
     if (!sentOk) return;
-    const patch = { stage: 'delivery', delivery_status: 'sorting' };
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, stage: 'delivery', deliveryStatus: 'sorting', jenniSent: true } : x)));
+    const patch = { stage: 'delivery', delivery_status: 'sorting', status: 'pending' };
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+      ...x, stage: 'delivery', deliveryStatus: 'sorting', jenniSent: true, status: 'pending',
+    } : x)));
     setDetailOrder(null);
     try {
       await sbUpdate('alfhd_orders', o.id, patch);
@@ -2317,66 +2424,260 @@ ${errMsg}`);
               <h3 style={styles.modalTitle}>{editingOrder.id ? 'تعديل الطلب' : 'إضافة طلب جديد'}</h3>
               <button onClick={() => setEditingOrder(null)} style={styles.modalClose}><X size={18} /></button>
             </div>
+
+            {/* ── بانر تنبيه Jenni ── */}
+            <div style={{
+              margin: '0 17px 2px',
+              padding: '8px 11px',
+              background: 'rgba(42,171,238,0.07)',
+              border: '1px solid rgba(42,171,238,0.20)',
+              borderRadius: 9,
+              fontSize: 11,
+              color: '#2AABEE',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600,
+            }}>
+              <Truck size={13} />
+              الحقول المُعلَّمة بـ <span style={{ color: '#F25050', fontWeight: 800 }}>*</span> إجبارية من جيني — لن تُقبل الشحنة بدونها
+            </div>
+
             <div style={styles.modalBody}>
+              {/* الصفحة */}
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>الصفحة</label>
                 <select value={editingOrder.pageId} onChange={(e) => setEditingOrder({ ...editingOrder, pageId: e.target.value })} style={styles.formInput}>
                   {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
+
+              {/* اسم العميل — إجباري Jenni */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>اسم العميل</label>
-                <input value={editingOrder.customer} onChange={(e) => setEditingOrder({ ...editingOrder, customer: e.target.value })} style={styles.formInput} placeholder="اسم الزبون" />
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  اسم العميل
+                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
+                </label>
+                <input
+                  value={editingOrder.customer}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, customer: e.target.value })}
+                  style={{
+                    ...styles.formInput,
+                    borderRadius: 9,
+                    border: !editingOrder.customer.trim() ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
+                    background: '#242F3D',
+                  }}
+                  placeholder="اسم الزبون الكامل"
+                />
+                {!editingOrder.customer.trim() && (
+                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>
+                )}
               </div>
+
+              {/* رقم الهاتف — إجباري Jenni */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>نوع الطلب</label>
-                <input value={editingOrder.orderType} onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })} style={styles.formInput} placeholder="مثال: أرضيات سيارة" />
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  رقم الهاتف
+                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
+                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>07XXXXXXXXX</span>
+                </label>
+                {(() => {
+                  const raw = String(editingOrder.phone || '').trim();
+                  const clean = raw ? normalizeIraqiPhone(raw) : '';
+                  const phoneOk = raw && clean.length === 11 && clean.startsWith('07');
+                  const phoneErr = raw && !phoneOk;
+                  return (
+                    <>
+                      <input
+                        value={editingOrder.phone}
+                        onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })}
+                        style={{
+                          ...styles.formInput,
+                          borderRadius: 9,
+                          border: phoneErr ? '1.5px solid rgba(242,80,80,0.5)' : phoneOk ? '1.5px solid rgba(77,219,107,0.4)' : '1.5px solid rgba(242,80,80,0.5)',
+                          background: '#242F3D',
+                          direction: 'ltr',
+                          textAlign: 'right',
+                        }}
+                        placeholder="07XXXXXXXXX"
+                        inputMode="numeric"
+                      />
+                      {!raw && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>}
+                      {phoneErr && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ صيغة خاطئة — المطلوب: 07XXXXXXXXX</span>}
+                      {phoneOk && <span style={{ fontSize: 10.5, color: '#4DDB6B', marginTop: 3, fontWeight: 600 }}>✓ صالح لجيني</span>}
+                    </>
+                  );
+                })()}
               </div>
+
+              {/* المحافظة — إجباري Jenni */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>رقم الهاتف</label>
-                <input value={editingOrder.phone} onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })} style={styles.formInput} placeholder="07XXXXXXXXX" />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المحافظة</label>
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  المحافظة
+                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
+                </label>
                 <select
                   value={editingOrder.governorateCode || ''}
                   onChange={(e) => {
                     const gov = IRAQ_GOVERNORATES.find((g) => g.code === e.target.value);
                     setEditingOrder({ ...editingOrder, governorateCode: e.target.value, governorateName: gov?.name || '' });
                   }}
-                  style={styles.formInput}
+                  style={{
+                    ...styles.formInput,
+                    borderRadius: 9,
+                    border: !editingOrder.governorateCode ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
+                    background: '#242F3D',
+                  }}
                 >
-                  <option value="">اختر المحافظة</option>
-                  {IRAQ_GOVERNORATES.map((g) => <option key={g.code} value={g.code}>{g.name}</option>)}
+                  <option value="">— اختر المحافظة —</option>
+                  {IRAQ_GOVERNORATES.map((g) => (
+                    <option key={g.code} value={g.code}>{g.name} ({g.code})</option>
+                  ))}
                 </select>
+                {!editingOrder.governorateCode && (
+                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — جيني ترفض الشحنة بدون محافظة</span>
+                )}
               </div>
+
+              {/* المنطقة/المدينة — إجباري Jenni (city) */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المنطقة</label>
-                <input value={editingOrder.area || ''} onChange={(e) => setEditingOrder({ ...editingOrder, area: e.target.value })} style={styles.formInput} placeholder="مثال: الكرادة" />
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  المنطقة / المدينة
+                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
+                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city في جيني</span>
+                </label>
+                <input
+                  value={editingOrder.area || ''}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, area: e.target.value })}
+                  style={{
+                    ...styles.formInput,
+                    borderRadius: 9,
+                    border: !String(editingOrder.area || '').trim() ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
+                    background: '#242F3D',
+                  }}
+                  placeholder="مثال: الكرادة، المنصور، الكرخ..."
+                />
+                {!String(editingOrder.area || '').trim() && (
+                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لجيني</span>
+                )}
               </div>
+
+              {/* المبلغ — إجباري Jenni */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>العنوان التفصيلي</label>
-                <input value={editingOrder.address} onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })} style={styles.formInput} placeholder="أقرب نقطة دالة، رقم الدار..." />
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  المبلغ (د.ع)
+                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
+                </label>
+                {(() => {
+                  const total = Number(editingOrder.total);
+                  const totalOk = total > 0;
+                  return (
+                    <>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingOrder.total}
+                        onChange={(e) => setEditingOrder({ ...editingOrder, total: e.target.value })}
+                        style={{
+                          ...styles.formInput,
+                          borderRadius: 9,
+                          border: totalOk ? '1.5px solid rgba(42,171,238,0.25)' : '1.5px solid rgba(242,80,80,0.5)',
+                          background: '#242F3D',
+                          direction: 'ltr',
+                          textAlign: 'right',
+                        }}
+                        placeholder="0"
+                      />
+                      {!totalOk && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ المبلغ يجب أن يكون أكبر من صفر</span>}
+                    </>
+                  );
+                })()}
               </div>
+
+              {/* العنوان التفصيلي — اختياري */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المنتجات / التفاصيل</label>
-                <textarea value={editingOrder.items} onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })} style={{ ...styles.formInput, minHeight: 70, resize: 'vertical' }} placeholder="وصف المنتجات والكميات" />
+                <label style={styles.formLabel}>العنوان التفصيلي <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
+                <input
+                  value={editingOrder.address}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
+                  placeholder="أقرب نقطة دالة، رقم الدار..."
+                />
               </div>
+
+              {/* نوع الطلب — اختياري (note في Jenni) */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المبلغ (د.ع)</label>
-                <input type="number" value={editingOrder.total} onChange={(e) => setEditingOrder({ ...editingOrder, total: e.target.value })} style={styles.formInput} placeholder="0" />
+                <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري — تُرسَل كـ note لجيني)</span></label>
+                <input
+                  value={editingOrder.orderType}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
+                  placeholder="مثال: أرضيات سيارة، ملابس..."
+                />
               </div>
+
+              {/* المنتجات — اختياري */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>ربط بمحادثة (اختياري)</label>
-                <select value={editingOrder.conversationId || ''} onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })} style={styles.formInput}>
+                <label style={styles.formLabel}>المنتجات / التفاصيل <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
+                <textarea
+                  value={editingOrder.items}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D', minHeight: 70, resize: 'vertical' }}
+                  placeholder="وصف المنتجات والكميات"
+                />
+              </div>
+
+              {/* ربط محادثة */}
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>ربط بمحادثة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
+                <select
+                  value={editingOrder.conversationId || ''}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
+                >
                   <option value="">بدون ربط</option>
                   {conversations.map((c) => <option key={c.id} value={c.id}>{c.customer}</option>)}
                 </select>
               </div>
+
+              {/* ملخص الحالة — هل الطلب جاهز لجيني؟ */}
+              {(() => {
+                const errs = validateJenniFields(editingOrder);
+                const ready = Object.keys(errs).length === 0;
+                return (
+                  <div style={{
+                    padding: '10px 13px',
+                    borderRadius: 10,
+                    background: ready ? 'rgba(77,219,107,0.08)' : 'rgba(242,80,80,0.08)',
+                    border: ready ? '1px solid rgba(77,219,107,0.25)' : '1px solid rgba(242,80,80,0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: ready ? '#4DDB6B' : '#F25050',
+                  }}>
+                    {ready ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                    {ready
+                      ? '✓ جاهز للإرسال لجيني — كل الحقول المطلوبة مكتملة'
+                      : `${Object.keys(errs).length} حقل ناقص — لن تُقبل الشحنة من جيني`}
+                  </div>
+                );
+              })()}
             </div>
+
             <div style={styles.modalFooter}>
               <button onClick={() => setEditingOrder(null)} style={styles.modalCancelBtn}>إلغاء</button>
-              <button onClick={handleSaveOrder} style={styles.modalSaveBtn} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ'}</button>
+              <button
+                onClick={handleSaveOrder}
+                style={{
+                  ...styles.modalSaveBtn,
+                  opacity: saving ? 0.6 : 1,
+                }}
+                disabled={saving}
+              >
+                {saving ? 'جارٍ الحفظ...' : 'حفظ الطلب'}
+              </button>
             </div>
           </div>
         </div>
@@ -3984,7 +4285,7 @@ export default function AlFhdApp() {
           currentUser={authedUser}
           pages={pages}
         />
-        <main style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden' } : {}) }} className="alfhd-main-area">
+        <main style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100vh' } : {}) }} className="alfhd-main-area">
           {activeView === 'conversations' && (
             <ConversationsView
               conversations={conversations}
@@ -4070,22 +4371,23 @@ function GlobalStyles() {
       }
       ::-webkit-scrollbar { width: 4px; height: 4px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.22); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.4); }
       select, input, textarea { color-scheme: dark; }
       button {
         font-family: 'Cairo', sans-serif; cursor: pointer;
-        transition: background 0.13s ease, opacity 0.12s ease, transform 0.1s ease;
+        transition: background 0.15s ease, opacity 0.12s ease, transform 0.1s ease, box-shadow 0.15s ease;
       }
-      button:active { transform: scale(0.97); }
+      button:active { transform: scale(0.96); }
       button:disabled { opacity: 0.45; cursor: default; transform: none !important; }
 
       .alfhd-app-wrap { background: var(--tg-bg) !important; }
       .alfhd-app-wrap > aside {
         width: 260px !important;
-        background: var(--tg-panel) !important;
-        border-left: 1px solid var(--tg-border) !important;
+        background: linear-gradient(180deg, var(--tg-panel) 0%, #141F2B 100%) !important;
+        border-left: 1px solid rgba(255,255,255,0.07) !important;
         backdrop-filter: none !important;
-        box-shadow: none !important;
+        box-shadow: 2px 0 16px rgba(0,0,0,0.4) !important;
       }
       .alfhd-main-area { padding: 0 !important; background: var(--tg-bg) !important; }
       .alfhd-nav-item { border-radius: 10px !important; font-weight: 700 !important; }
@@ -4160,31 +4462,33 @@ function GlobalStyles() {
         border-color: var(--tg-border) !important;
       }
       .alfhd-order-card {
-        background: var(--tg-panel) !important;
-        border: 1px solid var(--tg-border) !important;
-        border-radius: 12px !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
-        transition: background 0.13s ease !important;
-      }
-      .alfhd-order-card:hover { background: #1e2d3d !important; transform: none !important; }
-      .alfhd-modal {
-        background: var(--tg-panel) !important;
-        border: 1px solid var(--tg-border) !important;
+        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
+        border: 1px solid rgba(255,255,255,0.09) !important;
         border-radius: 14px !important;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3) !important;
+        transition: all 0.2s ease !important;
+      }
+      .alfhd-order-card:hover { background: linear-gradient(145deg, #1e2d3d, #1F3347) !important; border-color: rgba(42,171,238,0.22) !important; transform: translateY(-1px) !important; box-shadow: 0 6px 20px rgba(0,0,0,0.6), 0 2px 6px rgba(42,171,238,0.1) !important; }
+      .alfhd-modal {
+        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
+        border: 1px solid rgba(255,255,255,0.10) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4) !important;
       }
       .alfhd-users-grid > *, .alfhd-pages-grid > * {
-        background: var(--tg-panel) !important;
-        border: 1px solid var(--tg-border) !important;
-        border-radius: 12px !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;
+        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
+        border: 1px solid rgba(255,255,255,0.09) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
         backdrop-filter: none !important;
+        transition: all 0.2s ease !important;
       }
       .alfhd-stats-row > *:hover, .alfhd-stats-grid-2 > *:hover,
       .alfhd-pages-grid > *:hover, .alfhd-users-grid > *:hover {
-        transform: none !important;
-        background: #1e2d3d !important;
-        border-color: rgba(42,171,238,0.18) !important;
+        transform: translateY(-2px) !important;
+        background: linear-gradient(145deg, #1e2d3d, #1F3347) !important;
+        border-color: rgba(42,171,238,0.25) !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(42,171,238,0.12) !important;
       }
       .alfhd-view-header { padding: 14px 18px 10px !important; margin-bottom: 12px !important; }
       .alfhd-chat-bubble-row { animation: msgPop 0.17s ease; }
@@ -4192,10 +4496,10 @@ function GlobalStyles() {
       .alfhd-bottom-nav-item svg, .alfhd-nav-item svg { transition: transform 0.15s ease !important; }
       .alfhd-bottom-nav-item-active svg { transform: scale(1.08) !important; }
       .alfhd-login-card {
-        background: var(--tg-panel) !important;
-        border: 1px solid var(--tg-border) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
+        border: 1px solid rgba(42,171,238,0.15) !important;
+        border-radius: 20px !important;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(42,171,238,0.05), inset 0 1px 0 rgba(255,255,255,0.05) !important;
       }
 
       @keyframes shake {
@@ -4232,36 +4536,54 @@ function GlobalStyles() {
 
       @media (max-width: 860px) {
         .alfhd-app-wrap { flex-direction: column !important; }
-        .alfhd-main-area { padding: 52px 0 66px !important; width: 100% !important; }
+        .alfhd-main-area { padding: 52px 0 66px !important; width: 100% !important; height: calc(100vh - 0px) !important; }
+        /* محادثات: تأخذ المساحة المتبقية بعد الهيدر وقبل النافيجيشن */
+        .alfhd-main-area[style*="height:100vh"] {
+          height: 100vh !important;
+          padding: 0 !important;
+        }
+        .alfhd-conv-fullscreen {
+          position: fixed !important;
+          inset: 0 !important;
+          top: 52px !important;
+          bottom: 66px !important;
+          right: 0 !important;
+          left: 0 !important;
+          height: auto !important;
+        }
         .alfhd-conv-layout { grid-template-columns: 1fr !important; }
-        .alfhd-conv-list { max-height: none !important; border-left: none !important; }
+        .alfhd-conv-list { max-height: none !important; border-left: none !important; height: 100% !important; }
         .alfhd-conv-list-hidden-mobile { display: none !important; }
         .alfhd-conv-detail-empty { display: none !important; }
         .alfhd-conv-detail-active-mobile {
           position: fixed !important; top: 0 !important; right: 0 !important;
-          left: 0 !important; bottom: 0 !important; z-index: 200 !important;
+          left: 0 !important; bottom: 0 !important; z-index: 300 !important;
           border-radius: 0 !important; border: none !important; padding: 0 !important;
           min-height: 0 !important; height: 100dvh !important;
           display: flex !important; flex-direction: column !important;
           animation: chatSlideIn 0.2s ease !important;
+          background: #0E1621 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-detail-header {
           padding: 12px 14px !important;
-          padding-top: calc(12px + env(safe-area-inset-top,0px)) !important;
+          padding-top: max(12px, env(safe-area-inset-top,12px)) !important;
+          flex-shrink: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-scroll {
           flex: 1 1 auto !important; max-height: none !important; min-height: 0 !important; padding: 12px !important;
+          overflow-y: auto !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-composer-bar {
           margin: 0 !important; border-radius: 0 !important;
           border-left: none !important; border-right: none !important; border-bottom: none !important;
           padding: 10px 12px !important;
-          padding-bottom: calc(10px + env(safe-area-inset-bottom,0px)) !important;
+          padding-bottom: max(10px, env(safe-area-inset-bottom,10px)) !important;
           flex-shrink: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-linked-order {
-          flex-shrink: 0 !important; margin: 0 12px !important;
-          max-height: 110px !important; overflow-y: auto !important;
+          flex-shrink: 0 !important; margin: 0 !important;
+          max-height: 130px !important; overflow-y: auto !important;
+          border-radius: 0 !important;
         }
         .alfhd-conv-back-btn { display: flex !important; }
         .alfhd-chat-scroll { max-height: none !important; }
@@ -4272,8 +4594,9 @@ function GlobalStyles() {
         .alfhd-view-header { flex-direction: column !important; align-items: flex-start !important; }
         .alfhd-pages-grid, .alfhd-users-grid { grid-template-columns: 1fr !important; }
         .alfhd-bar-chart-row { grid-template-columns: 1fr !important; gap: 4px !important; }
-        .alfhd-modal { max-width: 94vw !important; }
+        .alfhd-modal { max-width: 96vw !important; }
         .alfhd-login-card { max-width: 92vw !important; padding: 32px 20px !important; }
+        .alfhd-orders-grid { grid-template-columns: 1fr !important; }
       }
 
       @media print {
@@ -4302,7 +4625,7 @@ const TTX = '#F5F5F5';
 const TSB = '#8B9AB3';
 const TDM = '#546880';
 const TAC = 'rgba(42,171,238,0.15)';
-const TSH = '0 1px 2px rgba(0,0,0,0.4)';
+const TSH = '0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)';
 const TBTN = `linear-gradient(135deg,${TBL},${TBL2})`;
 const TGBTN = 'linear-gradient(135deg,#4DDB6B,#22C55E)';
 const TRDS = 'rgba(242,80,80,0.12)';
@@ -4358,11 +4681,11 @@ const styles = {
   logoutBtn: { display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '9px 11px', background: 'transparent', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 10, color: TRD, fontSize: 12.5, fontWeight: 600 },
 
   // ── Mobile ──
-  mobileHeader: { position: 'fixed', top: 0, right: 0, left: 0, height: 52, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: TP, borderBottom: `1px solid ${TB}`, padding: '0 14px', direction: 'rtl' },
+  mobileHeader: { position: 'fixed', top: 0, right: 0, left: 0, height: 52, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(23,33,43,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid rgba(255,255,255,0.09)`, padding: '0 14px', direction: 'rtl', paddingTop: 'env(safe-area-inset-top,0px)' },
   mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 8 },
   mobileHeaderTitle: { fontSize: 15, fontWeight: 800, color: TTX },
   mobileLogoutBtn: { width: 32, height: 32, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  bottomNav: { position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: TP, borderTop: `1px solid ${TB}`, padding: '6px 4px 8px', direction: 'rtl' },
+  bottomNav: { position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: 'rgba(23,33,43,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: `1px solid rgba(255,255,255,0.09)`, padding: '6px 4px', paddingBottom: 'max(8px, env(safe-area-inset-bottom,8px))', direction: 'rtl' },
   bottomNavItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'transparent', border: 'none', color: TDM, padding: '5px 8px', flex: 1, minWidth: 0, position: 'relative' },
   bottomNavItemActive: { color: TBL },
   bottomNavLabel: { fontSize: 9.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
@@ -4442,7 +4765,7 @@ const styles = {
   printBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
   secondaryBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 600 },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 },
-  statCard: { display: 'flex', alignItems: 'center', gap: 11, background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: '13px 15px', boxShadow: TSH },
+  statCard: { display: 'flex', alignItems: 'center', gap: 11, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: '14px 16px', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden' },
   statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   statValue: { fontSize: 20, fontWeight: 800, color: TTX, lineHeight: 1.15, letterSpacing: '-0.02em' },
   statLabel: { fontSize: 10.5, color: TDM, marginTop: 2 },
@@ -4453,7 +4776,7 @@ const styles = {
   chip: { padding: '6px 12px', background: TI, border: 'none', borderRadius: 20, color: TDM, fontSize: 11.5, fontWeight: 600 },
   chipActive: { background: TAC, color: TBL },
   ordersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(272px,1fr))', gap: 11 },
-  orderCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'background 0.12s ease' },
+  orderCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative' },
   orderTicketHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px 9px' },
   orderTicketAvatar: { width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15 },
   orderCardCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
@@ -4468,7 +4791,7 @@ const styles = {
   orderCurrency: { fontSize: 11, fontWeight: 500, color: TDM },
   orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, color: TDM, marginTop: 2 },
   printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(77,219,107,0.11)', color: TGR, borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 },
-  batchBlock: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  batchBlock: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH },
   batchHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
   batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: TTX },
   batchHeaderTime: { fontSize: 10.5, color: TDM, fontWeight: 500 },
@@ -4477,7 +4800,7 @@ const styles = {
   statusSelect: { border: '1px solid', borderRadius: 8, padding: '5px 8px', fontSize: 11.5, fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
 
   // ── Stats ──
-  chartCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 16, marginBottom: 13, boxShadow: TSH },
+  chartCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, marginBottom: 13, boxShadow: TSH },
   timeFilterBar: { display: 'flex', gap: 5, marginBottom: 12, flexWrap: 'wrap' },
   customDateRow: { display: 'flex', gap: 8, marginBottom: 14 },
   customDateSelect: { background: TI, border: 'none', borderRadius: 9, padding: '8px 11px', color: TTX, fontSize: 12.5, fontFamily: "'Cairo', sans-serif", flex: 1 },
@@ -4509,7 +4832,7 @@ const styles = {
   fbCandidateAvatarImg: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' },
   fbCandidateId: { fontSize: 10.5, color: TDM, marginTop: 2 },
   pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(295px,1fr))', gap: 12 },
-  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH, overflow: 'hidden' },
+  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, overflow: 'hidden', transition: 'all 0.2s ease' },
   pageCardTopLine: { position: 'absolute', top: 0, right: 16, left: 16, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, opacity: 0.55 },
   pageCardHeader: { display: 'flex', alignItems: 'center', gap: 11, width: '100%' },
   subscribeBtn: { width: '100%', background: 'rgba(77,219,107,0.09)', border: `1px solid rgba(77,219,107,0.22)`, borderRadius: 10, padding: '9px 0', color: TGR, fontSize: 12, fontWeight: 700 },
@@ -4525,7 +4848,7 @@ const styles = {
 
   // ── Users ──
   usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(285px,1fr))', gap: 11 },
-  userCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  userCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, transition: 'all 0.2s ease' },
   userCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
   userCardAvatar: { width: 38, height: 38, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 },
   userCardName: { fontSize: 13, fontWeight: 700, color: TTX },
@@ -4556,7 +4879,7 @@ const styles = {
   warehouseWrap: { flex: 1, overflow: 'auto', padding: '18px 15px', maxWidth: 700, margin: '0 auto', width: '100%' },
   warehouseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 11, paddingTop: 'env(safe-area-inset-top,0px)' },
   warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
-  warehouseCard: { background: TP, border: `1px solid ${TB}`, borderRadius: 12, padding: 14, boxShadow: TSH },
+  warehouseCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, transition: 'all 0.2s ease' },
   warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
   warehouseCardNo: { fontSize: 12, fontWeight: 800, color: TBL, fontFamily: 'monospace' },
   warehouseCardDate: { fontSize: 11, color: TDM },
@@ -4578,8 +4901,8 @@ const styles = {
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
-  modal: { background: TP, border: `1px solid ${TB}`, borderRadius: 14, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', position: 'relative', zIndex: 1 },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
+  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
   modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
