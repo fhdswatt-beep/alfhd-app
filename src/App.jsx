@@ -817,32 +817,69 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   }, [conversations, activeTab, selectedPage, search]);
 
   const counts = useMemo(() => {
-    const base = { normal: 0, pinned: 0, handoff: 0 };
     const unread = { normal: 0, pinned: 0, handoff: 0 };
     conversations.forEach((c) => {
       if (selectedPage === 'all' || c.pageId === selectedPage) {
-        if (base[c.tab] !== undefined) {
-          base[c.tab]++;
-          if (Number(c.unread || 0) > 0) unread[c.tab] += Number(c.unread || 0);
+        if (unread[c.tab] !== undefined) {
+          // عدد المحادثات التي عندها رسائل غير مقروءة (مو مجموع الأرقام)
+          if (Number(c.unread || 0) > 0) unread[c.tab] += 1;
         }
       }
     });
-    return { total: base, unread };
+    return { unread };
   }, [conversations, selectedPage]);
 
   const linkedOrder = selectedConv?.orderId
     ? orders.find((o) => o.id === selectedConv.orderId)
     : null;
 
+  // ── كشف رسائل التحويل من الذكاء الاصطناعي ──
+  // أي رسالة تحتوي على هذه العبارات = تحويل تلقائي لتاب "ذكاء اصطناعي"
+  const HANDOFF_TRIGGERS = [
+    'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
+    'transferred this chat', 'transfer this chat',
+    'Your AI agent transferred',
+    'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
+    'نحولك للموظف', 'تحويل المحادثة',
+    'handoff', 'hand off',
+  ];
+
+  function isHandoffMessage(text) {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return HANDOFF_TRIGGERS.some((t) => lower.includes(t.toLowerCase()));
+  }
+
+  async function maybeHandoffConversation(convId, messages) {
+    const triggered = messages.some((m) => isHandoffMessage(m.content));
+    if (!triggered) return;
+    // تحقق إن المحادثة مش مكانها الصح أصلاً
+    const conv = conversations.find((c) => c.id === convId);
+    if (!conv || conv.tab === 'handoff') return;
+    // نقل لتاب الذكاء الاصطناعي
+    setConversations?.((prev) => prev.map((c) => (
+      c.id === convId ? { ...c, tab: 'handoff' } : c
+    )));
+    try {
+      await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' });
+    } catch (e) {
+      console.error('handoff tab update error:', e);
+    }
+  }
+
   const loadMessages = useCallback(async (convId) => {
     if (!convId) return;
     try {
       const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.asc`);
-      setMessages((dbMsgs || []).map(mapMessageFromDb));
+      const mapped = (dbMsgs || []).map(mapMessageFromDb);
+      setMessages(mapped);
+      // كشف تلقائي لرسائل التحويل
+      await maybeHandoffConversation(convId, mapped);
     } catch (e) {
       console.error('load messages error:', e);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
 
   useEffect(() => {
     if (!selectedConv) { setMessages([]); return undefined; }
@@ -924,6 +961,10 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
     setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
     touchConvLocally(selectedConv.id, text);
+    // كشف تحويل فوري من الرسالة المُرسَلة
+    if (isHandoffMessage(text)) {
+      await maybeHandoffConversation(selectedConv.id, [{ content: text }]);
+    }
     try {
       await sendToFacebook({
         pageId: selectedConv.pageId,
@@ -1167,16 +1208,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                 <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
                   {tabLabels[tab.id]}
                 </span>
-                {/* عدد إجمالي التاب — صغير وهادئ */}
-                {counts.total[tab.id] > 0 && (
-                  <span style={{
-                    fontSize: 9, color: active ? TG_BLUE : TG_DIM,
-                    background: active ? 'rgba(42,171,238,0.12)' : 'rgba(255,255,255,0.05)',
-                    borderRadius: 20, padding: '1px 5px', fontWeight: 600,
-                  }}>
-                    {counts.total[tab.id]}
-                  </span>
-                )}
+                {/* لا يوجد عدد إجمالي — فقط الأحمر للغير مقروء */}
               </button>
             );
           })}
@@ -4295,6 +4327,16 @@ export default function AlFhdApp() {
 
   // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
   const convSignatureRef = React.useRef('');
+  // عبارات التحويل — تُستخدم هنا وفي ConversationsView
+  const HANDOFF_TRIGGERS_GLOBAL = [
+    'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
+    'transferred this chat', 'transfer this chat',
+    'Your AI agent transferred',
+    'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
+    'نحولك للموظف', 'تحويل المحادثة',
+    'handoff', 'hand off',
+  ];
+
   const refreshConversations = useCallback(async () => {
     try {
       const dbConversations = await sbSelect(
@@ -4302,11 +4344,27 @@ export default function AlFhdApp() {
         '&order=last_message_time.desc'
       );
       if (dbConversations) {
-        // وقّع البيانات؛ حدّث الحالة فقط إذا تغيّر شيء فعلاً (يمنع إعادة الرسم غير الضرورية)
         const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
         if (sig !== convSignatureRef.current) {
           convSignatureRef.current = sig;
-          setConversations(dbConversations.map(mapConversationFromDb));
+          const mapped = dbConversations.map(mapConversationFromDb);
+          setConversations(mapped);
+
+          // ── كشف تحويل تلقائي من آخر رسالة ──
+          const toHandoff = mapped.filter((c) => {
+            if (c.tab === 'handoff') return false; // مكانه الصح أصلاً
+            const msg = (c.lastMsg || '').toLowerCase();
+            return HANDOFF_TRIGGERS_GLOBAL.some((t) => msg.includes(t.toLowerCase()));
+          });
+          if (toHandoff.length > 0) {
+            setConversations((prev) => prev.map((c) => (
+              toHandoff.find((h) => h.id === c.id) ? { ...c, tab: 'handoff' } : c
+            )));
+            // حفظ في قاعدة البيانات
+            toHandoff.forEach(async (c) => {
+              try { await sbUpdate('alfhd_conversations', c.id, { tab: 'handoff' }); } catch (_e) { /* تجاهل */ }
+            });
+          }
         }
       }
     } catch (e) {
