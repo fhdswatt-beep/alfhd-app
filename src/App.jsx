@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   MessageSquare, Package, Users, Settings, LogOut, Search,
@@ -1420,6 +1419,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
       <style>{`
         @media (max-width: 860px) {
+          /* المحادثات: fixed بين الهيدر 52px والنافيجيشن 66px */
           .alfhd-conv-fullscreen {
             position: fixed !important;
             top: 52px !important;
@@ -1427,20 +1427,22 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
             right: 0 !important;
             left: 0 !important;
             height: auto !important;
+            width: 100% !important;
           }
-          .alfhd-conv-list { height: 100% !important; }
+          .alfhd-conv-list { height: 100% !important; overflow-y: auto !important; }
           .alfhd-conv-list-hidden-mobile { display: none !important; }
           .alfhd-conv-detail-empty { display: none !important; }
+          /* المحادثة المفتوحة: تطغى فوق كل شيء كاملاً */
           .alfhd-conv-detail-active-mobile {
             position: fixed !important;
-            inset: 0 !important;
+            top: 0 !important; right: 0 !important;
+            left: 0 !important; bottom: 0 !important;
             z-index: 300 !important;
             width: 100% !important;
             height: 100dvh !important;
             display: flex !important;
             flex-direction: column !important;
             background: #0E1621 !important;
-            animation: chatSlideIn 0.2s ease !important;
           }
           .alfhd-conv-back-btn { display: flex !important; }
         }
@@ -4285,7 +4287,10 @@ export default function AlFhdApp() {
           currentUser={authedUser}
           pages={pages}
         />
-        <main style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100vh' } : {}) }} className="alfhd-main-area">
+        <main
+          style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100vh' } : {}) }}
+          className={`alfhd-main-area${activeView === 'conversations' ? ' alfhd-main-conv' : ''}`}
+        >
           {activeView === 'conversations' && (
             <ConversationsView
               conversations={conversations}
@@ -4536,53 +4541,88 @@ function GlobalStyles() {
 
       @media (max-width: 860px) {
         .alfhd-app-wrap { flex-direction: column !important; }
-        .alfhd-main-area { padding: 52px 0 66px !important; width: 100% !important; height: calc(100vh - 0px) !important; }
-        /* محادثات: تأخذ المساحة المتبقية بعد الهيدر وقبل النافيجيشن */
-        .alfhd-main-area[style*="height:100vh"] {
-          height: 100vh !important;
-          padding: 0 !important;
+
+        /* كل الصفحات: هيدر 52px + نافيجيشن 66px */
+        .alfhd-main-area {
+          padding: 52px 0 66px !important;
+          width: 100% !important;
+          min-height: 100vh !important;
+          box-sizing: border-box !important;
         }
+
+        /* صفحة المحادثات فقط: لا padding لأن الـ fullscreen يتولى الأمر */
+        .alfhd-main-conv {
+          padding: 0 !important;
+          height: 100vh !important;
+          overflow: hidden !important;
+        }
+
+        /* حاوية المحادثات تملأ بين الهيدر والنافيجيشن */
         .alfhd-conv-fullscreen {
           position: fixed !important;
-          inset: 0 !important;
           top: 52px !important;
           bottom: 66px !important;
           right: 0 !important;
           left: 0 !important;
           height: auto !important;
+          width: 100% !important;
+          overflow: hidden !important;
         }
+
         .alfhd-conv-layout { grid-template-columns: 1fr !important; }
-        .alfhd-conv-list { max-height: none !important; border-left: none !important; height: 100% !important; }
+        .alfhd-conv-list {
+          max-height: none !important;
+          height: 100% !important;
+          border-left: none !important;
+          overflow-y: auto !important;
+        }
         .alfhd-conv-list-hidden-mobile { display: none !important; }
         .alfhd-conv-detail-empty { display: none !important; }
+
+        /* المحادثة المفتوحة — تطغى فوق كل شيء */
         .alfhd-conv-detail-active-mobile {
-          position: fixed !important; top: 0 !important; right: 0 !important;
-          left: 0 !important; bottom: 0 !important; z-index: 300 !important;
-          border-radius: 0 !important; border: none !important; padding: 0 !important;
-          min-height: 0 !important; height: 100dvh !important;
-          display: flex !important; flex-direction: column !important;
-          animation: chatSlideIn 0.2s ease !important;
+          position: fixed !important;
+          top: 0 !important; right: 0 !important;
+          left: 0 !important; bottom: 0 !important;
+          z-index: 300 !important;
+          width: 100% !important;
+          height: 100dvh !important;
+          display: flex !important;
+          flex-direction: column !important;
           background: #0E1621 !important;
+          animation: chatSlideIn 0.2s ease !important;
+          border-radius: 0 !important;
+          border: none !important;
+          padding: 0 !important;
+          min-height: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-detail-header {
           padding: 12px 14px !important;
-          padding-top: max(12px, env(safe-area-inset-top,12px)) !important;
+          padding-top: max(12px, env(safe-area-inset-top, 12px)) !important;
           flex-shrink: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-chat-scroll {
-          flex: 1 1 auto !important; max-height: none !important; min-height: 0 !important; padding: 12px !important;
+          flex: 1 1 auto !important;
+          max-height: none !important;
+          min-height: 0 !important;
+          padding: 12px !important;
           overflow-y: auto !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-composer-bar {
-          margin: 0 !important; border-radius: 0 !important;
-          border-left: none !important; border-right: none !important; border-bottom: none !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+          border-left: none !important;
+          border-right: none !important;
+          border-bottom: none !important;
           padding: 10px 12px !important;
-          padding-bottom: max(10px, env(safe-area-inset-bottom,10px)) !important;
+          padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
           flex-shrink: 0 !important;
         }
         .alfhd-conv-detail-active-mobile .alfhd-linked-order {
-          flex-shrink: 0 !important; margin: 0 !important;
-          max-height: 130px !important; overflow-y: auto !important;
+          flex-shrink: 0 !important;
+          margin: 0 !important;
+          max-height: 130px !important;
+          overflow-y: auto !important;
           border-radius: 0 !important;
         }
         .alfhd-conv-back-btn { display: flex !important; }
