@@ -1039,11 +1039,13 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
 
   return (
-    /* ─── حاوية ملء الشاشة بدون padding ─── */
+    /* ─── حاوية المحادثات ─── */
     <div style={{
-      display: 'flex', height: '100%', overflow: 'hidden',
-      position: 'relative', direction: 'rtl',
+      display: 'flex', overflow: 'hidden',
+      direction: 'rtl',
       background: '#0E1621',
+      width: '100%',
+      height: '100%',
     }} className="alfhd-conv-fullscreen">
 
       {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
@@ -1419,26 +1421,31 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
       <style>{`
         @media (max-width: 860px) {
-          /* المحادثات: fixed بين الهيدر 52px والنافيجيشن 66px */
           .alfhd-conv-fullscreen {
             position: fixed !important;
             top: 52px !important;
             bottom: 66px !important;
             right: 0 !important;
             left: 0 !important;
+            width: 100vw !important;
             height: auto !important;
-            width: 100% !important;
+            overflow: hidden !important;
+            display: flex !important;
+            z-index: 10 !important;
           }
-          .alfhd-conv-list { height: 100% !important; overflow-y: auto !important; }
+          .alfhd-conv-list {
+            height: 100% !important;
+            width: 100% !important;
+            overflow-y: auto !important;
+          }
           .alfhd-conv-list-hidden-mobile { display: none !important; }
           .alfhd-conv-detail-empty { display: none !important; }
-          /* المحادثة المفتوحة: تطغى فوق كل شيء كاملاً */
           .alfhd-conv-detail-active-mobile {
             position: fixed !important;
             top: 0 !important; right: 0 !important;
             left: 0 !important; bottom: 0 !important;
             z-index: 300 !important;
-            width: 100% !important;
+            width: 100vw !important;
             height: 100dvh !important;
             display: flex !important;
             flex-direction: column !important;
@@ -4550,23 +4557,26 @@ function GlobalStyles() {
           box-sizing: border-box !important;
         }
 
-        /* صفحة المحادثات فقط: لا padding لأن الـ fullscreen يتولى الأمر */
+        /* صفحة المحادثات فقط: لا padding إطلاقاً — الـ fixed child يتولى */
         .alfhd-main-conv {
           padding: 0 !important;
-          height: 100vh !important;
-          overflow: hidden !important;
+          height: 0 !important;
+          min-height: 0 !important;
+          overflow: visible !important;
         }
 
-        /* حاوية المحادثات تملأ بين الهيدر والنافيجيشن */
+        /* حاوية المحادثات: fixed تماماً بين الهيدر 52px والنافيجيشن 66px */
         .alfhd-conv-fullscreen {
           position: fixed !important;
           top: 52px !important;
           bottom: 66px !important;
           right: 0 !important;
           left: 0 !important;
+          width: 100vw !important;
           height: auto !important;
-          width: 100% !important;
           overflow: hidden !important;
+          display: flex !important;
+          z-index: 10 !important;
         }
 
         .alfhd-conv-layout { grid-template-columns: 1fr !important; }
