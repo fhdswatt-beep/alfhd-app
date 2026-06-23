@@ -28,7 +28,7 @@ const FB_SUBSCRIBE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-subscribe-pag
 const FB_SEND_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-send-message`;
 const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-from-image`;
 const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
-const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/super-function`;
+const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shipment`;
 
 // محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
 const IRAQ_GOVERNORATES = [
@@ -1891,7 +1891,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // ══════════════════════════════════════════════════════════════
-  // Jenni Validation — الحقول المطلوبة من جيني بدقة 100%
+  // Jenni Validation — الحقول المطلوبة من شركة التوصيل بدقة 100%
   // المصدر: https://sys.fuhood.com/api/v2/docs (Create Shipment)
   // ══════════════════════════════════════════════════════════════
   function validateJenniFields(order) {
@@ -1915,7 +1915,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
     // 3. كود المحافظة — governorate_code (إجباري، من قائمة Jenni)
     if (!order.governorateCode) {
-      errors.governorateCode = 'المحافظة مطلوبة — إجبارية من جيني';
+      errors.governorateCode = 'المحافظة مطلوبة — إجبارية من شركة التوصيل';
     } else {
       const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
       if (!validCodes.includes(order.governorateCode)) {
@@ -1925,7 +1925,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
     // 4. المدينة/المنطقة — city (إجباري)
     if (!String(order.area || '').trim()) {
-      errors.area = 'المنطقة/المدينة مطلوبة — إجبارية من جيني';
+      errors.area = 'المنطقة/المدينة مطلوبة — إجبارية من شركة التوصيل';
     }
 
     // 5. المبلغ — amount_iqd (إجباري، > 0)
@@ -1944,7 +1944,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     const validationErrors = validateJenniFields(editingOrder);
     if (Object.keys(validationErrors).length > 0) {
       const msgs = Object.values(validationErrors).join('\n• ');
-      alert(`⛔ لا يمكن حفظ الطلب — أخطاء إجبارية:\n\n• ${msgs}\n\nهذه الحقول مطلوبة من جيني ولا يمكن إرسال الشحنة بدونها.`);
+      alert(`⛔ لا يمكن حفظ الطلب — أخطاء إجبارية:\n\n• ${msgs}\n\nهذه الحقول مطلوبة من شركة التوصيل ولا يمكن إرسال الشحنة بدونها.`);
       return;
     }
 
@@ -1967,16 +1967,22 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
         };
         await sbUpdate('alfhd_orders', editingOrder.id, payload);
-        setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? {
-          ...o,
+        const updatedOrder = {
+          ...editingOrder,
           pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
           address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
           governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
           total: Number(editingOrder.total) || 0, status: editingOrder.status,
           conversationId: editingOrder.conversationId || null,
-          source: editingOrder.conversationId ? 'chat' : (o.source || 'manual'),
-        } : o)));
+          source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
+        };
+        setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
         if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
+        // ── إعادة إرسال لجيني إذا لم يُرسَل بعد أو كان فيه خطأ سابق ──
+        const prevOrder = orders.find((o) => o.id === editingOrder.id);
+        if (!prevOrder?.jenniSent) {
+          sendOrderToJenni(updatedOrder, { silent: true });
+        }
       } else {
         const payload = {
           order_no: String(Date.now()).slice(-6),
@@ -1999,8 +2005,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         };
         const created = await sbInsert('alfhd_orders', payload);
         if (created?.[0]) {
-          setOrders((prev) => [mapOrderFromDb(created[0]), ...prev]);
+          const newOrder = mapOrderFromDb(created[0]);
+          setOrders((prev) => [newOrder, ...prev]);
           if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
+          // ── إرسال فوري لجيني عند إنشاء الطلب ──
+          // الطلب يظهر عند جيني بحالة NEW_ORDER_TO_PRINT (جاهز للطباعة)
+          // وهذا هو الـ workflow الصحيح: جيني تعرف بالطلب مبكراً قبل الطباعة
+          sendOrderToJenni(newOrder, { silent: true });
         }
       }
       setEditingOrder(null);
@@ -2062,17 +2073,19 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       .sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
   }
 
-  // الطباعة تنقل الطلب من "جاهز للطباعة" إلى "قيد التجهيز" داخل موقعك
-  // وبنفس اللحظة تُنشئ الشحنة داخل Jenni؛ لأن هذه المرحلة تقابل عند Jenni: جاهز للنقل للشركة
+  // الطباعة تنقل الطلب من "جاهز للطباعة" إلى "قيد التجهيز" داخل موقعك فقط.
+  // الطلب أُرسِل لجيني مسبقاً عند إنشائه (مرحلة ready) بحالة NEW_ORDER_TO_PRINT.
+  // لو لسبب ما لم يُرسَل بعد (مثلاً طلب قديم)، يُرسَل الآن كاحتياط.
   async function markOrdersPrintedAndPrep(ids) {
     if (ids.length === 0) return;
     const batchId = `batch-${Date.now()}`;
     const printedAt = new Date().toISOString();
-    const toSendToJenni = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
+    // الطلبات التي لم تُرسَل لجيني بعد (احتياط للطلبات القديمة)
+    const notSentYet = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
     setOrders((prev) => prev.map((o) => (
       ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
     )));
-    // حفظ في قاعدة البيانات أولاً — مهم للتزامن مع Jenni
+    // حفظ في DB
     try {
       await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
         printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
@@ -2080,10 +2093,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     } catch (e) {
       console.error('mark printed error:', e);
     }
-    // إرسال لجيني بعد التأكد من الحفظ (صامت، لا يوقف العمل)
-    // مهم: بعد الطباعة مباشرة يدخل الطلب إلى Jenni، لكنه يبقى عندنا باسم "قيد التجهيز"
-    // حتى يتطابق موقعك 100% مع ظهور الطلب في Jenni بقسم جاهز للنقل للشركة.
-    for (const o of toSendToJenni) {
+    // إرسال احتياطي فقط للطلبات القديمة التي لم تُرسَل عند الإنشاء
+    for (const o of notSentYet) {
       await sendOrderToJenni(o, { silent: true });
     }
   }
@@ -2100,35 +2111,49 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function sendOrderToJenni(o, { silent = false } = {}) {
-    // ── خط دفاع ثانٍ: التحقق من كل الحقول الإجبارية قبل الإرسال ──
+    // ── خط دفاع: التحقق من كل الحقول الإجبارية قبل الإرسال ──
     if (!o.governorateCode || !o.phone) {
-      const msg = 'لا يمكن الإرسال لجيني: المحافظة ورقم الهاتف مطلوبان';
+      const msg = 'لا يمكن الإرسال لشركة التوصيل: المحافظة ورقم الهاتف مطلوبان';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
     }
     const cleanPhone = normalizeIraqiPhone(o.phone);
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('07')) {
-      const msg = `رقم الهاتف غير صالح لجيني: ${o.phone} — يجب أن يكون بصيغة 07XXXXXXXXX`;
+      const msg = `رقم الهاتف غير صالح: ${o.phone} — يجب أن يكون بصيغة 07XXXXXXXXX`;
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
     }
-    // تحقق من المدينة/المنطقة (city — إجباري)
     const cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1] || '';
     if (!cityValue) {
-      const msg = 'المنطقة/المدينة مطلوبة لجيني (city) — عدّل الطلب وأضف المنطقة';
+      const msg = 'المنطقة/المدينة مطلوبة — عدّل الطلب وأضف المنطقة';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
     }
-    // تحقق من المبلغ
     if (!Number(o.total) || Number(o.total) <= 0) {
-      const msg = 'المبلغ يجب أن يكون أكبر من صفر قبل الإرسال لجيني';
+      const msg = 'المبلغ يجب أن يكون أكبر من صفر';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
     }
+
+    // ── البيانات المرسلة لشركة التوصيل ──
+    const shipmentPayload = {
+      external_shipment_id: String(o.id),
+      shipment_number: String(o.orderNo || o.id),
+      receiver_name: o.customer || '',
+      receiver_phone_1: cleanPhone,
+      governorate_code: o.governorateCode,
+      city: cityValue,
+      address: o.address || '',
+      amount_iqd: Number(o.total) || 0,
+      note: o.orderType || undefined,
+    };
+
+    console.log('📦 إرسال لشركة التوصيل:', shipmentPayload);
+
     try {
       const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
         method: 'POST',
@@ -2137,25 +2162,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           'Authorization': `Bearer ${SUPABASE_KEY}`,
           'apikey': SUPABASE_KEY,
         },
-        body: JSON.stringify({
-          external_shipment_id: String(o.id),
-          shipment_number: String(o.orderNo || o.id),
-          receiver_name: o.customer || '',
-          receiver_phone_1: cleanPhone,
-          governorate_code: o.governorateCode,
-          city: cityValue,
-          address: o.address || '',
-          amount_iqd: Number(o.total) || 0,
-          note: o.orderType || undefined,
-        }),
+        body: JSON.stringify(shipmentPayload),
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.success) {
+
+      let data = {};
+      const rawText = await res.text();
+      try { data = JSON.parse(rawText); } catch (_) { data = { raw: rawText }; }
+
+      console.log('📬 رد شركة التوصيل:', res.status, data);
+
+      if (res.ok && (data?.success || data?.shipment_id)) {
         const patch = {
           jenni_sent: true,
           jenni_shipment_id: data.shipment_id || null,
           jenni_tracking: data.tracking_number || null,
-          delivery_status: 'sorting', // حالة Jenni الابتدائية: تجميع
+          delivery_status: 'sorting',
         };
         setOrders((prev) => prev.map((x) => (x.id === o.id ? {
           ...x,
@@ -2166,27 +2187,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           deliveryStatus: 'sorting',
         } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
+        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', data.shipment_id);
         return true;
       }
-      // معالجة رمز الخطأ 409 = الشحنة موجودة مسبقاً في Jenni
+
+      // 409 = موجود مسبقاً
       if (res.status === 409) {
-        const msg = 'هذا الطلب مُسجَّل مسبقاً في جيني';
         const patch = { jenni_sent: true, delivery_status: 'sorting' };
         setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniError: null, deliveryStatus: 'sorting' } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        if (!silent) alert(msg);
+        console.log('ℹ️ الطلب موجود مسبقاً في شركة التوصيل');
         return true;
       }
-      const errMsg = data?.error || data?.message || `فشل الإرسال لجيني (${res.status})`;
-      console.warn('Jenni send failed for order', o.orderNo, errMsg);
+
+      const errMsg = data?.error || data?.message || data?.raw || `فشل الإرسال (${res.status})`;
+      console.error('❌ فشل الإرسال لشركة التوصيل:', res.status, errMsg, data);
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`فشل الإرسال لجيني:\n${errMsg}`);
+      if (!silent) alert(`فشل الإرسال لشركة التوصيل:\n${errMsg}`);
       return false;
     } catch (e) {
       const errMsg = e?.message || 'خطأ اتصال غير معروف';
-      console.warn('Jenni send error:', e);
+      console.error('❌ خطأ في الاتصال بشركة التوصيل:', e);
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`تعذّر الاتصال بجيني:\n${errMsg}`);
+      if (!silent) alert(`تعذّر الاتصال بشركة التوصيل:\n${errMsg}`);
       return false;
     }
   }
@@ -2233,7 +2256,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
     }
     if (section === 'prep') {
-      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز · Jenni</div>;
+      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
     }
     return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
   }
@@ -2303,15 +2326,44 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {o.printed && <span style={styles.printedBadge}><Printer size={9} /> مطبوعة</span>}
-            {o.jenniSent && <span style={{ ...styles.printedBadge, background: 'rgba(96,165,250,0.12)', color: '#93C5FD', borderColor: 'rgba(96,165,250,0.32)' }}><Truck size={9} /> داخل Jenni</span>}
+            {o.jenniSent && <span style={{ ...styles.printedBadge, background: 'rgba(96,165,250,0.12)', color: '#93C5FD', borderColor: 'rgba(96,165,250,0.32)' }}><Truck size={9} /> لدى شركة التوصيل</span>}
             {o.jenniTracking && <span style={{ ...styles.printedBadge, background: 'rgba(167,139,250,0.12)', color: '#C4B5FD', borderColor: 'rgba(167,139,250,0.32)', fontFamily: 'monospace' }}>#{o.jenniTracking}</span>}
           </div>
         </div>
 
         {o.jenniError && (
-          <div style={{ background: 'rgba(244,91,105,0.1)', border: '1px solid rgba(244,91,105,0.3)', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#F45B69', marginBottom: 6 }}>
-            ⚠️ فشل الإرسال لجيني: {o.jenniError}
+          <div style={{ margin: '0 0 6px', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(244,91,105,0.3)' }}>
+            <div style={{ background: 'rgba(244,91,105,0.1)', padding: '7px 10px', fontSize: 11, color: '#F45B69', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <span style={{ flexShrink: 0 }}>⚠️</span>
+              <span>{o.jenniError}</span>
+            </div>
+            <button
+              onClick={() => startEditOrder(o)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '7px', background: 'rgba(244,91,105,0.08)',
+                border: 'none', borderTop: '1px solid rgba(244,91,105,0.18)',
+                color: '#F45B69', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              <Edit3 size={12} /> إصلاح البيانات وإعادة الإرسال لشركة التوصيل
+            </button>
           </div>
+        )}
+
+        {/* زر إرسال يدوي للطلبات غير المرسلة بدون خطأ */}
+        {!o.jenniSent && !o.jenniError && (section === 'prep' || section === 'ready') && (
+          <button
+            onClick={() => sendOrderToJenni(o, { silent: false })}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '8px', marginBottom: 6,
+              background: 'rgba(42,171,238,0.08)', border: '1px solid rgba(42,171,238,0.22)',
+              borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            <Truck size={13} /> إرسال لشركة التوصيل
+          </button>
         )}
         <div style={styles.orderCardActions} className="alfhd-no-print">
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
@@ -2566,7 +2618,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               fontWeight: 600,
             }}>
               <Truck size={13} />
-              الحقول المُعلَّمة بـ <span style={{ color: '#F25050', fontWeight: 800 }}>*</span> إجبارية من جيني — لن تُقبل الشحنة بدونها
+              الحقول المُعلَّمة بـ <span style={{ color: '#F25050', fontWeight: 800 }}>*</span> إجبارية من شركة التوصيل — لن تُقبل الشحنة بدونها
             </div>
 
             <div style={styles.modalBody}>
@@ -2630,7 +2682,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                       />
                       {!raw && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>}
                       {phoneErr && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ صيغة خاطئة — المطلوب: 07XXXXXXXXX</span>}
-                      {phoneOk && <span style={{ fontSize: 10.5, color: '#4DDB6B', marginTop: 3, fontWeight: 600 }}>✓ صالح لجيني</span>}
+                      {phoneOk && <span style={{ fontSize: 10.5, color: '#4DDB6B', marginTop: 3, fontWeight: 600 }}>✓ صالح لشركة التوصيل</span>}
                     </>
                   );
                 })()}
@@ -2661,7 +2713,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   ))}
                 </select>
                 {!editingOrder.governorateCode && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — جيني ترفض الشحنة بدون محافظة</span>
+                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — شركة التوصيل ترفض الشحنة بدون محافظة</span>
                 )}
               </div>
 
@@ -2670,7 +2722,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
                   المنطقة / المدينة
                   <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city في جيني</span>
+                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city لشركة التوصيل</span>
                 </label>
                 <input
                   value={editingOrder.area || ''}
@@ -2684,7 +2736,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   placeholder="مثال: الكرادة، المنصور، الكرخ..."
                 />
                 {!String(editingOrder.area || '').trim() && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لجيني</span>
+                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لشركة التوصيل</span>
                 )}
               </div>
 
@@ -2733,7 +2785,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
               {/* نوع الطلب — اختياري (note في Jenni) */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري — تُرسَل كـ note لجيني)</span></label>
+                <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري — تُرسَل كـ note لشركة التوصيل)</span></label>
                 <input
                   value={editingOrder.orderType}
                   onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })}
@@ -2785,8 +2837,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   }}>
                     {ready ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
                     {ready
-                      ? '✓ جاهز للإرسال لجيني — كل الحقول المطلوبة مكتملة'
-                      : `${Object.keys(errs).length} حقل ناقص — لن تُقبل الشحنة من جيني`}
+                      ? '✓ جاهز للإرسال لشركة التوصيل — كل الحقول المطلوبة مكتملة'
+                      : `${Object.keys(errs).length} حقل ناقص — لن تُقبل الشحنة من شركة التوصيل`}
                   </div>
                 );
               })()}
