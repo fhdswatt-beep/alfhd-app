@@ -1686,29 +1686,44 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     if (!pendingNewOrderFromConv) return;
     const conv = pendingNewOrderFromConv;
 
-    // ── استخراج ذكي للمحافظة والمنطقة من أي حقل فيه بيانات ──
-    // لو الزبون كتب العنوان في رسالة واحدة مثل "بغداد - الكرادة - شارع..."
-    // نحاول نستخرج المحافظة والمنطقة تلقائياً
+    // ── استخراج ذكي للمحافظة والمنطقة ──
+    // يبحث في كل النصوص المتاحة من المحادثة
+    const searchTexts = [
+      conv.lastMsg || '',
+      conv.address || '',
+      conv.customer || '',
+    ].join(' ');
+
+    // تنظيف النص من الرموز الزيادة
+    const cleanText = searchTexts.replace(/[*#@!]/g, ' ').replace(/\s+/g, ' ').trim();
+
     let autoGovCode = '';
     let autoGovName = '';
     let autoArea = '';
     let autoAddress = '';
 
-    const addressRaw = conv.lastMsg || conv.address || '';
-    if (addressRaw) {
-      // ابحث عن اسم محافظة في النص
-      const govFound = IRAQ_GOVERNORATES.find((g) =>
-        addressRaw.includes(g.name) || addressRaw.includes(g.name.replace('ال', ''))
-      );
-      if (govFound) {
-        autoGovCode = govFound.code;
-        autoGovName = govFound.name;
-        // ما تبقى بعد المحافظة = المنطقة + العنوان
-        const rest = addressRaw.replace(govFound.name, '').replace(/^[\s\-،,]+/, '').trim();
-        const parts = rest.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
-        autoArea = parts[0] || '';
-        autoAddress = parts.slice(1).join(' - ') || '';
-      }
+    // ابحث عن اسم محافظة في النص
+    const govFound = IRAQ_GOVERNORATES.find((g) => {
+      const name = g.name; // مثل "الأنبار"
+      const nameNoAl = name.replace(/^ال/, ''); // "أنبار"
+      return cleanText.includes(name) || cleanText.includes(nameNoAl);
+    });
+
+    if (govFound) {
+      autoGovCode = govFound.code;
+      autoGovName = govFound.name;
+      // ما تبقى بعد إزالة المحافظة
+      const rest = cleanText
+        .replace(govFound.name, '')
+        .replace(govFound.name.replace(/^ال/, ''), '')
+        .replace(/^[\s\-،,]+/, '')
+        .trim();
+      const parts = rest.split(/[\-،,\s]+/).map((p) => p.trim()).filter(Boolean);
+      autoArea = parts[0] || '';
+      autoAddress = parts.slice(1).join(' ') || '';
+    } else {
+      // لو ما لاقينا محافظة — ضع كل شيء في العنوان وخلّ المستخدم يختار
+      autoAddress = cleanText;
     }
 
     setEditingOrder({
@@ -2745,6 +2760,38 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   المحافظة
                   <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
                 </label>
+                {/* زر استخراج تلقائي إذا العنوان فيه محافظة والحقل فاضي */}
+                {!editingOrder.governorateCode && editingOrder.address && (() => {
+                  const cleanAddr = (editingOrder.address || '').replace(/[*#@!]/g, ' ');
+                  const found = IRAQ_GOVERNORATES.find((g) =>
+                    cleanAddr.includes(g.name) || cleanAddr.includes(g.name.replace(/^ال/, ''))
+                  );
+                  return found ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rest = cleanAddr.replace(found.name, '').replace(/^[\s\-،,]+/, '').trim();
+                        const parts = rest.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+                        setEditingOrder({
+                          ...editingOrder,
+                          governorateCode: found.code,
+                          governorateName: found.name,
+                          area: editingOrder.area || parts[0] || '',
+                          address: parts.slice(1).join(' - ') || rest,
+                        });
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
+                        padding: '6px 10px', background: 'rgba(42,171,238,0.10)',
+                        border: '1px solid rgba(42,171,238,0.22)', borderRadius: 8,
+                        color: '#2AABEE', fontSize: 11, fontWeight: 700, cursor: 'pointer', width: '100%',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      ✨ استخراج "{found.name}" من العنوان تلقائياً
+                    </button>
+                  ) : null;
+                })()}
                 <select
                   value={editingOrder.governorateCode || ''}
                   onChange={(e) => {
