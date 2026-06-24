@@ -219,6 +219,9 @@ function mapPageFromDb(row) {
     source: row.source,
     connected: row.connected,
     fbPageId: row.fb_page_id,
+    waPhoneNumberId: row.wa_phone_number_id || null,
+    waToken: row.wa_token || null,
+    waConnected: !!(row.wa_phone_number_id && row.wa_token),
   };
 }
 
@@ -3540,6 +3543,39 @@ function PagesView({ pages, setPages }) {
     }
   };
 
+  // ── إعدادات واتساب للصفحة ──
+  const [waSettingsPage, setWaSettingsPage] = useState(null);
+  const [waPhoneInput, setWaPhoneInput] = useState('');
+  const [waTokenInput, setWaTokenInput] = useState('');
+  const [savingWa, setSavingWa] = useState(false);
+
+  async function saveWaSettings() {
+    if (!waSettingsPage) return;
+    if (!waPhoneInput.trim()) { alert('أدخل Phone Number ID'); return; }
+    if (!waTokenInput.trim()) { alert('أدخل WhatsApp Token'); return; }
+    setSavingWa(true);
+    try {
+      await sbUpdate('alfhd_pages', waSettingsPage.id, {
+        wa_phone_number_id: waPhoneInput.trim(),
+        wa_token: waTokenInput.trim(),
+      });
+      setPages((prev) => prev.map((p) => p.id === waSettingsPage.id ? {
+        ...p, waPhoneNumberId: waPhoneInput.trim(), waToken: waTokenInput.trim(), waConnected: true,
+      } : p));
+      setWaSettingsPage(null);
+      alert('✅ تم ربط واتساب بنجاح!');
+    } catch (e) { alert('فشل الحفظ: ' + e.message); }
+    finally { setSavingWa(false); }
+  }
+
+  async function removeWaSettings(pageId) {
+    if (!window.confirm('هل تريد إلغاء ربط واتساب؟')) return;
+    try {
+      await sbUpdate('alfhd_pages', pageId, { wa_phone_number_id: null, wa_token: null });
+      setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhoneNumberId: null, waToken: null, waConnected: false } : p));
+    } catch (e) { alert('فشل: ' + e.message); }
+  }
+
   const subscribePage = async (pageId) => {
     setSubscribingId(pageId);
     try {
@@ -3755,7 +3791,7 @@ function PagesView({ pages, setPages }) {
               <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0 16px' }} />
 
               {/* تذييل الكرت */}
-              <div style={{ padding: '12px 16px' }}>
+              <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button
                   onClick={() => subscribePage(p.id)}
                   disabled={subscribingId === p.id}
@@ -3771,12 +3807,96 @@ function PagesView({ pages, setPages }) {
                 >
                   {subscribingId === p.id
                     ? <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التفعيل...</>
-                    : <><CheckCircle2 size={13} /> {p.connected ? 'تحديث الربط' : 'تفعيل الربط'}</>
+                    : <><CheckCircle2 size={13} /> {p.connected ? 'تحديث ربط ماسنجر' : 'تفعيل ربط ماسنجر'}</>
                   }
+                </button>
+
+                {/* زر واتساب */}
+                <button
+                  onClick={() => {
+                    setWaSettingsPage(p);
+                    setWaPhoneInput(p.waPhoneNumberId || '');
+                    setWaTokenInput(p.waToken || '');
+                  }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    padding: '9px',
+                    background: p.waConnected ? 'rgba(37,211,102,0.08)' : 'rgba(255,255,255,0.04)',
+                    border: p.waConnected ? '1px solid rgba(37,211,102,0.30)' : '1px solid rgba(255,255,255,0.10)',
+                    borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                    color: p.waConnected ? '#25D366' : '#8B9AB3',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  {p.waConnected ? 'واتساب مربوط ✓' : 'ربط واتساب'}
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── موديل إعدادات واتساب ── */}
+      {waSettingsPage && (
+        <div style={styles.modalOverlay} onClick={() => setWaSettingsPage(null)}>
+          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>
+                <span style={{ color: '#25D366', marginLeft: 6 }}>●</span>
+                ربط واتساب — {waSettingsPage.name}
+              </h3>
+              <button onClick={() => setWaSettingsPage(null)} style={styles.modalClose}><X size={18} /></button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.20)', borderRadius: 10, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: '#25D366', lineHeight: 1.7 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>كيف أحصل على هذه المعلومات؟</div>
+                <div>١. افتح developers.facebook.com ← تطبيقك ALfhd-app</div>
+                <div>٢. واتساب ← إعداد واجهة API</div>
+                <div>٣. انسخ <b>معرف رقم الهاتف</b> و<b>رمز الوصول</b></div>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  Phone Number ID <span style={{ color: '#F25050', fontWeight: 800 }}>*</span>
+                </label>
+                <input value={waPhoneInput} onChange={(e) => setWaPhoneInput(e.target.value)}
+                  style={{ ...styles.formInput, fontFamily: 'monospace', direction: 'ltr' }}
+                  placeholder="مثال: 1187286511134496" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  رمز الوصول (Access Token) <span style={{ color: '#F25050', fontWeight: 800 }}>*</span>
+                </label>
+                <textarea value={waTokenInput} onChange={(e) => setWaTokenInput(e.target.value)}
+                  style={{ ...styles.formInput, fontFamily: 'monospace', direction: 'ltr', minHeight: 80, resize: 'vertical', fontSize: 10 }}
+                  placeholder="EAAOXwA1p2Z..." />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Webhook URL للواتساب (انسخه لـ Meta)</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input readOnly value={`${SUPABASE_URL}/functions/v1/wa-webhook`}
+                    style={{ ...styles.formInput, fontFamily: 'monospace', fontSize: 10, direction: 'ltr', flex: 1, color: '#2AABEE' }} />
+                  <button onClick={() => navigator.clipboard?.writeText(`${SUPABASE_URL}/functions/v1/wa-webhook`)}
+                    style={{ padding: '8px 12px', background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.22)', borderRadius: 8, color: '#2AABEE', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                    نسخ
+                  </button>
+                </div>
+              </div>
+              {waSettingsPage.waConnected && (
+                <button onClick={() => { removeWaSettings(waSettingsPage.id); setWaSettingsPage(null); }}
+                  style={{ width: '100%', padding: '8px', background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.22)', borderRadius: 9, color: '#F25050', fontSize: 12, fontWeight: 700 }}>
+                  إلغاء ربط واتساب من هذه الصفحة
+                </button>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setWaSettingsPage(null)} style={styles.modalCancelBtn}>إلغاء</button>
+              <button onClick={saveWaSettings} disabled={savingWa}
+                style={{ ...styles.modalSaveBtn, background: 'linear-gradient(135deg,#25D366,#128C7E)' }}>
+                {savingWa ? 'جارٍ الحفظ...' : '✓ حفظ وربط واتساب'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
