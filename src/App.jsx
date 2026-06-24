@@ -29,6 +29,29 @@ const FB_SEND_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-send-message`;
 const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-from-image`;
 const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
 const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shipment`;
+const WASEET_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/waseet-create-shipment`;
+const DELIVERY_SYNC_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/delivery-sync-order`;
+
+// شركات التوصيل المتاحة في شاشة الطباعة
+// ملاحظة: شركة الفهود تستخدم الربط الحالي الموجود عندك، والوسيط جاهزة للتفعيل بعد ربط Edge Function الخاص بها.
+const DELIVERY_COMPANIES = {
+  fuhood: {
+    id: 'fuhood',
+    label: 'شركة الفهود',
+    shortLabel: 'الفهود',
+    color: '#60A5FA',
+    createUrl: JENNI_CREATE_FUNCTION_URL,
+    enabled: true,
+  },
+  waseet: {
+    id: 'waseet',
+    label: 'شركة الوسيط',
+    shortLabel: 'الوسيط',
+    color: '#F0A868',
+    createUrl: WASEET_CREATE_FUNCTION_URL,
+    enabled: false, // غيّرها إلى true بعد ربط waseet-create-shipment
+  },
+};
 
 // محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
 const IRAQ_GOVERNORATES = [
@@ -235,7 +258,7 @@ function mapOrderFromDb(row) {
     address: row.address,
     items: row.items,
     orderType: row.order_type || '',
-    total: Number(row.total) || 0,
+    total: normalizeIqdAmount(row.total),
     status: row.status,
     date: row.order_date,
     fahdRef: row.fahd_ref,
@@ -250,7 +273,14 @@ function mapOrderFromDb(row) {
     printBatchId: row.print_batch_id || null,
     printedAt: row.printed_at || null,
     // مرحلة الطلب: ready (جاهز للطباعة) → prep (قيد التجهيز) → delivery (لدى شركة التوصيل)
-    stage: row.stage || (row.printed ? 'prep' : 'ready'),
+    stage: (() => {
+      const baseStage = row.stage || (row.printed ? 'prep' : 'ready');
+      const receivedStatuses = ['company_received', 'sorting', 'shipping', 'delivered', 'returned'];
+      const companyReceived = receivedStatuses.includes(row.delivery_status) || !!row.company_received_at;
+      // إذا شركة التوصيل بلّغت أنها استلمت الطلب، يظهر تلقائياً ضمن "لدى شركة التوصيل"
+      if (baseStage === 'prep' && companyReceived) return 'delivery';
+      return baseStage;
+    })(),
     // التجهيز
     prepStatus: row.prep_status || null, // null | 'done' | 'rejected'
     prepBy: row.prep_by || null,
@@ -260,6 +290,9 @@ function mapOrderFromDb(row) {
     reprepNote: row.reprep_note || null,
     reprepByName: row.reprep_by_name || null,
     // شركة التوصيل
+    deliveryCompany: row.delivery_company || 'fuhood',
+    deliveryActions: Array.isArray(row.delivery_actions) ? row.delivery_actions : [],
+    companyReceivedAt: row.company_received_at || null,
     deliveryStatus: row.delivery_status || null,
     governorateCode: row.governorate_code || '',
     governorateName: row.governorate_name || '',
@@ -330,12 +363,38 @@ const STATUS_CONFIG = {
   delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 },
 };
 
-// حالات شركة التوصيل (تُحدَّث لاحقاً عبر الربط مع الشركة)
+// حالات شركة التوصيل — تتحكم بعرض الطلب داخل النظام حسب رد شركة التوصيل
 const DELIVERY_STATUS_CONFIG = {
-  sorting:   { label: 'قيد العد والفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' },
-  shipping:  { label: 'بالطريق',          color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
-  delivered: { label: 'مستلم',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)' },
-  returned:  { label: 'راجع',             color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
+  ready_to_handover: {
+    label: 'جاهز للنقل إلى الشركة',
+    color: '#F0A868',
+    bg: 'rgba(240,168,104,0.12)',
+  },
+  company_received: {
+    label: 'استلمته شركة التوصيل',
+    color: '#60A5FA',
+    bg: 'rgba(96,165,250,0.12)',
+  },
+  sorting: {
+    label: 'قيد العد والفرز',
+    color: '#A78BFA',
+    bg: 'rgba(167,139,250,0.12)',
+  },
+  shipping: {
+    label: 'بالطريق',
+    color: '#3B82F6',
+    bg: 'rgba(59,130,246,0.12)',
+  },
+  delivered: {
+    label: 'مستلم',
+    color: '#4ADE80',
+    bg: 'rgba(74,222,128,0.12)',
+  },
+  returned: {
+    label: 'راجع',
+    color: '#F45B69',
+    bg: 'rgba(244,91,105,0.12)',
+  },
 };
 
 // مراحل دورة حياة الطلب
@@ -394,6 +453,32 @@ const SEED_ORDERS = [
 const SEED_USERS = [
   { id: 'u1', name: 'المدير العام', role: 'admin', code: '100020', active: true, permissions: ['all'] },
 ];
+
+// ──────────────────────────────────────────────
+// أدوات تصحيح الأرقام والمبالغ العراقية
+// ──────────────────────────────────────────────
+function toEnglishDigits(value) {
+  return String(value ?? '')
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+}
+
+function normalizeIqdAmount(value) {
+  let s = toEnglishDigits(value)
+    .replace(/[٬،,]/g, '')
+    .replace(/[^\d.]/g, '')
+    .trim();
+
+  if (!s) return 0;
+
+  let n = Number(s);
+  if (!Number.isFinite(n)) return 0;
+
+  // في السوق العراقي غالباً كتابة 85 تعني 85,000 دينار
+  if (n > 0 && n < 1000) n *= 1000;
+
+  return Math.round(n);
+}
 
 // ──────────────────────────────────────────────
 // أداة كشف حجم الشاشة (للتصميم المتجاوب)
@@ -1670,6 +1755,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const ocrInputRef = React.useRef(null);
   const [section, setSection] = useState('ready');
   const [printTarget, setPrintTarget] = useState(null);
+  const [selectedReadyIds, setSelectedReadyIds] = useState(new Set());
+  const [printCompanyModal, setPrintCompanyModal] = useState(null);
+  const [deliveryRefreshingId, setDeliveryRefreshingId] = useState(null);
 
   // مطابقة الفلاتر المشتركة (صفحة + تاريخ + بحث) على طلب
   function passesCommon(o) {
@@ -1801,6 +1889,22 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleOrders, section, selectedPage, statusFilter, search, datePreset, customMonth, customYear]);
+
+
+
+  // تنظيف تحديد طلبات الطباعة عند تغيير الفلاتر أو مغادرة قسم الجاهزة للطباعة
+  useEffect(() => {
+    if (section !== 'ready') {
+      setSelectedReadyIds(new Set());
+      return;
+    }
+
+    const visibleIds = new Set(stageOrders.map((o) => o.id));
+    setSelectedReadyIds((prev) => {
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [section, stageOrders]);
 
   const stageCounts = useMemo(() => {
     const c = { ready: 0, prep: 0, delivery: 0 };
@@ -1978,7 +2082,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
 
     // 5. المبلغ — amount_iqd (إجباري، > 0)
-    const total = Number(order.total);
+    const total = normalizeIqdAmount(order.total);
     if (!total || total <= 0) {
       errors.total = 'المبلغ مطلوب ويجب أن يكون أكبر من صفر';
     }
@@ -2010,7 +2114,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
-          total: Number(editingOrder.total) || 0,
+          total: normalizeIqdAmount(editingOrder.total),
           status: editingOrder.status,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
@@ -2021,17 +2125,13 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
           address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
           governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
-          total: Number(editingOrder.total) || 0, status: editingOrder.status,
+          total: normalizeIqdAmount(editingOrder.total), status: editingOrder.status,
           conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
         };
         setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
         if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
-        // ── إعادة إرسال لجيني إذا لم يُرسَل بعد أو كان فيه خطأ سابق ──
-        const prevOrder = orders.find((o) => o.id === editingOrder.id);
-        if (!prevOrder?.jenniSent) {
-          sendOrderToJenni(updatedOrder, { silent: true });
-        }
+        // لا نرسل الطلب لشركة التوصيل عند الحفظ. الإرسال يتم بعد الطباعة واختيار الشركة.
       } else {
         const payload = {
           order_no: String(Date.now()).slice(-6),
@@ -2044,7 +2144,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
-          total: Number(editingOrder.total) || 0,
+          total: normalizeIqdAmount(editingOrder.total),
           status: editingOrder.status || 'pending',
           stage: 'ready',
           order_date: new Date().toISOString().slice(0, 10),
@@ -2057,10 +2157,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           const newOrder = mapOrderFromDb(created[0]);
           setOrders((prev) => [newOrder, ...prev]);
           if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
-          // ── إرسال فوري لجيني عند إنشاء الطلب ──
-          // الطلب يظهر عند جيني بحالة NEW_ORDER_TO_PRINT (جاهز للطباعة)
-          // وهذا هو الـ workflow الصحيح: جيني تعرف بالطلب مبكراً قبل الطباعة
-          sendOrderToJenni(newOrder, { silent: true });
+          // لا نرسل الطلب لشركة التوصيل عند الإنشاء. الإرسال يتم بعد الطباعة واختيار الشركة.
         }
       }
       setEditingOrder(null);
@@ -2127,7 +2224,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         area: ocrArea,
         items: data.order?.items || '',
         orderType: data.order?.order_type || '',
-        total: data.order?.total ? String(data.order.total) : '',
+        total: data.order?.total ? String(normalizeIqdAmount(data.order.total)) : '',
         status: 'pending', conversationId: '',
       });
     } catch (e) {
@@ -2154,33 +2251,65 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       .sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
   }
 
-  // الطباعة تنقل الطلب من "جاهز للطباعة" إلى "قيد التجهيز" داخل موقعك فقط.
-  // الطلب أُرسِل لجيني مسبقاً عند إنشائه (مرحلة ready) بحالة NEW_ORDER_TO_PRINT.
-  // لو لسبب ما لم يُرسَل بعد (مثلاً طلب قديم)، يُرسَل الآن كاحتياط.
-  async function markOrdersPrintedAndPrep(ids) {
+  // الطباعة تنقل الطلبات المحددة من "جاهز للطباعة" إلى "قيد التجهيز" داخل موقعك،
+  // وتنشئها عند شركة التوصيل المختارة بحالة "جاهز للنقل إلى الشركة".
+  async function markOrdersPrintedAndPrep(ids, companyId = 'fuhood') {
     if (ids.length === 0) return;
+
+    const company = DELIVERY_COMPANIES[companyId] || DELIVERY_COMPANIES.fuhood;
+    if (!company.enabled) {
+      alert(`${company.label} غير مفعّلة حالياً. اربطها أولاً ثم جرّب مرة ثانية.`);
+      return;
+    }
+
     const batchId = `batch-${Date.now()}`;
     const printedAt = new Date().toISOString();
-    // الطلبات التي لم تُرسَل لجيني بعد (احتياط للطلبات القديمة)
-    const notSentYet = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
+    const selectedOrders = orders.filter((o) => ids.includes(o.id));
+
     setOrders((prev) => prev.map((o) => (
-      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
+      ids.includes(o.id)
+        ? {
+            ...o,
+            printed: true,
+            printBatchId: batchId,
+            printedAt,
+            stage: 'prep',
+            deliveryCompany: companyId,
+            deliveryStatus: 'ready_to_handover',
+            deliveryStep: 'ready_to_handover',
+            deliveryStepAr: 'جاهز للنقل إلى الشركة',
+          }
+        : o
     )));
-    // حفظ في DB
+
     try {
       await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
-        printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
+        printed: true,
+        print_batch_id: batchId,
+        printed_at: printedAt,
+        stage: 'prep',
+        delivery_company: companyId,
+        delivery_status: 'ready_to_handover',
+        delivery_step: 'ready_to_handover',
+        delivery_step_ar: 'جاهز للنقل إلى الشركة',
       })));
     } catch (e) {
       console.error('mark printed error:', e);
     }
-    // إرسال احتياطي فقط للطلبات القديمة التي لم تُرسَل عند الإنشاء
-    for (const o of notSentYet) {
-      await sendOrderToJenni(o, { silent: true });
+
+    for (const o of selectedOrders) {
+      await sendOrderToDeliveryCompany(
+        { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep', deliveryCompany: companyId },
+        companyId,
+        { silent: true }
+      );
     }
+
+    setSelectedReadyIds(new Set());
   }
 
-  // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
+  // إرسال طلب واحد لشركة التوصيل المختارة وحفظ رقم الشحنة (صامت)
+
   // تنظيف رقم الهاتف ليكون بصيغة 07XXXXXXXXX التي تقبلها جيني
   function normalizeIraqiPhone(raw) {
     if (!raw) return '';
@@ -2191,14 +2320,22 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     return digits.slice(0, 11); // 07XXXXXXXXX = 11 رقماً
   }
 
-  async function sendOrderToJenni(o, { silent = false } = {}) {
-    // ── خط دفاع: التحقق من كل الحقول الإجبارية قبل الإرسال ──
+  async function sendOrderToDeliveryCompany(o, companyId = 'fuhood', { silent = false } = {}) {
+    const company = DELIVERY_COMPANIES[companyId] || DELIVERY_COMPANIES.fuhood;
+
+    if (!company.enabled) {
+      const msg = `${company.label} غير مفعّلة حالياً`;
+      if (!silent) alert(msg);
+      return false;
+    }
+
     if (!o.governorateCode || !o.phone) {
       const msg = 'لا يمكن الإرسال لشركة التوصيل: المحافظة ورقم الهاتف مطلوبان';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
     }
+
     const cleanPhone = normalizeIraqiPhone(o.phone);
     if (cleanPhone.length !== 11 || !cleanPhone.startsWith('07')) {
       const msg = `رقم الهاتف غير صالح: ${o.phone} — يجب أن يكون بصيغة 07XXXXXXXXX`;
@@ -2206,6 +2343,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       if (!silent) alert(msg);
       return false;
     }
+
     const cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1] || '';
     if (!cityValue) {
       const msg = 'المنطقة/المدينة مطلوبة — عدّل الطلب وأضف المنطقة';
@@ -2213,15 +2351,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       if (!silent) alert(msg);
       return false;
     }
-    if (!Number(o.total) || Number(o.total) <= 0) {
+
+    const amount = normalizeIqdAmount(o.total);
+    if (!amount || amount <= 0) {
       const msg = 'المبلغ يجب أن يكون أكبر من صفر';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
       if (!silent) alert(msg);
       return false;
     }
 
-    // ── البيانات المرسلة لشركة التوصيل ──
     const shipmentPayload = {
+      company: companyId,
       external_shipment_id: String(o.id),
       shipment_number: String(o.orderNo || o.id),
       receiver_name: o.customer || '',
@@ -2229,14 +2369,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       governorate_code: o.governorateCode,
       city: cityValue,
       address: o.address || '',
-      amount_iqd: Number(o.total) || 0,
+      amount_iqd: amount,
       note: o.orderType || undefined,
+      requested_status: 'ready_to_handover',
     };
 
-    console.log('📦 إرسال لشركة التوصيل:', shipmentPayload);
+    console.log(`📦 إرسال إلى ${company.label}:`, shipmentPayload);
 
     try {
-      const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
+      const res = await fetch(company.createUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2250,83 +2391,166 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const rawText = await res.text();
       try { data = JSON.parse(rawText); } catch (_) { data = { raw: rawText }; }
 
-      console.log('📬 رد شركة التوصيل:', res.status, data);
+      console.log(`📬 رد ${company.label}:`, res.status, data);
 
-      if (res.ok && (data?.success || data?.shipment_id)) {
+      if (res.ok && (data?.success || data?.shipment_id || data?.id || data?.tracking_number)) {
         const patch = {
+          delivery_company: companyId,
           jenni_sent: true,
-          jenni_shipment_id: data.shipment_id || null,
-          jenni_tracking: data.tracking_number || null,
-          delivery_status: 'sorting',
+          jenni_shipment_id: data.shipment_id || data.id || null,
+          jenni_tracking: data.tracking_number || data.tracking || null,
+          delivery_status: 'ready_to_handover',
+          delivery_step: 'ready_to_handover',
+          delivery_step_ar: 'جاهز للنقل إلى الشركة',
+          delivery_note: data.message || data.note || null,
         };
+
         setOrders((prev) => prev.map((x) => (x.id === o.id ? {
           ...x,
+          deliveryCompany: companyId,
           jenniSent: true,
-          jenniShipmentId: data.shipment_id || null,
-          jenniTracking: data.tracking_number || null,
+          jenniShipmentId: data.shipment_id || data.id || null,
+          jenniTracking: data.tracking_number || data.tracking || null,
           jenniError: null,
-          deliveryStatus: 'sorting',
+          deliveryStatus: 'ready_to_handover',
+          deliveryStep: 'ready_to_handover',
+          deliveryStepAr: 'جاهز للنقل إلى الشركة',
+          deliveryNote: data.message || data.note || null,
         } : x)));
+
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', data.shipment_id);
         return true;
       }
 
-      // 409 = موجود مسبقاً
       if (res.status === 409) {
-        const patch = { jenni_sent: true, delivery_status: 'sorting' };
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniError: null, deliveryStatus: 'sorting' } : x)));
+        const patch = {
+          delivery_company: companyId,
+          jenni_sent: true,
+          delivery_status: 'ready_to_handover',
+          delivery_step: 'ready_to_handover',
+          delivery_step_ar: 'جاهز للنقل إلى الشركة',
+        };
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+          ...x,
+          deliveryCompany: companyId,
+          jenniSent: true,
+          jenniError: null,
+          deliveryStatus: 'ready_to_handover',
+          deliveryStep: 'ready_to_handover',
+          deliveryStepAr: 'جاهز للنقل إلى الشركة',
+        } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        console.log('ℹ️ الطلب موجود مسبقاً في شركة التوصيل');
         return true;
       }
 
       const errMsg = data?.error || data?.message || data?.raw || `فشل الإرسال (${res.status})`;
-      console.error('❌ فشل الإرسال لشركة التوصيل:', res.status, errMsg, data);
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`فشل الإرسال لشركة التوصيل:\n${errMsg}`);
+      if (!silent) alert(`فشل الإرسال إلى ${company.label}:
+${errMsg}`);
       return false;
     } catch (e) {
       const errMsg = e?.message || 'خطأ اتصال غير معروف';
-      console.error('❌ خطأ في الاتصال بشركة التوصيل:', e);
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`تعذّر الاتصال بشركة التوصيل:\n${errMsg}`);
+      if (!silent) alert(`تعذّر الاتصال بـ ${company.label}:
+${errMsg}`);
       return false;
     }
   }
 
-  function triggerPrint(target, idsToMove) {
+  // توافق مع أي استدعاء قديم داخل الكود
+  async function sendOrderToJenni(o, options = {}) {
+    return sendOrderToDeliveryCompany(o, 'fuhood', options);
+  }
+
+  function triggerPrint(target, idsToMove, companyId = 'fuhood') {
     setPrintTarget(target);
     setTimeout(() => {
       window.print();
       setPrintTarget(null);
-      if (idsToMove?.length) markOrdersPrintedAndPrep(idsToMove);
+      if (idsToMove?.length) markOrdersPrintedAndPrep(idsToMove, companyId);
     }, 60);
   }
 
   function handlePrintReady() {
-    const ids = stageOrders.map((o) => o.id);
-    if (ids.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
-    triggerPrint('ready', ids);
+    const ids = [...selectedReadyIds];
+    if (ids.length === 0) {
+      alert('حدد الطلبات التي تريد طباعتها أولاً');
+      return;
+    }
+    setPrintCompanyModal({ ids });
   }
 
   function handleReprintBatch(batchId, batchOrders) {
     triggerPrint(batchId, null);
   }
 
-  // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
-  // إذا لم يكن منشأ لأي سبب، نحاول إنشاءه قبل النقل حتى يبقى التطابق صحيحاً.
+  // نقل الطلب إلى مرحلة "لدى شركة التوصيل" بعد الاستلام الفعلي من الشركة
   async function moveToDelivery(o) {
-    const sentOk = o.jenniSent || await sendOrderToJenni(o);
-    if (!sentOk) return;
-    const patch = { stage: 'delivery', delivery_status: 'sorting', status: 'pending' };
+    const now = new Date().toISOString();
+    const patch = {
+      stage: 'delivery',
+      delivery_status: o.deliveryStatus === 'ready_to_handover' ? 'company_received' : (o.deliveryStatus || 'company_received'),
+      delivery_step: o.deliveryStep === 'ready_to_handover' ? 'company_received' : (o.deliveryStep || 'company_received'),
+      delivery_step_ar: o.deliveryStepAr === 'جاهز للنقل إلى الشركة' ? 'استلمته شركة التوصيل' : (o.deliveryStepAr || 'استلمته شركة التوصيل'),
+      company_received_at: now,
+      status: 'pending',
+    };
+
     setOrders((prev) => prev.map((x) => (x.id === o.id ? {
-      ...x, stage: 'delivery', deliveryStatus: 'sorting', jenniSent: true, status: 'pending',
+      ...x,
+      stage: 'delivery',
+      deliveryStatus: patch.delivery_status,
+      deliveryStep: patch.delivery_step,
+      deliveryStepAr: patch.delivery_step_ar,
+      companyReceivedAt: now,
+      status: 'pending',
     } : x)));
     setDetailOrder(null);
     try {
       await sbUpdate('alfhd_orders', o.id, patch);
     } catch (e) { console.error('move to delivery error:', e); }
+  }
+
+  async function refreshDeliveryStatus(o) {
+    if (!o?.id) return;
+    setDeliveryRefreshingId(o.id);
+    try {
+      const res = await fetch(DELIVERY_SYNC_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({
+          orderId: o.id,
+          company: o.deliveryCompany || 'fuhood',
+          shipmentId: o.jenniShipmentId,
+          tracking: o.jenniTracking,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.error) throw new Error(data?.error || `فشل تحديث الحالة (${res.status})`);
+
+      const next = data.order ? mapOrderFromDb(data.order) : {
+        ...o,
+        deliveryStatus: data.delivery_status || data.status || o.deliveryStatus,
+        deliveryStep: data.delivery_step || data.step || o.deliveryStep,
+        deliveryStepAr: data.delivery_step_ar || data.step_ar || data.message || o.deliveryStepAr,
+        deliveryNote: data.delivery_note || data.note || o.deliveryNote,
+        deliveryUpdatedAt: data.delivery_updated_at || new Date().toISOString(),
+        deliveryActions: Array.isArray(data.delivery_actions) ? data.delivery_actions : (o.deliveryActions || []),
+      };
+
+      setOrders((prev) => prev.map((x) => (x.id === o.id ? next : x)));
+      setDetailOrder(next);
+    } catch (e) {
+      console.error('refresh delivery status error:', e);
+      alert(`تعذّر تحديث حالة شركة التوصيل:
+${e?.message || 'خطأ غير معروف'}`);
+    } finally {
+      setDeliveryRefreshingId(null);
+    }
   }
 
   const prepBatches = useMemo(() => groupByBatch(stageOrders), [stageOrders]);
@@ -2337,6 +2561,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
     }
     if (section === 'prep') {
+      const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus];
+      if (o.jenniSent && dcfg) {
+        return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
+      }
       return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
     }
     return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
@@ -2345,12 +2573,49 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   function renderOrderCard(o, index = 0) {
     const page = pages.find((p) => p.id === o.pageId);
     const isRejected = o.prepStatus === 'rejected';
+    const isSelectableReady = section === 'ready' && !o.converted;
+    const isSelectedReady = selectedReadyIds.has(o.id);
     return (
       <div
         key={o.id}
         style={{ ...styles.orderCard, ...(isRejected ? styles.rejectedCard : {}), animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
         className="alfhd-order-card alfhd-card-enter"
       >
+        {isSelectableReady && (
+          <label
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '9px 13px',
+              background: isSelectedReady ? 'rgba(77,219,107,0.10)' : 'rgba(255,255,255,0.03)',
+              borderBottom: '1px solid rgba(255,255,255,0.07)',
+              cursor: 'pointer',
+              color: isSelectedReady ? '#4DDB6B' : '#8B9AB3',
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            <span>تحديد للطباعة</span>
+            <input
+              type="checkbox"
+              checked={isSelectedReady}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setSelectedReadyIds((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.add(o.id);
+                  else next.delete(o.id);
+                  return next;
+                });
+              }}
+              style={styles.checkbox}
+            />
+          </label>
+        )}
+
         {isRejected && (
           <div style={styles.rejectedBanner}>
             <AlertCircle size={16} />
@@ -2407,7 +2672,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {o.printed && <span style={styles.printedBadge}><Printer size={9} /> مطبوعة</span>}
-            {o.jenniSent && <span style={{ ...styles.printedBadge, background: 'rgba(96,165,250,0.12)', color: '#93C5FD', borderColor: 'rgba(96,165,250,0.32)' }}><Truck size={9} /> لدى شركة التوصيل</span>}
+            {o.jenniSent && (
+              <span style={{ ...styles.printedBadge, background: 'rgba(240,168,104,0.12)', color: '#F0A868', borderColor: 'rgba(240,168,104,0.32)' }}>
+                <Truck size={9} /> {o.stage === 'delivery' ? 'لدى شركة التوصيل' : 'جاهز للنقل'}
+              </span>
+            )}
             {o.jenniTracking && <span style={{ ...styles.printedBadge, background: 'rgba(167,139,250,0.12)', color: '#C4B5FD', borderColor: 'rgba(167,139,250,0.32)', fontFamily: 'monospace' }}>#{o.jenniTracking}</span>}
           </div>
         </div>
@@ -2427,7 +2696,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 color: '#F45B69', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
               }}
             >
-              <Edit3 size={12} /> إصلاح البيانات — سيُرسَل لشركة التوصيل تلقائياً
+              <Edit3 size={12} /> إصلاح البيانات — ثم أعد الطباعة/الإرسال لشركة التوصيل
             </button>
           </div>
         )}
@@ -2547,21 +2816,35 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <Plus size={15} /> طلب جديد
           </button>
 
-          {/* زر طباعة — فقط في قسم جاهز */}
+          {/* أزرار الطباعة — فقط في قسم جاهز */}
           {isReady && (
-            <button
-              onClick={handlePrintReady}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px',
-                background: 'linear-gradient(135deg,#4DDB6B,#22C55E)',
-                border: 'none', borderRadius: 10,
-                color: '#fff', fontSize: 12.5, fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(77,219,107,0.35)',
-              }}
-            >
-              <Printer size={15} /> طباعة الكل ({stageOrders.length})
-            </button>
+            <>
+              <button
+                onClick={() => setSelectedReadyIds(new Set(stageOrders.map((o) => o.id)))}
+                style={styles.secondaryBtn}
+              >
+                <CheckCircle2 size={14} /> تحديد الكل
+              </button>
+              <button
+                onClick={() => setSelectedReadyIds(new Set())}
+                style={styles.secondaryBtn}
+              >
+                <X size={14} /> إلغاء التحديد
+              </button>
+              <button
+                onClick={handlePrintReady}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px',
+                  background: selectedReadyIds.size ? 'linear-gradient(135deg,#4DDB6B,#22C55E)' : 'rgba(84,104,128,0.25)',
+                  border: 'none', borderRadius: 10,
+                  color: '#fff', fontSize: 12.5, fontWeight: 700,
+                  boxShadow: selectedReadyIds.size ? '0 2px 8px rgba(77,219,107,0.35)' : 'none',
+                }}
+              >
+                <Printer size={15} /> طباعة المحدد ({selectedReadyIds.size})
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -2645,6 +2928,59 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         </div>
       )}
 
+      {printCompanyModal && (
+        <div style={styles.modalOverlay} onClick={() => setPrintCompanyModal(null)}>
+          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>اختيار شركة التوصيل للطباعة</h3>
+              <button onClick={() => setPrintCompanyModal(null)} style={styles.modalClose}><X size={18} /></button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{
+                padding: '10px 12px', borderRadius: 10,
+                background: 'rgba(42,171,238,0.08)', border: '1px solid rgba(42,171,238,0.20)',
+                color: '#2AABEE', fontSize: 12, fontWeight: 700, lineHeight: 1.7,
+              }}>
+                سيتم طباعة {printCompanyModal.ids.length} طلب. بعد الطباعة يصبح الطلب داخل موقعك <b>قيد التجهيز</b>،
+                وعند شركة التوصيل يصبح <b>جاهز للنقل إلى الشركة</b>.
+              </div>
+
+              {Object.values(DELIVERY_COMPANIES).map((company) => (
+                <button
+                  key={company.id}
+                  onClick={() => {
+                    if (!company.enabled) {
+                      alert(`${company.label} غير مربوطة حالياً. اربطها أولاً ثم فعّلها من الكود.`);
+                      return;
+                    }
+                    const ids = printCompanyModal.ids;
+                    setPrintCompanyModal(null);
+                    triggerPrint('ready', ids, company.id);
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    width: '100%', padding: '13px 14px', borderRadius: 12,
+                    border: `1px solid ${company.enabled ? company.color + '55' : 'rgba(255,255,255,0.08)'}`,
+                    background: company.enabled ? `${company.color}14` : 'rgba(255,255,255,0.03)',
+                    color: company.enabled ? company.color : '#546880',
+                    fontSize: 13, fontWeight: 800,
+                    cursor: company.enabled ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Truck size={16} /> {company.label}
+                  </span>
+                  <span style={{ fontSize: 11, opacity: 0.85 }}>{company.enabled ? 'مربوطة' : 'غير مربوطة بعد'}</span>
+                </button>
+              ))}
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setPrintCompanyModal(null)} style={styles.modalCancelBtn}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {detailOrder && (
         <OrderDetailModal
           order={detailOrder}
@@ -2655,7 +2991,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           onDelete={() => handleDelete(detailOrder)}
           onShare={() => handleShare(detailOrder)}
           onViewConversation={detailOrder.conversationId ? () => { onViewConversation?.(detailOrder.conversationId); setDetailOrder(null); } : null}
-          onMoveToDelivery={isPrep ? () => moveToDelivery(detailOrder) : null}
+          onMoveToDelivery={isPrep && detailOrder.jenniSent ? () => moveToDelivery(detailOrder) : null}
+          onRefreshDelivery={() => refreshDeliveryStatus(detailOrder)}
+          deliveryRefreshing={deliveryRefreshingId === detailOrder.id}
           onReprep={detailOrder.prepStatus === 'rejected' ? (note) => reprepOrder(detailOrder, note) : null}
           onContactCustomer={onContactCustomer}
         />
@@ -2976,7 +3314,21 @@ function ClickableStat({ icon: Icon, label, value, color, active, onClick }) {
   );
 }
 
-function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery, onReprep, onContactCustomer }) {
+function OrderDetailModal({
+  order,
+  page,
+  section,
+  onClose,
+  onEdit,
+  onDelete,
+  onShare,
+  onViewConversation,
+  onMoveToDelivery,
+  onRefreshDelivery,
+  deliveryRefreshing,
+  onReprep,
+  onContactCustomer,
+}) {
   const o = order;
   const [reprepMode, setReprepMode] = useState(false);
   const [reprepNote, setReprepNote] = useState('');
@@ -3013,6 +3365,55 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>التاريخ</span><span style={styles.detailGridValue}>{o.date}</span></div>
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الرقم المرجعي</span><span style={{ ...styles.detailGridValue, fontFamily: 'monospace' }}>{o.fahdRef}</span></div>
 
+          {o.jenniSent && (
+            <div style={{
+              padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.22)',
+              display: 'flex', flexDirection: 'column', gap: 7,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#60A5FA', fontSize: 12.5, fontWeight: 800 }}>
+                <Truck size={15} /> معلومات شركة التوصيل
+              </div>
+              <div style={styles.detailGridRow}>
+                <span style={styles.detailGridLabel}>الشركة</span>
+                <span style={styles.detailGridValue}>{DELIVERY_COMPANIES[o.deliveryCompany || 'fuhood']?.label || o.deliveryCompany || 'شركة التوصيل'}</span>
+              </div>
+              <div style={styles.detailGridRow}>
+                <span style={styles.detailGridLabel}>حالة الشركة</span>
+                <span style={{ ...styles.detailGridValue, color: '#60A5FA', fontWeight: 800 }}>
+                  {o.deliveryStepAr || DELIVERY_STATUS_CONFIG[o.deliveryStatus]?.label || 'بانتظار التحديث'}
+                </span>
+              </div>
+              {o.jenniTracking && (
+                <div style={styles.detailGridRow}>
+                  <span style={styles.detailGridLabel}>رقم التتبع</span>
+                  <span style={{ ...styles.detailGridValue, fontFamily: 'monospace', color: '#C4B5FD' }}>{o.jenniTracking}</span>
+                </div>
+              )}
+              {o.deliveryNote && (
+                <div style={{ ...styles.detailGridRow, flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
+                  <span style={styles.detailGridLabel}>رسالة الشركة</span>
+                  <span style={{ ...styles.detailGridValue, textAlign: 'right', color: '#EAF0FB' }}>{o.deliveryNote}</span>
+                </div>
+              )}
+              {o.deliveryUpdatedAt && (
+                <div style={styles.detailGridRow}>
+                  <span style={styles.detailGridLabel}>آخر تحديث</span>
+                  <span style={styles.detailGridValue}>{new Date(o.deliveryUpdatedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                </div>
+              )}
+              {Array.isArray(o.deliveryActions) && o.deliveryActions.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                  {o.deliveryActions.map((a, idx) => (
+                    <button key={idx} onClick={() => { if (a.url) window.open(a.url, '_blank'); }} style={styles.detailActionBtn}>
+                      {a.label || a.title || 'إجراء'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {reprepMode && (
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>ملاحظة للمجهّز (اختياري)</label>
@@ -3035,7 +3436,17 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
               )}
               {onMoveToDelivery && (
                 <button onClick={onMoveToDelivery} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4 }}>
-                  <Truck size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> نقل لشركة التوصيل
+                  <Truck size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> تأكيد استلام شركة التوصيل للطلب
+                </button>
+              )}
+              {onRefreshDelivery && o.jenniSent && (
+                <button
+                  onClick={onRefreshDelivery}
+                  disabled={deliveryRefreshing}
+                  style={{ ...styles.detailActionBtn, flex: '1 1 100%', marginBottom: 4, color: '#60A5FA' }}
+                >
+                  {deliveryRefreshing ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
+                  تحديث حالة شركة التوصيل
                 </button>
               )}
               <button onClick={onEdit} style={styles.detailActionBtn}><Edit3 size={14} /> تعديل</button>
@@ -4649,13 +5060,13 @@ export default function AlFhdApp() {
       const mapped = dbOrders.map(mapOrderFromDb);
       // كشف طلب جديد مثبّت من المحادثات لتشغيل صوت الإشعار
       if (knownOrderIdsRef.current) {
-        const newChatOrder = mapped.find((o) => o.source === 'chat' && !knownOrderIdsRef.current.has(o.id));
+        const newChatOrder = normalizedMapped.find((o) => o.source === 'chat' && !knownOrderIdsRef.current.has(o.id));
         if (newChatOrder) playNotificationSound();
       }
-      knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
+      knownOrderIdsRef.current = new Set(normalizedMapped.map((o) => o.id));
 
       // كشف طلب رفضه المجهّز حديثاً لتشغيل صوت إنذار قوي للمدير
-      const rejectedNow = new Set(mapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
+      const rejectedNow = new Set(normalizedMapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
       if (rejectedIdsRef.current) {
         const newlyRejected = [...rejectedNow].some((id) => !rejectedIdsRef.current.has(id));
         if (newlyRejected) playAlarmSound();
@@ -4663,10 +5074,10 @@ export default function AlFhdApp() {
       rejectedIdsRef.current = rejectedNow;
 
       // حدّث الحالة فقط إذا تغيّر شيء فعلاً
-      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}:${o.jenni_sent}:${o.jenni_shipment_id}:${o.jenni_tracking}:${o.delivery_status}:${o.delivery_step}:${o.delivery_step_ar}:${o.delivery_note}:${o.delivery_updated_at}`).join('|');
+      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}:${o.jenni_sent}:${o.jenni_shipment_id}:${o.jenni_tracking}:${o.delivery_company}:${o.delivery_status}:${o.delivery_step}:${o.delivery_step_ar}:${o.delivery_note}:${o.delivery_updated_at}:${o.company_received_at}:${JSON.stringify(o.delivery_actions || [])}`).join('|');
       if (sig !== orderSignatureRef.current) {
         orderSignatureRef.current = sig;
-        setOrders(mapped);
+        setOrders(normalizedMapped);
       }
     } catch (e) {
       console.error('orders refresh error:', e);
