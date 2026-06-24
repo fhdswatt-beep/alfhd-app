@@ -1685,11 +1685,42 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   useEffect(() => {
     if (!pendingNewOrderFromConv) return;
     const conv = pendingNewOrderFromConv;
+
+    // ── استخراج ذكي للمحافظة والمنطقة من أي حقل فيه بيانات ──
+    // لو الزبون كتب العنوان في رسالة واحدة مثل "بغداد - الكرادة - شارع..."
+    // نحاول نستخرج المحافظة والمنطقة تلقائياً
+    let autoGovCode = '';
+    let autoGovName = '';
+    let autoArea = '';
+    let autoAddress = '';
+
+    const addressRaw = conv.lastMsg || conv.address || '';
+    if (addressRaw) {
+      // ابحث عن اسم محافظة في النص
+      const govFound = IRAQ_GOVERNORATES.find((g) =>
+        addressRaw.includes(g.name) || addressRaw.includes(g.name.replace('ال', ''))
+      );
+      if (govFound) {
+        autoGovCode = govFound.code;
+        autoGovName = govFound.name;
+        // ما تبقى بعد المحافظة = المنطقة + العنوان
+        const rest = addressRaw.replace(govFound.name, '').replace(/^[\s\-،,]+/, '').trim();
+        const parts = rest.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+        autoArea = parts[0] || '';
+        autoAddress = parts.slice(1).join(' - ') || '';
+      }
+    }
+
     setEditingOrder({
       id: null,
       pageId: conv.pageId || pages[0]?.id || '',
       customer: conv.customer || '',
-      phone: '', address: '', items: '', orderType: '', total: '',
+      phone: conv.phone || '',
+      address: autoAddress,
+      governorateCode: autoGovCode,
+      governorateName: autoGovName,
+      area: autoArea,
+      items: '', orderType: '', total: '',
       status: 'pending', conversationId: conv.id || '',
     });
     clearPendingNewOrderFromConv?.();
@@ -2044,10 +2075,42 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) throw new Error(data?.error || 'فشل الاستخراج');
+
+      // ── استخراج المحافظة من البيانات المستخرجة بالـ OCR ──
+      const rawAddress = data.order?.address || '';
+      const rawGovName = data.order?.governorate || data.order?.city || '';
+
+      let ocrGovCode = '';
+      let ocrGovName = '';
+      let ocrArea = data.order?.area || '';
+      let ocrAddress = rawAddress;
+
+      // ابحث عن المحافظة في الحقول المستخرجة
+      const govSearchText = rawGovName || rawAddress;
+      const govFound = IRAQ_GOVERNORATES.find((g) =>
+        govSearchText.includes(g.name) || govSearchText.includes(g.name.replace('ال', ''))
+      );
+      if (govFound) {
+        ocrGovCode = govFound.code;
+        ocrGovName = govFound.name;
+        // إذا كانت المحافظة داخل العنوان، أزلها وخلّ الباقي هو العنوان
+        ocrAddress = rawAddress.replace(govFound.name, '').replace(/^[\s\-،,]+/, '').trim();
+        if (!ocrArea && ocrAddress) {
+          const parts = ocrAddress.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+          ocrArea = parts[0] || '';
+          ocrAddress = parts.slice(1).join(' - ') || '';
+        }
+      }
+
       setEditingOrder({
         id: null, pageId: pages[0]?.id || '',
-        customer: data.order?.customer_name || '', phone: data.order?.phone || '',
-        address: data.order?.address || '', items: data.order?.items || '',
+        customer: data.order?.customer_name || '',
+        phone: data.order?.phone || '',
+        address: ocrAddress,
+        governorateCode: ocrGovCode,
+        governorateName: ocrGovName,
+        area: ocrArea,
+        items: data.order?.items || '',
         orderType: data.order?.order_type || '',
         total: data.order?.total ? String(data.order.total) : '',
         status: 'pending', conversationId: '',
@@ -2349,24 +2412,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 color: '#F45B69', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
               }}
             >
-              <Edit3 size={12} /> إصلاح البيانات وإعادة الإرسال لشركة التوصيل
+              <Edit3 size={12} /> إصلاح البيانات — سيُرسَل لشركة التوصيل تلقائياً
             </button>
           </div>
-        )}
-
-        {/* زر إرسال يدوي للطلبات غير المرسلة بدون خطأ */}
-        {!o.jenniSent && !o.jenniError && (section === 'prep' || section === 'ready') && (
-          <button
-            onClick={() => sendOrderToJenni(o, { silent: false })}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: '8px', marginBottom: 6,
-              background: 'rgba(42,171,238,0.08)', border: '1px solid rgba(42,171,238,0.22)',
-              borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            <Truck size={13} /> إرسال لشركة التوصيل
-          </button>
         )}
         <div style={styles.orderCardActions} className="alfhd-no-print">
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
