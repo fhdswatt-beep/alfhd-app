@@ -17,6 +17,8 @@ import {
 // ──────────────────────────────────────────────
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
+// Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
+const WA_BRIDGE_URL = 'https://alfhd-wa-bridge.up.railway.app';
 
 // ──────────────────────────────────────────────
 // إعدادات ربط فيسبوك الحقيقي (OAuth)
@@ -431,14 +433,27 @@ function mapUserFromDb(row) {
 }
 
 function mapConversationFromDb(row) {
+  // استخراج اسم صحيح للمحادثات من واتساب
+  let customerName = row.customer_name || '';
+  const psid = row.customer_psid || '';
+  const isWA = row.source === 'whatsapp' || psid.startsWith('wa_');
+
+  // لو الاسم هو نفس الـ psid أو فارغ — عرّض الرقم بشكل مقروء
+  if (!customerName || customerName === psid) {
+    const phone = psid.replace('wa_', '');
+    customerName = phone ? `+${phone}` : 'واتساب';
+  }
+
   return {
     id: row.id,
     pageId: row.page_id,
-    customer: row.customer_name,
-    customerPsid: row.customer_psid,
-    avatar: row.avatar || '👤',
+    customer: customerName,
+    phone: row.phone || psid.replace('wa_', ''),
+    customerPsid: psid,
+    avatar: row.avatar || (isWA ? '📱' : '👤'),
     avatarUrl: row.avatar_url || null,
     platform: row.source || 'facebook',
+    isWhatsApp: isWA,
     lastMsg: row.last_message || '',
     time: row.last_message_time
       ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
@@ -455,8 +470,9 @@ function mapMessageFromDb(row) {
     conversationId: row.conversation_id,
     direction: row.direction || 'incoming',
     content: row.content || null,
-    type: row.message_type || 'text',
+    type: row.type || row.message_type || 'text',
     mediaUrl: row.media_url || null,
+    source: row.source || 'facebook',
     time: row.created_at
       ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
       : '',
@@ -1121,17 +1137,40 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
     setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
     touchConvLocally(selectedConv.id, text);
-    // كشف تحويل فوري من الرسالة المُرسَلة
     if (isHandoffMessage(text)) {
       await maybeHandoffConversation(selectedConv.id, [{ content: text }]);
     }
     try {
-      await sendToFacebook({
-        pageId: selectedConv.pageId,
-        conversationId: selectedConv.id,
-        recipientPsid: selectedConv.customerPsid,
-        text,
-      });
+      // ── واتساب: إرسال عبر Bridge ──
+      if (selectedConv.isWhatsApp) {
+        const phone = selectedConv.customerPsid?.replace('wa_', '') || selectedConv.phone;
+        const res = await fetch(`${WA_BRIDGE_URL}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, message: text }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'فشل إرسال واتساب');
+        }
+        // حفظ الرسالة في قاعدة البيانات
+        await sbInsert('alfhd_messages', {
+          conversation_id: selectedConv.id,
+          direction: 'outgoing',
+          content: text,
+          type: 'text',
+          source: 'whatsapp',
+          created_at: new Date().toISOString(),
+        });
+      } else {
+        // ── ماسنجر: إرسال عبر فيسبوك ──
+        await sendToFacebook({
+          pageId: selectedConv.pageId,
+          conversationId: selectedConv.id,
+          recipientPsid: selectedConv.customerPsid,
+          text,
+        });
+      }
       await loadMessages(selectedConv.id);
     } catch (e) {
       console.error('send text error:', e);
