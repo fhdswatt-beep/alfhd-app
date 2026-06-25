@@ -5827,35 +5827,54 @@ function WarehouseView() {
     }
   }
 
+  const isMobile = useIsMobile();
+
   return (
-    <div style={{display:'flex',height:'100%',direction:'rtl'}}>
-      {/* قائمة جانبية للمخزن */}
-      <div style={{width:200,flexShrink:0,background:'linear-gradient(180deg,#17212B,#141F2B)',borderLeft:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',padding:'14px 10px',gap:4,overflowY:'auto'}}>
-        <div style={{fontSize:13,fontWeight:800,color:'#8B9AB3',padding:'0 6px 10px',borderBottom:'1px solid rgba(255,255,255,0.07)',marginBottom:6}}>
-          🏪 إدارة المخزن
+    <div style={{display:'flex',flexDirection:isMobile?'column':'row',height:'100%',direction:'rtl'}}>
+
+      {/* ── على الموبايل: تابات أفقية في الأعلى ── */}
+      {isMobile ? (
+        <div style={{display:'flex',overflowX:'auto',background:'#17212B',borderBottom:'1px solid rgba(255,255,255,0.07)',padding:'8px 10px',gap:6,flexShrink:0,WebkitOverflowScrolling:'touch'}}>
+          {WH_NAV.map(item=>{
+            const Icon=item.icon;
+            const active=whView===item.id;
+            return(
+              <button key={item.id} onClick={()=>setWhView(item.id)}
+                style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'7px 12px',borderRadius:10,background:active?'rgba(42,171,238,0.18)':'rgba(255,255,255,0.04)',border:`1px solid ${active?'rgba(42,171,238,0.35)':'transparent'}`,color:active?'#2AABEE':'#8B9AB3',fontSize:10,fontWeight:active?800:600,cursor:'pointer',flexShrink:0,transition:'all 0.15s',minWidth:56}}>
+                <Icon size={18} strokeWidth={active?2.5:1.8}/>
+                {item.label}
+              </button>
+            );
+          })}
         </div>
-        {/* تنبيهات سريعة */}
-        {(lowCount>0||urgentDbt>0)&&(
-          <div style={{background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:9,padding:'7px 10px',marginBottom:8,fontSize:11}}>
-            {lowCount>0&&<div style={{color:'#F0A868',marginBottom:2}}>⚠️ {lowCount} منتج منخفض</div>}
-            {urgentDbt>0&&<div style={{color:'#F25050'}}>🔴 {urgentDbt} دين عاجل</div>}
+      ) : (
+        /* ── على اللابتوب: قائمة جانبية ── */
+        <div style={{width:200,flexShrink:0,background:'linear-gradient(180deg,#17212B,#141F2B)',borderLeft:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',padding:'14px 10px',gap:4,overflowY:'auto'}}>
+          <div style={{fontSize:13,fontWeight:800,color:'#8B9AB3',padding:'0 6px 10px',borderBottom:'1px solid rgba(255,255,255,0.07)',marginBottom:6}}>
+            🏪 إدارة المخزن
           </div>
-        )}
-        {WH_NAV.map(item=>{
-          const Icon=item.icon;
-          const active=whView===item.id;
-          return(
-            <button key={item.id} onClick={()=>setWhView(item.id)}
-              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 10px',borderRadius:9,background:active?'rgba(42,171,238,0.15)':'transparent',border:active?'1px solid rgba(42,171,238,0.25)':'1px solid transparent',color:active?'#2AABEE':'#8B9AB3',fontSize:12.5,fontWeight:active?800:600,cursor:'pointer',transition:'all 0.15s'}}>
-              <Icon size={16} strokeWidth={active?2.5:1.8}/>
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+          {(lowCount>0||urgentDbt>0)&&(
+            <div style={{background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:9,padding:'7px 10px',marginBottom:8,fontSize:11}}>
+              {lowCount>0&&<div style={{color:'#F0A868',marginBottom:2}}>⚠️ {lowCount} منتج منخفض</div>}
+              {urgentDbt>0&&<div style={{color:'#F25050'}}>🔴 {urgentDbt} دين عاجل</div>}
+            </div>
+          )}
+          {WH_NAV.map(item=>{
+            const Icon=item.icon;
+            const active=whView===item.id;
+            return(
+              <button key={item.id} onClick={()=>setWhView(item.id)}
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 10px',borderRadius:9,background:active?'rgba(42,171,238,0.15)':'transparent',border:active?'1px solid rgba(42,171,238,0.25)':'1px solid transparent',color:active?'#2AABEE':'#8B9AB3',fontSize:12.5,fontWeight:active?800:600,cursor:'pointer',transition:'all 0.15s'}}>
+                <Icon size={16} strokeWidth={active?2.5:1.8}/>
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* المحتوى */}
-      <div style={{flex:1,overflowY:'auto',padding:'18px 20px'}}>
+      <div style={{flex:1,overflowY:'auto',padding:isMobile?'14px 12px':'18px 20px'}}>
         {renderWhView()}
       </div>
     </div>
