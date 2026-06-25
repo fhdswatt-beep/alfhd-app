@@ -18,7 +18,7 @@ import {
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 // Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
-const WA_BRIDGE_URL = 'https://alfhd-wa-bridge.up.railway.app';
+const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
 
 // ──────────────────────────────────────────────
 // إعدادات ربط فيسبوك الحقيقي (OAuth)
