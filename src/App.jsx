@@ -4652,6 +4652,29 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
 // ──────────────────────────────────────────────
 // التطبيق الرئيسي
 // ──────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 30, background: '#0E1621', color: '#F5F5F5', minHeight: '100vh', fontFamily: 'Cairo, sans-serif', direction: 'rtl' }}>
+          <div style={{ background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', borderRadius: 12, padding: 20, maxWidth: 600, margin: '40px auto' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#F25050', marginBottom: 12 }}>⚠️ خطأ في التطبيق</div>
+            <div style={{ fontSize: 13, color: '#F0A868', marginBottom: 8, fontFamily: 'monospace', direction: 'ltr' }}>
+              {this.state.error?.message}
+            </div>
+            <div style={{ fontSize: 11, color: '#546880', fontFamily: 'monospace', direction: 'ltr', whiteSpace: 'pre-wrap' }}>
+              {this.state.error?.stack?.slice(0, 500)}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function AlFhdApp() {
   const [activeView, setActiveView] = useState('conversations');
   const [pendingOpenConvId, setPendingOpenConvId] = useState(null);
@@ -5012,6 +5035,7 @@ export default function AlFhdApp() {
   }
 
   return (
+    <ErrorBoundary>
     <>
       <GlobalStyles />
       <div style={styles.appWrap} className="alfhd-app-wrap">
@@ -5075,6 +5099,7 @@ export default function AlFhdApp() {
         </main>
       </div>
     </>
+    </ErrorBoundary>
   );
 }
 
