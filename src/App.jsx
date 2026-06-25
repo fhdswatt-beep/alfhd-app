@@ -5005,12 +5005,7 @@ export default function AlFhdApp() {
       <>
         <GlobalStyles />
         <div style={styles.appWrap} className="alfhd-app-wrap">
-          <WarehouseView
-            orders={orders}
-            setOrders={setOrders}
-            currentUser={authedUser}
-            onLogout={handleLogout}
-          />
+          <WarehouseView />
         </div>
       </>
     );
