@@ -4703,17 +4703,6 @@ export default function AlFhdApp() {
   // ── المخزن ──
   const [warehouseProducts, setWarehouseProducts] = useState([]);
 
-  // تحميل منتجات المخزن
-  useEffect(() => {
-    async function loadWarehouseProducts() {
-      try {
-        const res = await sbSelect('wh_products', '&order=car_name.asc');
-        if (res) setWarehouseProducts(res);
-      } catch (e) { console.warn('warehouse load error:', e); }
-    }
-    if (storageReady) loadWarehouseProducts();
-  }, [storageReady]);
-
   // ── تسجيل بيعة في المخزن تلقائياً ──
   async function recordWarehouseSale(order) {
     try {
@@ -4774,6 +4763,17 @@ export default function AlFhdApp() {
   }
   const [users, setUsers] = useState([]);
   const [storageReady, setStorageReady] = useState(false);
+
+  // تحميل منتجات المخزن — بعد تعريف storageReady
+  useEffect(() => {
+    async function loadWarehouseProducts() {
+      try {
+        const res = await sbSelect('wh_products', '&order=car_name.asc');
+        if (res) setWarehouseProducts(res);
+      } catch (e) { console.warn('warehouse load error:', e); }
+    }
+    if (storageReady) loadWarehouseProducts();
+  }, [storageReady]);
 
   // ── حالة تسجيل الدخول ── يُستعاد فوراً من localStorage بدون انتظار Supabase
   const [authedUser, setAuthedUser] = useState(() => {
