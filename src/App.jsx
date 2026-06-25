@@ -8,7 +8,8 @@ import {
   Pin, MoreVertical, Phone, MapPin, Calendar, RefreshCw,
   Mic, Send, Image, ArrowRight, StopCircle, Square,
   Image as ImageIcon, FileText, AlertCircle, ChevronUp,
-  Download
+  Download, Warehouse, ShoppingCart, CreditCard, DollarSign,
+  TrendingUp, Home, Percent, Tag, Box, PieChart,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -743,6 +744,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
     { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
     { id: 'orders', label: 'الطلبات', icon: Package },
     { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
+    { id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true },
     { id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true },
     { id: 'pages', label: 'الصفحات', icon: Facebook },
   ];
@@ -5234,9 +5236,771 @@ export default function AlFhdApp() {
           {activeView === 'pages' && (
             <PagesView pages={pages} setPages={setPages} />
           )}
+          {activeView === 'warehouse' && (authedUser.role === 'admin' || authedUser.role === 'manager') && (
+            <WarehouseView />
+          )}
         </main>
       </div>
     </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WarehouseView — نظام إدارة المخزن الكامل (مدمج في الموقع)
+// ══════════════════════════════════════════════════════════════════
+const WH_PRODUCT_TYPES = [
+  { id: 'mother_dosah', label: 'أم الدوسة', icon: '🪣', color: '#3B82F6' },
+  { id: 'rubble_hodi',  label: 'ربل حوضي',  icon: '📦', color: '#8B5CF6' },
+  { id: 'leather',      label: 'جلد',        icon: '✨', color: '#F59E0B' },
+];
+const WH_DEBT_TYPES = [
+  { id: 'supplier', label: 'موزع جملة', color: '#F45B69' },
+  { id: 'rent',     label: 'إيجار',     color: '#F0A868' },
+  { id: 'salary',   label: 'راتب',      color: '#A78BFA' },
+  { id: 'expense',  label: 'مصاريف',    color: '#60A5FA' },
+  { id: 'other',    label: 'أخرى',      color: '#546880' },
+];
+const LOW_STOCK = 3;
+function whFmt(n) { return `${(Number(n)||0).toLocaleString()} د.ع`; }
+function whToday() { return new Date().toISOString().slice(0,10); }
+function whDaysUntil(d) { return d ? Math.ceil((new Date(d)-new Date())/86400000) : null; }
+
+function WhModal({ title, onClose, children }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.72)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:16 }} onClick={onClose}>
+      <div style={{ background:'linear-gradient(145deg,#17212B,#1A2736)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:16, width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.7)' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+          <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#F5F5F5' }}>{title}</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#546880', cursor:'pointer' }}><X size={18}/></button>
+        </div>
+        <div style={{ padding:'16px 18px' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+function WhField({ label, required, children }) {
+  return (
+    <div style={{ marginBottom:14 }}>
+      <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#8B9AB3', marginBottom:5 }}>{label}{required&&<span style={{color:'#F25050'}}> *</span>}</label>
+      {children}
+    </div>
+  );
+}
+const whInp = { width:'100%', background:'#242F3D', border:'1px solid rgba(255,255,255,0.07)', borderRadius:9, color:'#F5F5F5', fontSize:13, padding:'9px 12px', outline:'none', boxSizing:'border-box', fontFamily:'Cairo,sans-serif' };
+
+// لوحة التحكم
+function WhDashboard({ products, sales, debts, suppliers }) {
+  const low = products.filter(p=>p.quantity<=LOW_STOCK);
+  const stockVal = products.reduce((s,p)=>s+(p.quantity*(p.cost_iqd||0)),0);
+  const todayRev = sales.filter(s=>s.date===whToday()).reduce((s,x)=>s+x.total_iqd,0);
+  const monthRev = sales.filter(s=>s.date?.slice(0,7)===whToday().slice(0,7)).reduce((s,x)=>s+x.total_iqd,0);
+  const totalDebt = debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
+  const urgent = debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7);
+  const stats = [
+    {l:'مبيعات اليوم', v:whFmt(todayRev), c:'#4DDB6B', I:TrendingUp},
+    {l:'مبيعات الشهر', v:whFmt(monthRev), c:'#2AABEE', I:BarChart3},
+    {l:'رصيد المخزن',  v:whFmt(stockVal), c:'#A78BFA', I:Warehouse},
+    {l:'إجمالي الديون',v:whFmt(totalDebt),c:'#F25050', I:CreditCard},
+    {l:'أصناف المنتجات',v:products.length, c:'#F0A868', I:Package},
+    {l:'موزعون',       v:suppliers.length, c:'#2AABEE', I:Truck},
+  ];
+  return (
+    <div>
+      {(low.length>0||urgent.length>0)&&(
+        <div style={{background:'rgba(242,80,80,0.06)',border:'1px solid rgba(242,80,80,0.25)',borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{color:'#F25050',fontWeight:800,marginBottom:8,display:'flex',alignItems:'center',gap:6}}><AlertCircle size={15}/>تنبيهات</div>
+          {low.length>0&&<div style={{fontSize:12,color:'#F0A868',marginBottom:4}}>⚠️ {low.length} منتج أقل من {LOW_STOCK} قطع: {low.slice(0,3).map(p=>p.car_name).join('، ')}</div>}
+          {urgent.length>0&&<div style={{fontSize:12,color:'#F25050'}}>🔴 {urgent.length} دين يستحق خلال 7 أيام</div>}
+        </div>
+      )}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:12,marginBottom:18}}>
+        {stats.map(s=>(
+          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:'13px 15px',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
+            <s.I size={18} color={s.c} style={{marginBottom:8}}/>
+            <div style={{fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      {low.length>0&&(
+        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:13,padding:14,marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:800,color:'#F25050',marginBottom:10}}>منتجات تحتاج تزويد</div>
+          {low.map(p=>(
+            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'rgba(242,80,80,0.06)',borderRadius:9,marginBottom:6,border:'1px solid rgba(242,80,80,0.15)'}}>
+              <div>
+                <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}</div>
+                {p.location&&<div style={{fontSize:11,color:'#546880'}}>📍 {p.location}</div>}
+              </div>
+              <div style={{fontSize:22,fontWeight:800,color:p.quantity===0?'#F25050':'#F0A868'}}>{p.quantity}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:14}}>
+        <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:10}}>آخر المبيعات</div>
+        {sales.slice(0,5).map(s=>(
+          <div key={s.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+            <div><div style={{fontSize:12.5,fontWeight:600,color:'#F5F5F5'}}>{s.product_name}</div><div style={{fontSize:11,color:'#546880'}}>{s.date} · {s.customer_name||'زبون'}</div></div>
+            <div style={{fontSize:13,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
+          </div>
+        ))}
+        {!sales.length&&<div style={{color:'#546880',fontSize:13,textAlign:'center',padding:20}}>لا توجد مبيعات بعد</div>}
+      </div>
+    </div>
+  );
+}
+
+// المنتجات
+function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
+  const [search,setSearch]=useState('');
+  const [type,setType]=useState('all');
+  const [modal,setModal]=useState(false);
+  const [carModal,setCarModal]=useState(false);
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});
+  const [carForm,setCarForm]=useState({name:''});
+  const [saving,setSaving]=useState(false);
+  const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
+  function openNew(){setEditing(null);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});setModal(true);}
+  function openEdit(p){setEditing(p);setForm({...p});setModal(true);}
+  async function save(){
+    if(!form.car_name.trim()){alert('أدخل اسم السيارة');return;}
+    setSaving(true);
+    try{
+      if(editing){await sbU('wh_products',editing.id,form);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...form}:p));}
+      else{const r=await sbI('wh_products',{...form,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
+      setModal(false);
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  async function addCar(){
+    if(!carForm.name.trim()){alert('أدخل اسم السيارة');return;}
+    setSaving(true);
+    try{
+      const prods=await Promise.all(WH_PRODUCT_TYPES.map(t=>sbI('wh_products',{car_name:carForm.name,type:t.id,quantity:0,cost_iqd:0,price_iqd:0,location:'',created_at:new Date().toISOString()})));
+      const added=prods.flatMap(r=>r||[]);
+      setProducts(prev=>[...added,...prev]);
+      setCars(prev=>[...new Set([...prev,carForm.name])]);
+      setCarModal(false);setCarForm({name:''});
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  async function del(id){if(!confirm('حذف هذا المنتج؟'))return;await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المنتجات والمخزون</h3>
+        <div style={{display:'flex',gap:7}}>
+          <button onClick={()=>setCarModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.3)',borderRadius:9,color:'#A78BFA',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <Plus size={13}/> إضافة سيارة
+          </button>
+          <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <Plus size={13}/> منتج جديد
+          </button>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:7,marginBottom:12,flexWrap:'wrap'}}>
+        <div style={{position:'relative',flex:1,minWidth:160}}>
+          <Search size={13} style={{position:'absolute',right:9,top:'50%',transform:'translateY(-50%)',color:'#546880'}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." style={{...whInp,paddingRight:29}}/>
+        </div>
+        {[{id:'all',label:'الكل'},...WH_PRODUCT_TYPES].map(t=>(
+          <button key={t.id} onClick={()=>setType(t.id)} style={{padding:'6px 11px',borderRadius:18,border:`1px solid ${type===t.id?'#2AABEE':'rgba(255,255,255,0.07)'}`,background:type===t.id?'rgba(42,171,238,0.15)':'transparent',color:type===t.id?'#2AABEE':'#546880',fontSize:11.5,fontWeight:700,cursor:'pointer'}}>
+            {t.icon||''} {t.label}
+          </button>
+        ))}
+      </div>
+      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
+        {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#546880'}}>لا توجد منتجات</div>:
+        filtered.map((p,i)=>{
+          const t=WH_PRODUCT_TYPES.find(x=>x.id===p.type);
+          const isLow=p.quantity<=LOW_STOCK;
+          return(
+            <div key={p.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
+              <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{p.car_name}</div>
+                <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
+                  <span style={{fontSize:11,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding:'2px 7px',borderRadius:18}}>{t?.label}</span>
+                  {p.location&&<span style={{fontSize:11,color:'#546880'}}>📍 {p.location}</span>}
+                  {p.price_iqd>0&&<span style={{fontSize:11,color:'#546880'}}>{whFmt(p.price_iqd)}</span>}
+                </div>
+              </div>
+              <div style={{textAlign:'center',minWidth:46}}>
+                <div style={{fontSize:20,fontWeight:800,color:isLow?'#F25050':'#4DDB6B'}}>{p.quantity}</div>
+                <div style={{fontSize:10,color:'#546880'}}>قطعة</div>
+                {isLow&&<div style={{fontSize:10,color:'#F25050',fontWeight:700}}>⚠️</div>}
+              </div>
+              <div style={{display:'flex',gap:5}}>
+                <button onClick={()=>openEdit(p)} style={{padding:7,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:8,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={13}/></button>
+                <button onClick={()=>del(p.id)} style={{padding:7,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:8,color:'#F25050',cursor:'pointer'}}><Trash2 size={13}/></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {modal&&(
+        <WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
+          <WhField label="اسم السيارة" required>
+            <select value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={whInp}>
+              <option value="">اختر سيارة...</option>
+              {cars.map(c=><option key={c} value={c}>{c}</option>)}
+              <option value="__new__">+ اكتب اسم جديد</option>
+            </select>
+            {form.car_name==='__new__'&&<input placeholder="اسم السيارة الجديدة" onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={{...whInp,marginTop:6}}/>}
+          </WhField>
+          <WhField label="نوع المنتج" required>
+            <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
+              {WH_PRODUCT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </WhField>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
+            <WhField label="الكمية"><input type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd} onChange={e=>setForm(f=>({...f,cost_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="سعر البيع (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="موقع المخزن (A-350)"><input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="فرع A، رف 350" style={whInp}/></WhField>
+          </div>
+          <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
+          </div>
+        </WhModal>
+      )}
+      {carModal&&(
+        <WhModal title="إضافة سيارة جديدة" onClose={()=>setCarModal(false)}>
+          <div style={{background:'rgba(42,171,238,0.07)',border:'1px solid rgba(42,171,238,0.18)',borderRadius:9,padding:11,marginBottom:13,fontSize:12,color:'#2AABEE'}}>
+            سيتم إضافة الأنواع الثلاثة (أم الدوسة، ربل حوضي، جلد) تلقائياً
+          </div>
+          <WhField label="اسم السيارة" required>
+            <input value={carForm.name} onChange={e=>setCarForm({name:e.target.value})} placeholder="مثال: تويوتا كامري 2022" style={whInp}/>
+          </WhField>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setCarModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={addCar} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الإضافة...':'✨ إضافة للأنواع الثلاثة'}</button>
+          </div>
+        </WhModal>
+      )}
+    </div>
+  );
+}
+
+// المبيعات
+function WhSales({ sales, setSales, products, sbI }) {
+  const [period,setPeriod]=useState('month');
+  const [modal,setModal]=useState(false);
+  const [form,setForm]=useState({product_id:'',product_name:'',quantity:1,price_iqd:0,total_iqd:0,customer_name:'',date:whToday(),notes:''});
+  const [saving,setSaving]=useState(false);
+  const now=new Date();
+  const filtered=useMemo(()=>sales.filter(s=>{
+    const d=new Date(s.date);
+    if(period==='today')return s.date===whToday();
+    if(period==='week')return(now-d)/86400000<=7;
+    if(period==='month')return s.date?.slice(0,7)===whToday().slice(0,7);
+    if(period==='year')return s.date?.slice(0,4)===whToday().slice(0,4);
+    return true;
+  }),[sales,period]);
+  const rev=filtered.reduce((s,x)=>s+x.total_iqd,0);
+  async function save(){
+    if(!form.product_name||!form.price_iqd){alert('أدخل المنتج والسعر');return;}
+    setSaving(true);
+    try{
+      const d={...form,total_iqd:form.price_iqd*form.quantity,created_at:new Date().toISOString()};
+      const r=await sbI('wh_sales',d);
+      if(r?.[0])setSales(prev=>[r[0],...prev]);
+      setModal(false);
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المبيعات</h3>
+        <button onClick={()=>setModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> تسجيل بيعة</button>
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+        {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
+          <button key={v} onClick={()=>setPeriod(v)} style={{padding:'6px 12px',borderRadius:18,border:`1px solid ${period===v?'#4DDB6B':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(77,219,107,0.14)':'transparent',color:period===v?'#4DDB6B':'#546880',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}>
+        {[{l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B'},{l:'عدد الصفقات',v:filtered.length,c:'#2AABEE'},{l:'قطع مباعة',v:filtered.reduce((s,x)=>s+x.quantity,0),c:'#A78BFA'}].map(s=>(
+          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
+            <div style={{fontSize:18,fontWeight:800,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
+        {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#546880'}}>لا توجد مبيعات</div>:
+        filtered.map((s,i)=>(
+          <div key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
+            <div>
+              <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{s.product_name}</div>
+              <div style={{fontSize:11,color:'#546880',marginTop:2}}>{s.date} · {s.customer_name||'زبون'} · {s.quantity} قطعة</div>
+            </div>
+            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
+          </div>
+        ))}
+      </div>
+      {modal&&(
+        <WhModal title="تسجيل بيعة جديدة" onClose={()=>setModal(false)}>
+          <WhField label="المنتج" required>
+            <select value={form.product_id} onChange={e=>{const p=products.find(x=>x.id===e.target.value);setForm(f=>({...f,product_id:e.target.value,product_name:p?`${p.car_name} — ${WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}`:'',price_iqd:p?.price_iqd||0}));}} style={whInp}>
+              <option value="">اختر منتج</option>
+              {products.map(p=><option key={p.id} value={p.id}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label} ({p.quantity} قطعة)</option>)}
+            </select>
+          </WhField>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
+            <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+          </div>
+          <div style={{background:'rgba(77,219,107,0.07)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,padding:'10px 13px',marginBottom:12,fontSize:16,fontWeight:800,color:'#4DDB6B'}}>{whFmt(form.price_iqd*form.quantity)}</div>
+          <WhField label="اسم الزبون"><input value={form.customer_name} onChange={e=>setForm(f=>({...f,customer_name:e.target.value}))} placeholder="اختياري" style={whInp}/></WhField>
+          <WhField label="التاريخ"><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ البيعة'}</button>
+          </div>
+        </WhModal>
+      )}
+    </div>
+  );
+}
+
+// الموزعون
+function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
+  const [modal,setModal]=useState(false);
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({name:'',phone:'',address:'',available_products:'',notes:''});
+  const [saving,setSaving]=useState(false);
+  function openNew(){setEditing(null);setForm({name:'',phone:'',address:'',available_products:'',notes:''});setModal(true);}
+  function openEdit(s){setEditing(s);setForm({...s});setModal(true);}
+  async function save(){
+    if(!form.name.trim()){alert('أدخل اسم الموزع');return;}
+    setSaving(true);
+    try{
+      if(editing){await sbU('wh_suppliers',editing.id,form);setSuppliers(prev=>prev.map(s=>s.id===editing.id?{...s,...form}:s));}
+      else{const r=await sbI('wh_suppliers',{...form,created_at:new Date().toISOString()});if(r?.[0])setSuppliers(prev=>[r[0],...prev]);}
+      setModal(false);
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  async function del(id){if(!confirm('حذف هذا الموزع؟'))return;await sbD('wh_suppliers',id);setSuppliers(prev=>prev.filter(s=>s.id!==id));}
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>موزعو الجملة</h3>
+        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موزع جديد</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:13}}>
+        {suppliers.map(s=>(
+          <div key={s.id} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:15,position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:0,right:0,left:0,height:3,background:'linear-gradient(90deg,transparent,#2AABEE,transparent)',opacity:0.7}}/>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:'#F5F5F5'}}>{s.name}</div>
+                {s.phone&&<div style={{fontSize:12,color:'#2AABEE',marginTop:3}}>📞 {s.phone}</div>}
+                {s.address&&<div style={{fontSize:12,color:'#546880',marginTop:2}}>📍 {s.address}</div>}
+              </div>
+              <div style={{display:'flex',gap:5}}>
+                <button onClick={()=>openEdit(s)} style={{padding:6,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
+                <button onClick={()=>del(s.id)} style={{padding:6,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
+              </div>
+            </div>
+            {s.available_products&&(
+              <div style={{background:'rgba(42,171,238,0.06)',border:'1px solid rgba(42,171,238,0.12)',borderRadius:8,padding:'8px 10px'}}>
+                <div style={{fontSize:10.5,color:'#2AABEE',fontWeight:700,marginBottom:3}}>المتوفر عنده:</div>
+                <div style={{fontSize:12,color:'#8B9AB3'}}>{s.available_products}</div>
+              </div>
+            )}
+            {s.notes&&<div style={{fontSize:11.5,color:'#546880',marginTop:8}}>📝 {s.notes}</div>}
+          </div>
+        ))}
+        {!suppliers.length&&<div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#546880'}}>لا يوجد موزعون بعد</div>}
+      </div>
+      {modal&&(
+        <WhModal title={editing?'تعديل موزع':'إضافة موزع جديد'} onClose={()=>setModal(false)}>
+          <WhField label="اسم الموزع" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
+          <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="07XXXXXXXXX" style={whInp}/></WhField>
+          <WhField label="العنوان"><input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={whInp}/></WhField>
+          <WhField label="المنتجات المتوفرة عنده"><textarea value={form.available_products} onChange={e=>setForm(f=>({...f,available_products:e.target.value}))} placeholder="كامري 2020 جلد، لاندكروزر ربل..." style={{...whInp,minHeight:65,resize:'vertical'}}/></WhField>
+          <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
+          </div>
+        </WhModal>
+      )}
+    </div>
+  );
+}
+
+// الديون
+function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
+  const [modal,setModal]=useState(false);
+  const [filter,setFilter]=useState('unpaid');
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({name:'',type:'supplier',amount_iqd:0,due_date:'',status:'unpaid',notes:''});
+  const [saving,setSaving]=useState(false);
+  const filtered=filter==='all'?debts:debts.filter(d=>d.status===filter);
+  const totalUnpaid=debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
+  function openNew(){setEditing(null);setForm({name:'',type:'supplier',amount_iqd:0,due_date:'',status:'unpaid',notes:''});setModal(true);}
+  function openEdit(d){setEditing(d);setForm({...d});setModal(true);}
+  async function save(){
+    if(!form.name.trim()||!form.amount_iqd){alert('أدخل الاسم والمبلغ');return;}
+    setSaving(true);
+    try{
+      if(editing){await sbU('wh_debts',editing.id,form);setDebts(prev=>prev.map(d=>d.id===editing.id?{...d,...form}:d));}
+      else{const r=await sbI('wh_debts',{...form,created_at:new Date().toISOString()});if(r?.[0])setDebts(prev=>[r[0],...prev]);}
+      setModal(false);
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  async function markPaid(id){await sbU('wh_debts',id,{status:'paid',paid_at:new Date().toISOString()});setDebts(prev=>prev.map(d=>d.id===id?{...d,status:'paid'}:d));}
+  async function del(id){if(!confirm('حذف هذا الدين؟'))return;await sbD('wh_debts',id);setDebts(prev=>prev.filter(d=>d.id!==id));}
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>الديون والمصاريف</h3>
+        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(242,80,80,0.1)',border:'1px solid rgba(242,80,80,0.28)',borderRadius:9,color:'#F25050',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> إضافة دين</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11,marginBottom:14}}>
+        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:12,padding:'12px 14px'}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#F25050'}}>{whFmt(totalUnpaid)}</div>
+          <div style={{fontSize:11,color:'#546880',marginTop:3}}>إجمالي الديون غير المسددة</div>
+        </div>
+        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px'}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#F0A868'}}>{debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length}</div>
+          <div style={{fontSize:11,color:'#546880',marginTop:3}}>ديون تستحق خلال 7 أيام</div>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:12}}>
+        {[['all','الكل'],['unpaid','غير مسددة'],['paid','مسددة']].map(([v,l])=>(
+          <button key={v} onClick={()=>setFilter(v)} style={{padding:'6px 12px',borderRadius:18,border:`1px solid ${filter===v?'#F25050':'rgba(255,255,255,0.07)'}`,background:filter===v?'rgba(242,80,80,0.12)':'transparent',color:filter===v?'#F25050':'#546880',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
+        ))}
+      </div>
+      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
+        {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#546880'}}>لا توجد ديون</div>:
+        filtered.map((d,i)=>{
+          const type=WH_DEBT_TYPES.find(t=>t.id===d.type);
+          const days=whDaysUntil(d.due_date);
+          const urgent=d.status==='unpaid'&&days!==null&&days<=7;
+          return(
+            <div key={d.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none',background:urgent?'rgba(242,80,80,0.04)':'transparent'}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:d.status==='paid'?'#4DDB6B':type?.color||'#F25050',flexShrink:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{d.name}</div>
+                <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
+                  <span style={{fontSize:11,color:type?.color,background:`${type?.color||'#F25050'}15`,padding:'2px 7px',borderRadius:18}}>{type?.label}</span>
+                  {d.due_date&&<span style={{fontSize:11,color:urgent?'#F25050':'#546880'}}>📅 {d.due_date}{days!==null?` (${days>0?`${days} يوم`:'اليوم'})`:''}</span>}
+                  {d.status==='paid'&&<span style={{fontSize:11,color:'#4DDB6B'}}>✓ مسدد</span>}
+                </div>
+              </div>
+              <div style={{fontSize:14,fontWeight:800,color:d.status==='paid'?'#546880':'#F25050'}}>{whFmt(d.amount_iqd)}</div>
+              <div style={{display:'flex',gap:5}}>
+                {d.status==='unpaid'&&<button onClick={()=>markPaid(d.id)} title="تسديد" style={{padding:6,background:'rgba(77,219,107,0.1)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:7,color:'#4DDB6B',cursor:'pointer'}}><CheckCircle2 size={12}/></button>}
+                <button onClick={()=>openEdit(d)} style={{padding:6,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
+                <button onClick={()=>del(d.id)} style={{padding:6,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {modal&&(
+        <WhModal title={editing?'تعديل دين':'إضافة دين/مصروف'} onClose={()=>setModal(false)}>
+          <WhField label="الاسم / الوصف" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="مثال: دين موزع أبو علي" style={whInp}/></WhField>
+          <WhField label="النوع" required>
+            <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
+              {WH_DEBT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </WhField>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
+            <WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="تاريخ الاستحقاق"><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} style={whInp}/></WhField>
+          </div>
+          <WhField label="الحالة">
+            <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={whInp}>
+              <option value="unpaid">غير مسدد</option>
+              <option value="paid">مسدد</option>
+            </select>
+          </WhField>
+          <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'rgba(242,80,80,0.15)',border:'1px solid rgba(242,80,80,0.3)',borderRadius:9,color:'#F25050',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
+          </div>
+        </WhModal>
+      )}
+    </div>
+  );
+}
+
+// الموظفون
+function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
+  const [modal,setModal]=useState(false);
+  const [payModal,setPayModal]=useState(null);
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({name:'',role:'',salary:0,phone:'',start_date:whToday(),notes:''});
+  const [payForm,setPayForm]=useState({amount:0,date:whToday(),notes:''});
+  const [saving,setSaving]=useState(false);
+  function openNew(){setEditing(null);setForm({name:'',role:'',salary:0,phone:'',start_date:whToday(),notes:''});setModal(true);}
+  function openEdit(e){setEditing(e);setForm({...e});setModal(true);}
+  async function save(){
+    if(!form.name.trim()){alert('أدخل اسم الموظف');return;}
+    setSaving(true);
+    try{
+      if(editing){await sbU('wh_employees',editing.id,form);setEmployees(prev=>prev.map(e=>e.id===editing.id?{...e,...form}:e));}
+      else{const r=await sbI('wh_employees',{...form,created_at:new Date().toISOString()});if(r?.[0])setEmployees(prev=>[...prev,r[0]]);}
+      setModal(false);
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  async function payEmployee(){
+    if(!payForm.amount){alert('أدخل المبلغ');return;}
+    setSaving(true);
+    try{
+      await sbI('wh_salary_payments',{employee_id:payModal.id,employee_name:payModal.name,...payForm,created_at:new Date().toISOString()});
+      setPayModal(null);
+      alert(`✅ تم تسجيل صرف ${whFmt(payForm.amount)} لـ ${payModal.name}`);
+    }catch(e){alert('فشل: '+e.message);}
+    setSaving(false);
+  }
+  async function del(id){if(!confirm('حذف هذا الموظف؟'))return;await sbD('wh_employees',id);setEmployees(prev=>prev.filter(e=>e.id!==id));}
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>الموظفون والرواتب</h3>
+        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موظف جديد</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:13}}>
+        {employees.map(e=>(
+          <div key={e.id} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:15}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:11}}>
+              <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#fff'}}>{e.name?.[0]}</div>
+                <div><div style={{fontSize:13.5,fontWeight:800,color:'#F5F5F5'}}>{e.name}</div><div style={{fontSize:11.5,color:'#546880'}}>{e.role||'موظف'}</div></div>
+              </div>
+              <div style={{display:'flex',gap:5}}>
+                <button onClick={()=>openEdit(e)} style={{padding:6,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
+                <button onClick={()=>del(e.id)} style={{padding:6,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
+              </div>
+            </div>
+            <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.15)',borderRadius:9,padding:'9px 12px',marginBottom:10}}>
+              <div style={{fontSize:11,color:'#A78BFA',marginBottom:2}}>الراتب الشهري</div>
+              <div style={{fontSize:17,fontWeight:800,color:'#A78BFA'}}>{whFmt(e.salary)}</div>
+            </div>
+            {e.phone&&<div style={{fontSize:12,color:'#2AABEE',marginBottom:8}}>📞 {e.phone}</div>}
+            <button onClick={()=>{setPayModal(e);setPayForm({amount:e.salary,date:whToday(),notes:''}); }}
+              style={{width:'100%',padding:'8px',background:'rgba(77,219,107,0.08)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,color:'#4DDB6B',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+              <DollarSign size={13}/> صرف راتب
+            </button>
+          </div>
+        ))}
+        {!employees.length&&<div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#546880'}}>لا يوجد موظفون</div>}
+      </div>
+      {modal&&(
+        <WhModal title={editing?'تعديل موظف':'إضافة موظف'} onClose={()=>setModal(false)}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
+            <WhField label="الاسم" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
+            <WhField label="المسمى الوظيفي"><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="موظف، محاسب..." style={whInp}/></WhField>
+            <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={whInp}/></WhField>
+          </div>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
+          </div>
+        </WhModal>
+      )}
+      {payModal&&(
+        <WhModal title={`صرف راتب — ${payModal.name}`} onClose={()=>setPayModal(null)}>
+          <WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)}))} style={whInp}/></WhField>
+          <WhField label="التاريخ"><input type="date" value={payForm.date} onChange={e=>setPayForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
+          <WhField label="ملاحظات"><input value={payForm.notes} onChange={e=>setPayForm(f=>({...f,notes:e.target.value}))} placeholder="راتب شهر..." style={whInp}/></WhField>
+          <div style={{display:'flex',gap:9,marginTop:8}}>
+            <button onClick={()=>setPayModal(null)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
+            <button onClick={payEmployee} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'صرف الراتب'}</button>
+          </div>
+        </WhModal>
+      )}
+    </div>
+  );
+}
+
+// التقارير
+function WhReports({ sales, products, debts }) {
+  const [period,setPeriod]=useState('month');
+  const now=new Date();
+  const filtered=useMemo(()=>sales.filter(s=>{
+    const d=new Date(s.date);
+    if(period==='today')return s.date===whToday();
+    if(period==='week')return(now-d)/86400000<=7;
+    if(period==='month')return s.date?.slice(0,7)===whToday().slice(0,7);
+    if(period==='year')return s.date?.slice(0,4)===whToday().slice(0,4);
+    return true;
+  }),[sales,period]);
+  const rev=filtered.reduce((s,x)=>s+x.total_iqd,0);
+  const totalDebt=debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
+  const stockCost=products.reduce((s,p)=>s+(p.quantity*(p.cost_iqd||0)),0);
+  const stockSale=products.reduce((s,p)=>s+(p.quantity*(p.price_iqd||0)),0);
+  const byType=WH_PRODUCT_TYPES.map(t=>({
+    ...t,
+    total:filtered.filter(s=>products.find(p=>p.id===s.product_id)?.type===t.id).reduce((sum,s)=>sum+s.total_iqd,0),
+    count:filtered.filter(s=>products.find(p=>p.id===s.product_id)?.type===t.id).length,
+  }));
+  const counted={};
+  filtered.forEach(s=>{counted[s.product_name]=(counted[s.product_name]||0)+s.quantity;});
+  const top=Object.entries(counted).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  return(
+    <div>
+      <h3 style={{margin:'0 0 14px',fontSize:17,fontWeight:800,color:'#F5F5F5'}}>التقارير المالية</h3>
+      <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+        {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
+          <button key={v} onClick={()=>setPeriod(v)} style={{padding:'6px 12px',borderRadius:18,border:`1px solid ${period===v?'#2AABEE':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(42,171,238,0.14)':'transparent',color:period===v?'#2AABEE':'#546880',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))',gap:11,marginBottom:16}}>
+        {[
+          {l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B',I:TrendingUp},
+          {l:'إجمالي الديون',v:whFmt(totalDebt),c:'#F25050',I:CreditCard},
+          {l:'تكلفة المخزن',v:whFmt(stockCost),c:'#F0A868',I:Package},
+          {l:'قيمة البيع المتوقعة',v:whFmt(stockSale),c:'#A78BFA',I:BarChart3},
+          {l:'الربح المتوقع',v:whFmt(stockSale-stockCost),c:stockSale>stockCost?'#4DDB6B':'#F25050',I:Percent},
+        ].map(s=>(
+          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px'}}>
+            <s.I size={16} color={s.c} style={{marginBottom:7}}/>
+            <div style={{fontSize:16,fontWeight:800,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:13}}>
+        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:14}}>
+          <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:11}}>مبيعات حسب النوع</div>
+          {byType.map(t=>(
+            <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:7}}>
+                <span style={{fontSize:16}}>{t.icon}</span>
+                <div><div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{t.label}</div><div style={{fontSize:11,color:'#546880'}}>{t.count} صفقة</div></div>
+              </div>
+              <div style={{fontSize:13,fontWeight:800,color:t.color}}>{whFmt(t.total)}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:14}}>
+          <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:11}}>الأكثر مبيعاً</div>
+          {top.map(([name,qty])=>(
+            <div key={name} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+              <span style={{fontSize:12.5,color:'#F5F5F5'}}>{name}</span>
+              <span style={{fontSize:12.5,fontWeight:700,color:'#4DDB6B'}}>{qty} قطعة</span>
+            </div>
+          ))}
+          {!top.length&&<div style={{color:'#546880',fontSize:13,textAlign:'center',padding:20}}>لا توجد بيانات</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── WarehouseView الرئيسي ──
+const WH_NAV = [
+  {id:'dashboard', label:'لوحة التحكم', icon:Home},
+  {id:'products',  label:'المنتجات',    icon:Package},
+  {id:'sales',     label:'المبيعات',    icon:ShoppingCart},
+  {id:'suppliers', label:'الموزعون',    icon:Truck},
+  {id:'debts',     label:'الديون',      icon:CreditCard},
+  {id:'employees', label:'الموظفون',    icon:Users},
+  {id:'reports',   label:'التقارير',    icon:BarChart3},
+];
+
+function WarehouseView() {
+  const [whView, setWhView]     = useState('dashboard');
+  const [loading, setLoading]   = useState(true);
+  const [whProducts,  setWhProducts]  = useState([]);
+  const [whSales,     setWhSales]     = useState([]);
+  const [whSuppliers, setWhSuppliers] = useState([]);
+  const [whDebts,     setWhDebts]     = useState([]);
+  const [whEmployees, setWhEmployees] = useState([]);
+  const [whCars,      setWhCars]      = useState([]);
+
+  // helpers مختصرة
+  const sbI = (t,d)    => sbInsert(t,d);
+  const sbU = (t,id,d) => sbUpdate(t,id,d);
+  const sbD = async (t,id) => { const url=`${SUPABASE_URL}/rest/v1/${t}?id=eq.${id}`; await fetch(url,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}}); };
+
+  useEffect(()=>{
+    async function load(){
+      setLoading(true);
+      try{
+        const [p,s,sup,d,e]=await Promise.all([
+          sbSelect('wh_products','&order=car_name.asc'),
+          sbSelect('wh_sales','&order=date.desc&limit=300'),
+          sbSelect('wh_suppliers','&order=name.asc'),
+          sbSelect('wh_debts','&order=due_date.asc'),
+          sbSelect('wh_employees','&order=name.asc'),
+        ]);
+        setWhProducts(p||[]);
+        setWhSales(s||[]);
+        setWhSuppliers(sup||[]);
+        setWhDebts(d||[]);
+        setWhEmployees(e||[]);
+        setWhCars([...new Set((p||[]).map(x=>x.car_name).filter(Boolean))]);
+      }catch(err){console.error('WH load error:',err);}
+      setLoading(false);
+    }
+    load();
+  },[]);
+
+  const lowCount  = whProducts.filter(p=>p.quantity<=LOW_STOCK).length;
+  const urgentDbt = whDebts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length;
+
+  function renderWhView(){
+    if(loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:300,color:'#546880',flexDirection:'column',gap:12}}><RefreshCw size={24} style={{animation:'spin 1s linear infinite'}}/><span>جارٍ تحميل المخزن...</span></div>;
+    switch(whView){
+      case 'dashboard':  return <WhDashboard products={whProducts} sales={whSales} debts={whDebts} suppliers={whSuppliers}/>;
+      case 'products':   return <WhProducts products={whProducts} setProducts={setWhProducts} cars={whCars} setCars={setWhCars} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+      case 'sales':      return <WhSales sales={whSales} setSales={setWhSales} products={whProducts} sbI={sbI}/>;
+      case 'suppliers':  return <WhSuppliers suppliers={whSuppliers} setSuppliers={setWhSuppliers} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+      case 'debts':      return <WhDebts debts={whDebts} setDebts={setWhDebts} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+      case 'employees':  return <WhEmployees employees={whEmployees} setEmployees={setWhEmployees} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+      case 'reports':    return <WhReports sales={whSales} products={whProducts} debts={whDebts}/>;
+      default: return null;
+    }
+  }
+
+  return (
+    <div style={{display:'flex',height:'100%',direction:'rtl'}}>
+      {/* قائمة جانبية للمخزن */}
+      <div style={{width:200,flexShrink:0,background:'linear-gradient(180deg,#17212B,#141F2B)',borderLeft:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',padding:'14px 10px',gap:4,overflowY:'auto'}}>
+        <div style={{fontSize:13,fontWeight:800,color:'#8B9AB3',padding:'0 6px 10px',borderBottom:'1px solid rgba(255,255,255,0.07)',marginBottom:6}}>
+          🏪 إدارة المخزن
+        </div>
+        {/* تنبيهات سريعة */}
+        {(lowCount>0||urgentDbt>0)&&(
+          <div style={{background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:9,padding:'7px 10px',marginBottom:8,fontSize:11}}>
+            {lowCount>0&&<div style={{color:'#F0A868',marginBottom:2}}>⚠️ {lowCount} منتج منخفض</div>}
+            {urgentDbt>0&&<div style={{color:'#F25050'}}>🔴 {urgentDbt} دين عاجل</div>}
+          </div>
+        )}
+        {WH_NAV.map(item=>{
+          const Icon=item.icon;
+          const active=whView===item.id;
+          return(
+            <button key={item.id} onClick={()=>setWhView(item.id)}
+              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 10px',borderRadius:9,background:active?'rgba(42,171,238,0.15)':'transparent',border:active?'1px solid rgba(42,171,238,0.25)':'1px solid transparent',color:active?'#2AABEE':'#8B9AB3',fontSize:12.5,fontWeight:active?800:600,cursor:'pointer',transition:'all 0.15s'}}>
+              <Icon size={16} strokeWidth={active?2.5:1.8}/>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* المحتوى */}
+      <div style={{flex:1,overflowY:'auto',padding:'18px 20px'}}>
+        {renderWhView()}
+      </div>
+    </div>
   );
 }
 
