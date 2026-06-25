@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  MessageSquare, Package, Users, Settings, LogOut, Search,
-  Plus, Filter, BarChart3, CheckCircle2, Clock, XCircle,
-  Truck, Printer, ChevronDown, X, Shield, ShieldCheck, ShieldOff,
-  Eye, EyeOff, Trash2, Edit3, UserPlus, Bell, Facebook,
-  ArrowUpRight, ArrowDownRight, Sparkles, Bot, UserCheck,
-  Pin, MoreVertical, Phone, MapPin, Calendar, RefreshCw,
-  Mic, Send, Image, ArrowRight, StopCircle, Square,
-  Image as ImageIcon, FileText, AlertCircle, ChevronUp,
-  Download, Warehouse, ShoppingCart, CreditCard, DollarSign,
-  TrendingUp, Home, Percent, Tag, Box, PieChart,
+  MessageSquare, Package, Users, LogOut, Search,
+  Plus, BarChart3, CheckCircle2, XCircle,
+  Truck, Printer, ChevronDown, X, Shield, ShieldCheck,
+  Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook,
+  ArrowUpRight, Sparkles, Bot,
+  Pin, Phone, MapPin, Calendar, RefreshCw,
+  Mic, Send, Image, ArrowRight,
+  AlertCircle,
+  Warehouse, ShoppingCart, CreditCard, DollarSign,
+  TrendingUp, Percent, Home,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -541,33 +541,6 @@ const CONV_TABS = [
 ];
 
 // ──────────────────────────────────────────────
-// بيانات تجريبية أولية (Seed) — تُستخدم أول مرة فقط
-// ──────────────────────────────────────────────
-const SEED_PAGES = [
-  { id: 'pg1', name: 'متجر الفهد للإلكترونيات', avatar: '🦅', connected: true },
-  { id: 'pg2', name: 'فهد ستور - أزياء', avatar: '👔', connected: true },
-];
-
-const SEED_CONVERSATIONS = [
-  { id: 'c1', pageId: 'pg1', customer: 'محمد العبيدي', avatar: 'م', lastMsg: 'هل المنتج متوفر بلون أزرق؟', time: '10:42', unread: 2, tab: 'normal' },
-  { id: 'c2', pageId: 'pg1', customer: 'سارة الجبوري', avatar: 'س', lastMsg: 'تم تثبيت الطلب رقم #1042', time: '09:15', unread: 0, tab: 'pinned', orderId: 'o1' },
-  { id: 'c3', pageId: 'pg2', customer: 'علي حسين', avatar: 'ع', lastMsg: 'محول من المساعد الذكي - استفسار عن المقاسات', time: '08:50', unread: 1, tab: 'handoff' },
-  { id: 'c4', pageId: 'pg2', customer: 'زينب كاظم', avatar: 'ز', lastMsg: 'شكراً جزيلاً، استلمت الطلب', time: 'أمس', unread: 0, tab: 'normal' },
-  { id: 'c5', pageId: 'pg1', customer: 'حسين علاء', avatar: 'ح', lastMsg: 'تم تثبيت الطلب رقم #1038', time: 'أمس', unread: 0, tab: 'pinned', orderId: 'o2' },
-];
-
-const SEED_ORDERS = [
-  { id: 'o1', orderNo: '1042', pageId: 'pg1', customer: 'سارة الجبوري', phone: '0780 123 4567', address: 'بغداد - الكرادة', items: 'سماعة لاسلكية × 1', total: 45000, status: 'pending', date: '2026-06-19', fahdRef: 'FHD-99821' },
-  { id: 'o2', orderNo: '1038', pageId: 'pg1', customer: 'حسين علاء', phone: '0790 987 6543', address: 'بغداد - المنصور', items: 'شاحن سريع × 2', total: 30000, status: 'delivered', date: '2026-06-18', fahdRef: 'FHD-99776' },
-  { id: 'o3', orderNo: '1029', pageId: 'pg2', customer: 'نور صباح', phone: '0770 456 1234', address: 'البصرة - العشار', items: 'قميص رجالي L × 1', total: 35000, status: 'returned', date: '2026-06-17', fahdRef: 'FHD-99701' },
-  { id: 'o4', orderNo: '1051', pageId: 'pg2', customer: 'أحمد كريم', phone: '0750 222 3344', address: 'أربيل - عينكاوة', items: 'بنطلون جينز × 1', total: 28000, status: 'pending', date: '2026-06-19', fahdRef: 'FHD-99845' },
-];
-
-const SEED_USERS = [
-  { id: 'u1', name: 'المدير العام', role: 'admin', code: '100020', active: true, permissions: ['all'] },
-];
-
-// ──────────────────────────────────────────────
 // أداة كشف حجم الشاشة (للتصميم المتجاوب)
 // ──────────────────────────────────────────────
 function useIsMobile(breakpoint = 860) {
@@ -1061,15 +1034,22 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     if (!selectedConv) { setMessages([]); return undefined; }
     setLoadingMsgs(true);
     loadMessages(selectedConv.id).finally(() => setLoadingMsgs(false));
-    // أثناء فتح المحادثة: اسحب من فيسبوك مباشرة وحدّث الرسائل كل 2.5 ثانية لأقل تأخير ممكن
+    // علّم كمقروء مرة واحدة عند الفتح فقط (مو كل دورة)
+    markConversationRead(selectedConv.id);
+    const isWA = selectedConv.isWhatsApp;
+    // أثناء فتح المحادثة: حدّث الرسائل دورياً
+    // واتساب: يصل تلقائياً من Railway، فقط نعيد التحميل المحلي (بدون FB poll)
+    // ماسنجر: نسحب من فيسبوك مباشرة
     const refreshOpenChat = async () => {
-      try {
-        await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
-      } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
+      if (!isWA) {
+        try {
+          await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
+        } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
+      }
       await loadMessages(selectedConv.id);
-      await markConversationRead(selectedConv.id);
     };
-    const interval = setInterval(refreshOpenChat, 2500);
+    // واتساب أبطأ قليلاً (4 ث) لأنه فوري من Railway، ماسنجر 3 ث
+    const interval = setInterval(refreshOpenChat, isWA ? 4000 : 3000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
@@ -1129,6 +1109,33 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     return data;
   }
 
+  // ── إرسال لواتساب عبر Railway Bridge (نص/صورة/صوت) ──
+  async function sendToWhatsApp(conv, { text, imageUrl, audioUrl } = {}) {
+    const phone = conv.customerPsid?.replace('wa_', '') || conv.phone;
+    if (!phone) throw new Error('رقم واتساب غير متوفر لهذه المحادثة');
+
+    let endpoint = '/send';
+    let body = { phone, message: text };
+    if (imageUrl) {
+      endpoint = '/send-image';
+      body = { phone, imageUrl, caption: text || '' };
+    } else if (audioUrl) {
+      endpoint = '/send-audio';
+      body = { phone, audioUrl };
+    }
+
+    const res = await fetch(`${WA_BRIDGE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `فشل إرسال واتساب (${res.status})`);
+    }
+    return res.json().catch(() => ({}));
+  }
+
   async function handleSendText() {
     const text = composerText.trim();
     if (!text || !selectedConv || sendingMsg) return;
@@ -1143,16 +1150,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     try {
       // ── واتساب: إرسال عبر Bridge ──
       if (selectedConv.isWhatsApp) {
-        const phone = selectedConv.customerPsid?.replace('wa_', '') || selectedConv.phone;
-        const res = await fetch(`${WA_BRIDGE_URL}/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, message: text }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'فشل إرسال واتساب');
-        }
+        await sendToWhatsApp(selectedConv, { text });
         // حفظ الرسالة في قاعدة البيانات
         await sbInsert('alfhd_messages', {
           conversation_id: selectedConv.id,
@@ -1189,13 +1187,24 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       const url = await uploadToStorage(file, (file.name.split('.').pop() || 'jpg').toLowerCase());
       setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'image', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
       touchConvLocally(selectedConv.id, '📷 صورة');
-      await sendToFacebook({
-        pageId: selectedConv.pageId,
-        conversationId: selectedConv.id,
-        recipientPsid: selectedConv.customerPsid,
-        mediaUrl: url,
-        mediaType: 'image',
-      });
+      if (selectedConv.isWhatsApp) {
+        // ── واتساب: عبر Bridge ──
+        await sendToWhatsApp(selectedConv, { imageUrl: url });
+        await sbInsert('alfhd_messages', {
+          conversation_id: selectedConv.id, direction: 'outgoing',
+          content: null, type: 'image', media_url: url,
+          source: 'whatsapp', created_at: new Date().toISOString(),
+        });
+      } else {
+        // ── ماسنجر: عبر فيسبوك ──
+        await sendToFacebook({
+          pageId: selectedConv.pageId,
+          conversationId: selectedConv.id,
+          recipientPsid: selectedConv.customerPsid,
+          mediaUrl: url,
+          mediaType: 'image',
+        });
+      }
       await loadMessages(selectedConv.id);
     } catch (e) {
       console.error('send image error:', e);
@@ -1226,13 +1235,24 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           const url = await uploadToStorage(file, 'webm');
           setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'audio', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
           touchConvLocally(selectedConv.id, '🎤 رسالة صوتية');
-          await sendToFacebook({
-            pageId: selectedConv.pageId,
-            conversationId: selectedConv.id,
-            recipientPsid: selectedConv.customerPsid,
-            mediaUrl: url,
-            mediaType: 'audio',
-          });
+          if (selectedConv.isWhatsApp) {
+            // ── واتساب: عبر Bridge ──
+            await sendToWhatsApp(selectedConv, { audioUrl: url });
+            await sbInsert('alfhd_messages', {
+              conversation_id: selectedConv.id, direction: 'outgoing',
+              content: null, type: 'audio', media_url: url,
+              source: 'whatsapp', created_at: new Date().toISOString(),
+            });
+          } else {
+            // ── ماسنجر: عبر فيسبوك ──
+            await sendToFacebook({
+              pageId: selectedConv.pageId,
+              conversationId: selectedConv.id,
+              recipientPsid: selectedConv.customerPsid,
+              mediaUrl: url,
+              mediaType: 'audio',
+            });
+          }
           await loadMessages(selectedConv.id);
         } catch (e) {
           console.error('send audio error:', e);
@@ -4739,14 +4759,20 @@ export default function AlFhdApp() {
   const [pages, setPages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [orders, setOrders] = useState([]);
+  // مرجع حيّ لأحدث قيمة من orders — يحل مشكلة stale closure في refreshOrders
+  const ordersRef = React.useRef([]);
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
   // ── المخزن ──
   const [warehouseProducts, setWarehouseProducts] = useState([]);
+  // مرجع حيّ لمنتجات المخزن — يمنع stale closure عند الاستدعاء من refreshOrders
+  const warehouseProductsRef = React.useRef([]);
+  useEffect(() => { warehouseProductsRef.current = warehouseProducts; }, [warehouseProducts]);
 
   // ── تسجيل بيعة في المخزن تلقائياً ──
   async function recordWarehouseSale(order) {
     try {
       // ابحث عن أفضل منتج مطابق
-      const match = matchOrderToWarehouseProduct(order, warehouseProducts);
+      const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
       if (!match) {
         console.warn('⚠️ لم يُعثر على منتج مطابق في المخزن للطلب:', order.orderNo);
         return;
@@ -4786,7 +4812,7 @@ export default function AlFhdApp() {
   // ── إرجاع بيعة للمخزن تلقائياً ──
   async function returnToWarehouse(order) {
     try {
-      const match = matchOrderToWarehouseProduct(order, warehouseProducts);
+      const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
       if (!match) return;
 
       const { product } = match;
@@ -4900,7 +4926,7 @@ export default function AlFhdApp() {
         orderSignatureRef.current = sig;
 
         // ── كشف التغييرات الجديدة في حالة التوصيل ──
-        const prevOrders = orders;
+        const prevOrders = ordersRef.current;
         for (const newOrder of mapped) {
           const prev = prevOrders.find(o => o.id === newOrder.id);
           if (!prev) continue;
@@ -4931,8 +4957,19 @@ export default function AlFhdApp() {
 
   useEffect(() => {
     if (!storageReady) return undefined;
-    const interval = setInterval(refreshOrders, 10000);
-    return () => clearInterval(interval);
+    let interval = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (!document.hidden) refreshOrders();
+      }, 12000);
+    };
+    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+    start();
+    // أوقف عند إخفاء التبويب، واستأنف عند العودة مع تحديث فوري
+    const onVis = () => { if (document.hidden) stop(); else { refreshOrders(); start(); } };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, [storageReady, refreshOrders]);
 
   // تحميل البيانات الحقيقية من Supabase (لا يمنع عرض الواجهة أبداً)
@@ -4973,8 +5010,18 @@ export default function AlFhdApp() {
   useEffect(() => {
     if (!storageReady) return undefined;
     pollFacebookNow();
-    const interval = setInterval(pollFacebookNow, 7000);
-    return () => clearInterval(interval);
+    let interval = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (!document.hidden) pollFacebookNow();
+      }, 8000);
+    };
+    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+    start();
+    const onVis = () => { if (document.hidden) stop(); else { pollFacebookNow(); start(); } };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, [storageReady, pollFacebookNow]);
 
   // بعد تحميل Supabase: حدّث بيانات المستخدم المسجّل (صلاحيات جديدة إلخ) وأوقف شاشة التحميل
