@@ -2542,6 +2542,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       return false;
     }
 
+    // ── ملاحظات التوصيل: نوع الطلب + المنتجات (نوع السيارة، الموديل، النوعية) ──
+    const noteText = [
+      o.orderType ? o.orderType.trim() : '',
+      o.items ? o.items.trim() : '',
+    ].filter(Boolean).join(' — ');
+
     // ── البيانات المرسلة لشركة التوصيل ──
     const shipmentPayload = {
       external_shipment_id: String(o.id),
@@ -2550,9 +2556,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       receiver_phone_1: cleanPhone,
       governorate_code: o.governorateCode,
       city: cityValue,
-      address: o.address || '',
+      address: String(o.address || '').trim(),
       amount_iqd: Number(o.total) || 0,
-      note: o.orderType || undefined,
+      note: noteText || undefined,
     };
 
     console.log('📦 إرسال لشركة التوصيل:', shipmentPayload);
