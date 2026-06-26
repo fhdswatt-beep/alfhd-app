@@ -9,7 +9,7 @@ import {
   Mic, Send, Image, ArrowRight,
   AlertCircle,
   Warehouse, ShoppingCart, CreditCard, DollarSign,
-  TrendingUp, Percent, Home,
+  TrendingUp, Percent, Home, Bell,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -33,6 +33,8 @@ const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-f
 const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
 const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shipment`;
 const JENNI_SYNC_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-sync`;
+const JENNI_UPDATE_STATUS_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-update-status`;
+const JENNI_STICKERS_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-stickers`;
 
 // محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
 const IRAQ_GOVERNORATES = [
@@ -276,6 +278,11 @@ function mapOrderFromDb(row) {
     deliveryStepAr: row.delivery_step_ar || null,
     deliveryNote: row.delivery_note || null,
     deliveryUpdatedAt: row.delivery_updated_at || null,
+    deliveryHistory: (() => {
+      if (!row.delivery_history) return [];
+      try { return typeof row.delivery_history === 'string' ? JSON.parse(row.delivery_history) : row.delivery_history; }
+      catch { return []; }
+    })(),
   };
 }
 
@@ -474,6 +481,7 @@ function mapMessageFromDb(row) {
     type: row.type || row.message_type || 'text',
     mediaUrl: row.media_url || null,
     source: row.source || 'facebook',
+    createdAt: row.created_at || null,
     time: row.created_at
       ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
       : '',
@@ -1651,16 +1659,34 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                   <p>لا توجد رسائل بعد</p>
                 </div>
               ) : (
-                messages.map((m, idx) => (
+                messages.map((m, idx) => {
+                  // فاصل التاريخ الذكي (اليوم/أمس/تاريخ) عند تغيّر اليوم
+                  const dayLabel = (() => {
+                    if (!m.createdAt) return idx === 0 ? 'اليوم' : null;
+                    const d = new Date(m.createdAt);
+                    const prev = idx > 0 ? messages[idx - 1].createdAt : null;
+                    const sameDay = prev && new Date(prev).toDateString() === d.toDateString();
+                    if (sameDay) return null;
+                    const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
+                    if (d.toDateString() === today.toDateString()) return 'اليوم';
+                    if (d.toDateString() === yest.toDateString()) return 'أمس';
+                    return d.toLocaleDateString('ar-IQ', { day: 'numeric', month: 'long' });
+                  })();
+                  // تجميع: هل الرسالة السابقة بنفس الاتجاه وقريبة بالوقت؟
+                  const prevM = idx > 0 ? messages[idx - 1] : null;
+                  const grouped = prevM && prevM.direction === m.direction && !dayLabel &&
+                    m.createdAt && prevM.createdAt &&
+                    (new Date(m.createdAt) - new Date(prevM.createdAt)) < 120000;
+                  return (
                   <React.Fragment key={m.id}>
-                    {idx === 0 && (
-                      <div style={{ alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TG_SUB, fontSize: 10, fontWeight: 600 }}>
-                        اليوم
+                    {dayLabel && (
+                      <div style={{ alignSelf: 'center', margin: idx === 0 ? '4px 0 10px' : '12px 0 10px', padding: '4px 12px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', backdropFilter: 'blur(8px)', color: TG_SUB, fontSize: 10.5, fontWeight: 700 }}>
+                        {dayLabel}
                       </div>
                     )}
                     <div
-                      className="alfhd-chat-bubble-row"
-                      style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: 6, width: '100%', minWidth: 0 }}
+                      className="alfhd-chat-bubble-row alfhd-msg-row"
+                      style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
                     >
                       <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
                         {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} />}
@@ -1670,7 +1696,8 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                       </div>
                     </div>
                   </React.Fragment>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -1984,6 +2011,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const ocrInputRef = React.useRef(null);
   const [section, setSection] = useState('ready');
   const [printTarget, setPrintTarget] = useState(null);
+  // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
+  const [jenniAction, setJenniAction] = useState(null);
+  const [jenniActionReason, setJenniActionReason] = useState('');
+  const [jenniActionDateId, setJenniActionDateId] = useState(1);
+  const [jenniActionBusy, setJenniActionBusy] = useState(false);
 
   // مطابقة الفلاتر المشتركة (صفحة + تاريخ + بحث) على طلب
   function passesCommon(o) {
@@ -2624,63 +2656,178 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // ── أزرار الإجراءات المتاحة حسب حالة جيني ──
-  function JenniActionsPanel({ o }) {
-    if (!o.jenniSent || !o.deliveryStatus) return null;
-    const status = o.deliveryStatus;
+  // ── تنفيذ إجراء جيني فعلياً (تأجيل/إرجاع/معالجة) عبر الدالة ──
+  async function callJenniAction(order, action, { reason = '', postponedDateId = null } = {}) {
+    if (!order.jenniShipmentId && !order.orderNo) {
+      alert('لا يمكن تنفيذ الإجراء: الطلب غير مرسل لشركة التوصيل');
+      return false;
+    }
+    try {
+      const payload = {
+        shipment_id: order.jenniShipmentId || undefined,
+        shipment_number: order.jenniShipmentId ? undefined : String(order.orderNo),
+        action,
+        reason,
+      };
+      if (action === 'POSTPONED') payload.postponed_date_id = postponedDateId || 1;
 
+      const res = await fetch(JENNI_UPDATE_STATUS_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        alert(`فشل الإجراء في شركة التوصيل: ${data.error || data.jenni_response?.message || 'خطأ غير معروف'}`);
+        return false;
+      }
+
+      // تحديث الطلب محلياً + قاعدة البيانات بالحالة الجديدة من جيني
+      const patch = {
+        delivery_step: data.new_status || order.deliveryStep,
+        delivery_step_ar: data.new_status_ar || order.deliveryStepAr,
+        delivery_note: reason || order.deliveryNote,
+        delivery_updated_at: data.updated_at || new Date().toISOString(),
+      };
+      try { await sbUpdate('alfhd_orders', order.id, patch); } catch (_e) { /* المزامنة ستصحح لاحقاً */ }
+      setOrders((prev) => prev.map((x) => (x.id === order.id ? {
+        ...x,
+        deliveryStep: patch.delivery_step,
+        deliveryStepAr: patch.delivery_step_ar,
+        deliveryNote: patch.delivery_note,
+        deliveryUpdatedAt: patch.delivery_updated_at,
+      } : x)));
+      return true;
+    } catch (e) {
+      alert(`خطأ في الاتصال بشركة التوصيل: ${e.message}`);
+      return false;
+    }
+  }
+
+  // فتح نافذة إجراء يتطلب سبب (تأجيل/إرجاع)
+  function openJenniActionModal(order, action, title) {
+    setJenniAction({ order, action, title });
+    setJenniActionReason('');
+    setJenniActionDateId(1);
+  }
+
+  // تأكيد نافذة الإجراء
+  async function confirmJenniAction() {
+    if (!jenniAction) return;
+    const { order, action } = jenniAction;
+    if (!jenniActionReason.trim()) { alert('السبب مطلوب'); return; }
+    setJenniActionBusy(true);
+    const ok = await callJenniAction(order, action, {
+      reason: jenniActionReason.trim(),
+      postponedDateId: action === 'POSTPONED' ? jenniActionDateId : null,
+    });
+    setJenniActionBusy(false);
+    if (ok) {
+      setJenniAction(null);
+      setDetailOrder(null);
+    }
+  }
+
+  // ── طباعة باركود الشحنة من جيني (PDF) ──
+  async function printJenniBarcode(order) {
+    if (!order.orderNo && !order.jenniShipmentId) {
+      alert('لا يمكن طباعة الباركود: الطلب غير مرسل لشركة التوصيل');
+      return;
+    }
+    try {
+      const payload = order.jenniShipmentId
+        ? { shipment_ids: [order.jenniShipmentId] }
+        : { shipment_numbers: [String(order.orderNo)] };
+      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        alert(`تعذّر جلب الباركود: ${data.error || data.jenni_response?.message || 'غير متاح'}`);
+        return;
+      }
+      // PDF كـ base64 → افتحه بنافذة جديدة
+      if (data.type === 'pdf_base64' && data.data) {
+        const blob = await (await fetch(`data:application/pdf;base64,${data.data}`)).blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else if (data.type === 'url' && data.url) {
+        window.open(data.url, '_blank');
+      } else {
+        alert('الباركود غير متاح لهذا الطلب حالياً');
+      }
+    } catch (e) {
+      alert(`خطأ في جلب الباركود: ${e.message}`);
+    }
+  }
+
+  function JenniActionsPanel({ o }) {
+    if (!o.jenniSent) return null;
+    const step = (o.deliveryStep || '').toUpperCase();
     const actions = [];
 
-    // لو فشل التوصيل — يمكن إعادة الجدولة أو الإرجاع
-    if (status === 'FAILED_DELIVERY' || status === 'ON_HOLD') {
+    const btnStyle = (color, bgA) => ({
+      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+      background: `rgba(${bgA})`, border: `1px solid ${color}40`,
+      borderRadius: 9, color, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    });
+
+    const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(step);
+    const isReturned = step.startsWith('RTO');
+    const isActive = !isDelivered && !isReturned; // قيد التوصيل
+
+    // قيد التوصيل: تأجيل / إرجاع / معالجة
+    if (isActive) {
       actions.push(
-        <button key="reschedule" style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-          background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.25)',
-          borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-        }}
-          onClick={() => alert('تواصل مع شركة التوصيل لإعادة الجدولة')}
-        >
-          <RefreshCw size={13} /> إعادة جدولة التوصيل
+        <button key="postpone" style={btnStyle('#F0A868', '240,168,104,0.10')}
+          onClick={() => openJenniActionModal(o, 'POSTPONED', 'تأجيل التوصيل')}>
+          <Calendar size={13} /> تأجيل التوصيل
+        </button>
+      );
+      actions.push(
+        <button key="return" style={btnStyle('#F25050', '242,80,80,0.08')}
+          onClick={() => openJenniActionModal(o, 'RETURNED_WITH_AGENT', 'إرجاع الطلب')}>
+          <XCircle size={13} /> إرجاع الطلب
         </button>
       );
     }
 
-    // لو راجع — يمكن تأكيد الاستلام
-    if (status === 'RETURNED_TO_MERCHANT' || status === 'RETURN_IN_PROGRESS') {
+    // راجع: تأكيد الإرجاع وأرشفة
+    if (isReturned) {
       actions.push(
-        <button key="confirm_return" style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-          background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.25)',
-          borderRadius: 9, color: '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-        }}
-          onClick={() => markOrderConverted(o)}
-        >
+        <button key="confirm_return" style={btnStyle('#F25050', '242,80,80,0.08')}
+          onClick={() => markOrderConverted(o)}>
           <XCircle size={13} /> تأكيد الإرجاع وأرشفة الطلب
         </button>
       );
     }
 
-    // لو مستلم — تأكيد وأرشفة
-    if (status === 'DELIVERED') {
+    // مستلم: تأكيد وأرشفة
+    if (isDelivered) {
       actions.push(
-        <button key="archive" style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-          background: 'rgba(77,219,107,0.08)', border: '1px solid rgba(77,219,107,0.25)',
-          borderRadius: 9, color: '#4DDB6B', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-        }}
-          onClick={() => markOrderConverted(o)}
-        >
+        <button key="archive" style={btnStyle('#4DDB6B', '77,219,107,0.08')}
+          onClick={() => markOrderConverted(o)}>
           <CheckCircle2 size={13} /> تأكيد الاستلام وأرشفة الطلب
         </button>
       );
     }
 
-    if (actions.length === 0) return null;
-
+    // الباركود متاح دائماً طالما الطلب مُرسل لجيني (حتى لو ما في إجراءات أخرى)
     return (
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontSize: 11, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات متاحة:</div>
+        <div style={{ fontSize: 11, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات شركة التوصيل:</div>
         {actions}
+        <button key="barcode" style={btnStyle('#2AABEE', '42,171,238,0.10')}
+          onClick={() => printJenniBarcode(o)}>
+          <Printer size={13} /> طباعة باركود الشحنة
+        </button>
       </div>
     );
   }
@@ -2735,12 +2882,23 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   function renderOrderCard(o, index = 0) {
     const page = pages.find((p) => p.id === o.pageId);
     const isRejected = o.prepStatus === 'rejected';
+    // لون الشريط حسب الحالة: أخضر=مستلم، أحمر=راجع، برتقالي=قيد التوصيل، أزرق=جاهز
+    const stepU = (o.deliveryStep || '').toUpperCase();
+    let stripColor = '#2AABEE'; // افتراضي (جاهز/تجهيز)
+    if (o.converted) stripColor = '#4DDB6B';
+    else if (isRejected) stripColor = '#F25050';
+    else if (stepU.startsWith('RTO')) stripColor = '#F25050';
+    else if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) stripColor = '#4DDB6B';
+    else if (stepU) stripColor = '#F0A868'; // قيد التوصيل
     return (
       <div
         key={o.id}
         style={{ ...styles.orderCard, ...(isRejected ? styles.rejectedCard : {}), animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
         className="alfhd-order-card alfhd-card-enter"
       >
+        {/* شريط لوني علوي حسب الحالة */}
+        <div style={{ height: 3, background: stripColor, width: '100%' }} />
+
         {isRejected && (
           <div style={styles.rejectedBanner}>
             <AlertCircle size={16} />
@@ -3092,6 +3250,69 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         />
       )}
 
+      {/* ── نافذة إجراء جيني: تأجيل / إرجاع (تطلب السبب) ── */}
+      {jenniAction && (
+        <div style={styles.modalOverlay} onClick={() => !jenniActionBusy && setJenniAction(null)}>
+          <div style={{ ...styles.modal, maxWidth: 420 }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>{jenniAction.title}</h3>
+              <button onClick={() => setJenniAction(null)} style={styles.modalClose}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '4px 17px 17px' }}>
+              <div style={{ fontSize: 12, color: '#546880', marginBottom: 12 }}>
+                طلب #{jenniAction.order.orderNo} — {jenniAction.order.customer}
+              </div>
+
+              {/* تاريخ التأجيل (فقط للتأجيل) */}
+              {jenniAction.action === 'POSTPONED' && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, color: '#E7ECF3', fontWeight: 700, display: 'block', marginBottom: 6 }}>موعد إعادة المحاولة</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ id: 1, t: 'غداً' }, { id: 2, t: 'بعد يومين' }, { id: 3, t: 'بعد 3 أيام' }].map((d) => (
+                      <button key={d.id} onClick={() => setJenniActionDateId(d.id)}
+                        style={{
+                          flex: 1, padding: '8px 4px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          background: jenniActionDateId === d.id ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.04)',
+                          border: jenniActionDateId === d.id ? '1.5px solid #2AABEE' : '1px solid rgba(255,255,255,0.1)',
+                          color: jenniActionDateId === d.id ? '#2AABEE' : '#9FB0C3',
+                        }}>{d.t}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* السبب */}
+              <label style={{ fontSize: 12, color: '#E7ECF3', fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                {jenniAction.action === 'POSTPONED' ? 'سبب التأجيل' : 'سبب الإرجاع'}
+                <span style={{ color: '#F25050' }}> *</span>
+              </label>
+              <textarea
+                value={jenniActionReason}
+                onChange={(e) => setJenniActionReason(e.target.value)}
+                placeholder={jenniAction.action === 'POSTPONED' ? 'مثال: العميل غير متوفر، سيتواصل لاحقاً' : 'مثال: رفض الاستلام، العنوان خاطئ'}
+                rows={3}
+                style={{
+                  width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 9,
+                  background: '#242F3D', border: '1.5px solid rgba(42,171,238,0.25)', color: '#E7ECF3',
+                  fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button onClick={() => setJenniAction(null)} disabled={jenniActionBusy}
+                  style={{ flex: 1, padding: '11px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#9FB0C3', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  إلغاء
+                </button>
+                <button onClick={confirmJenniAction} disabled={jenniActionBusy}
+                  style={{ flex: 2, padding: '11px', borderRadius: 9, background: jenniActionBusy ? '#1a5a7a' : '#2AABEE', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: jenniActionBusy ? 'wait' : 'pointer' }}>
+                  {jenniActionBusy ? 'جارٍ الإرسال...' : 'تأكيد وإرسال لشركة التوصيل'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingOrder && (
         <div style={styles.modalOverlay} onClick={() => !saving && setEditingOrder(null)}>
           <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
@@ -3435,9 +3656,37 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
               <span style={{ ...styles.detailGridValue, whiteSpace: 'pre-wrap', textAlign: 'right' }}>{o.items}</span>
             </div>
           )}
-          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المبلغ</span><span style={{ ...styles.detailGridValue, color: '#60A5FA', fontWeight: 800, fontSize: 16 }}>{Number(o.total).toLocaleString()} د.ع</span></div>
+          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المبلغ</span><span style={{ ...styles.detailGridValue, fontSize: 18 }}><span className="alfhd-amount-glow">{Number(o.total).toLocaleString()}</span> <span style={{ fontSize: 12, color: '#9FB0C3', fontWeight: 600 }}>د.ع</span></span></div>
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>التاريخ</span><span style={styles.detailGridValue}>{o.date}</span></div>
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الرقم المرجعي</span><span style={{ ...styles.detailGridValue, fontFamily: 'monospace' }}>{o.fahdRef}</span></div>
+
+          {/* ── الخط الزمني لرحلة الشحنة عند شركة التوصيل ── */}
+          {Array.isArray(o.deliveryHistory) && o.deliveryHistory.length > 0 && (
+            <div style={{ ...styles.detailGridRow, flexDirection: 'column', alignItems: 'stretch', gap: 0, paddingTop: 10 }}>
+              <span style={{ ...styles.detailGridLabel, marginBottom: 10 }}>رحلة الشحنة</span>
+              <div style={{ position: 'relative', paddingRight: 4 }}>
+                {o.deliveryHistory.map((h, i) => {
+                  const isLast = i === o.deliveryHistory.length - 1;
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 10, position: 'relative', paddingBottom: isLast ? 0 : 16 }}>
+                      {/* نقطة وخط */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: isLast ? '#4DDB6B' : '#2AABEE', boxShadow: isLast ? '0 0 0 3px rgba(77,219,107,0.2)' : 'none', marginTop: 2 }} />
+                        {!isLast && <div style={{ width: 2, flex: 1, background: 'rgba(42,171,238,0.25)', marginTop: 2 }} />}
+                      </div>
+                      {/* المحتوى */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: isLast ? '#4DDB6B' : '#E7ECF3' }}>{h.step_ar || h.step}</div>
+                        {h.branch && <div style={{ fontSize: 11, color: '#9FB0C3', marginTop: 1 }}>{h.branch}</div>}
+                        {h.date && <div style={{ fontSize: 10.5, color: '#546880', marginTop: 1, fontFamily: 'monospace' }}>{h.date}</div>}
+                        {h.note && <div style={{ fontSize: 11, color: '#F0A868', marginTop: 2 }}>{h.note}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {reprepMode && (
             <div style={styles.formGroup}>
@@ -3481,7 +3730,7 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
 
 function StatCard({ icon: Icon, label, value, color }) {
   return (
-    <div style={styles.statCard} className="alfhd-stat-card">
+    <div style={styles.statCard} className="alfhd-stat-card alfhd-fade-up">
       <div style={{ ...styles.statIconWrap, background: `linear-gradient(135deg, ${color}22, ${color}0D)`, color, boxShadow: `0 4px 12px -4px ${color}55` }}>
         <Icon size={19} />
       </div>
@@ -3593,6 +3842,18 @@ function StatsView({ orders, pages, conversations, setOrders }) {
     [scopedOrders]
   );
 
+  // أفضل المناطق (الأكثر طلبات) — رؤية مفيدة للتاجر
+  const topAreas = useMemo(() => {
+    const map = {};
+    for (const o of scopedOrders) {
+      const key = [o.governorateName, o.area].filter(Boolean).join(' - ') || 'غير محدد';
+      if (!map[key]) map[key] = { name: key, count: 0, revenue: 0 };
+      map[key].count++;
+      if (o.status === 'delivered') map[key].revenue += o.total;
+    }
+    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [scopedOrders]);
+
   const [panel, setPanel] = useState(null); // null | 'summary' | 'bestSellers' | 'converted' | 'neglected'
 
   return (
@@ -3697,6 +3958,29 @@ function StatsView({ orders, pages, conversations, setOrders }) {
             ))}
           </div>
         </div>
+
+        {/* أفضل المناطق (الأكثر طلبات) */}
+        {topAreas.length > 0 && (
+          <div style={styles.chartCard}>
+            <h3 style={styles.chartTitle}>أفضل المناطق</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              {topAreas.map((a, i) => (
+                <div key={a.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                      background: i < 3 ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.05)',
+                      color: i < 3 ? '#2AABEE' : '#9FB0C3', fontSize: 11, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>{i + 1}</span>
+                    <span style={{ fontSize: 12.5, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2AABEE', flexShrink: 0 }}>{a.count} طلب</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={styles.statsBottomBtns}>
@@ -4261,12 +4545,11 @@ function PagesView({ pages, setPages }) {
                     {p.avatar && p.avatar !== '📄' ? p.avatar : <Facebook size={28} color="#fff" />}
                   </div>
                   {/* نقطة الاتصال */}
-                  <div style={{
+                  <div className={p.connected ? 'alfhd-pulse' : ''} style={{
                     position: 'absolute', bottom: -2, left: -2,
                     width: 16, height: 16, borderRadius: '50%',
                     background: p.connected ? '#1DDB6B' : '#546880',
                     border: '2.5px solid #17212B',
-                    boxShadow: p.connected ? '0 0 8px rgba(29,219,107,0.6)' : 'none',
                   }} />
                 </div>
 
@@ -4518,7 +4801,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
 
   const ADMIN_TABS = [
     { id: 'managers', label: 'المدراء', icon: ShieldCheck },
-    { id: 'warehouse', label: 'موظفي المخزن', icon: Package },
+    { id: 'warehouse', label: 'موظفي التجهيز', icon: Package },
     { id: 'fulfillment', label: 'متابعة التجهيز', icon: CheckCircle2 },
   ];
 
@@ -4533,7 +4816,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
             <div style={styles.userCardName}>{u.name}</div>
             <div style={styles.userCardRole}>
               {u.role === 'admin' ? <><ShieldCheck size={12} color="#4ADE80" /> مدير عام</>
-                : u.role === 'warehouse' ? <><Package size={12} color="#F0A868" /> {u.jobTitle || 'موظف مخزن'}</>
+                : u.role === 'warehouse' ? <><Package size={12} color="#F0A868" /> {u.jobTitle || 'موظف تجهيز'}</>
                 : <><Shield size={12} color="#3B82F6" /> مدير ({(u.permissions || []).length} صلاحية)</>}
             </div>
           </div>
@@ -4575,7 +4858,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
           <p style={styles.viewSubtitle}>المدراء، موظفو المخزن، ومتابعة تجهيز الطلبات</p>
         </div>
         {adminTab === 'managers' && <button onClick={openAddManager} style={styles.addBtn}><UserPlus size={16} /> إضافة مدير</button>}
-        {adminTab === 'warehouse' && <button onClick={openAddWarehouse} style={styles.addBtn}><UserPlus size={16} /> إضافة موظف مخزن</button>}
+        {adminTab === 'warehouse' && <button onClick={openAddWarehouse} style={styles.addBtn}><UserPlus size={16} /> إضافة موظف تجهيز</button>}
       </div>
 
       <div style={styles.sectionTabs}>
@@ -4597,7 +4880,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
 
       {adminTab === 'warehouse' && (
         warehouse.length === 0 ? (
-          <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا يوجد موظفو مخزن بعد</p></div>
+          <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا يوجد موظفو تجهيز بعد</p></div>
         ) : (
           <div style={styles.usersGrid} className="alfhd-users-grid">
             {warehouse.map((u) => <UserCard key={u.id} u={u} isWarehouse />)}
@@ -4614,7 +4897,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
           <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
-                {editingUser ? 'تعديل' : (form.role === 'warehouse' ? 'إضافة موظف مخزن' : 'إضافة مدير')}
+                {editingUser ? 'تعديل' : (form.role === 'warehouse' ? 'إضافة موظف تجهيز' : 'إضافة مدير')}
               </h3>
               <button onClick={() => setShowAdd(false)} style={styles.modalClose}><X size={18} /></button>
             </div>
@@ -4675,7 +4958,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
               {form.role === 'warehouse' && (
                 <div style={styles.warehouseNote}>
                   <AlertCircle size={14} color="#F0A868" />
-                  <span>موظف المخزن يرى فقط الطلبات المثبتة من كل الصفحات، ويعلّمها "تم التجهيز" أو "لم يتم" بدون صلاحية تعديل أو حذف.</span>
+                  <span>موظف التجهيز يرى فقط الطلبات المثبتة من كل الصفحات، ويعلّمها "تم التجهيز" أو "لم يتم" بدون صلاحية تعديل أو حذف.</span>
                 </div>
               )}
 
@@ -4866,6 +5149,9 @@ export default function AlFhdApp() {
   const [pages, setPages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [orders, setOrders] = useState([]);
+  // مركز الإشعارات: { id, type, title, body, orderNo, time, read }
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   // مرجع حيّ لأحدث قيمة من orders — يحل مشكلة stale closure في refreshOrders
   const ordersRef = React.useRef([]);
   useEffect(() => { ordersRef.current = orders; }, [orders]);
@@ -5007,6 +5293,25 @@ export default function AlFhdApp() {
   const knownOrderIdsRef = React.useRef(null);
   const orderSignatureRef = React.useRef('');
   const rejectedIdsRef = React.useRef(null);
+  // ── إضافة إشعار لمركز الإشعارات (مع صوت وإشعار متصفح) ──
+  const pushNotif = useCallback((notif) => {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      time: new Date().toISOString(),
+      read: false,
+      ...notif,
+    };
+    setNotifications((prev) => [entry, ...prev].slice(0, 50));
+    // صوت حسب النوع
+    try { notif.type === 'returned' ? playAlarmSound() : playNotificationSound(); } catch (_e) { /* تجاهل */ }
+    // إشعار المتصفح (إن كان مسموحاً)
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(notif.title, { body: notif.body });
+      }
+    } catch (_e) { /* تجاهل */ }
+  }, []);
+
   const refreshOrders = useCallback(async () => {
     try {
       const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
@@ -5045,6 +5350,12 @@ export default function AlFhdApp() {
           if (newStatus === 'DELIVERED' && prevStatus !== 'DELIVERED') {
             console.log(`🎉 طلب #${newOrder.orderNo} مستلم — تسجيل في المخزن...`);
             recordWarehouseSale(newOrder);
+            pushNotif({
+              type: 'delivered',
+              title: 'تم تسليم طلب 🎉',
+              body: `طلب #${newOrder.orderNo} — ${newOrder.customer || ''} (${Number(newOrder.total).toLocaleString()} د.ع)`,
+              orderNo: newOrder.orderNo,
+            });
           }
 
           // RETURNED → إرجاع للمخزن
@@ -5052,6 +5363,12 @@ export default function AlFhdApp() {
               prevStatus !== 'RETURNED_TO_MERCHANT' && prevStatus !== 'returned') {
             console.log(`↩️ طلب #${newOrder.orderNo} راجع — إرجاع للمخزن...`);
             returnToWarehouse(newOrder);
+            pushNotif({
+              type: 'returned',
+              title: '⚠️ طلب راجع — انتبه',
+              body: `طلب #${newOrder.orderNo} — ${newOrder.customer || ''}${newOrder.deliveryNote ? ' — ' + newOrder.deliveryNote : ''}`,
+              orderNo: newOrder.orderNo,
+            });
           }
         }
 
@@ -5060,6 +5377,15 @@ export default function AlFhdApp() {
     } catch (e) {
       console.error('orders refresh error:', e);
     }
+  }, [pushNotif]);
+
+  // طلب إذن إشعارات المتصفح مرة واحدة
+  useEffect(() => {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+    } catch (_e) { /* تجاهل */ }
   }, []);
 
   useEffect(() => {
@@ -5239,14 +5565,41 @@ export default function AlFhdApp() {
   }
 
   // ── واجهة موظف المخزن المبسطة (لا يرى بقية التطبيق) ──
+  // موظف التجهيز: يرى واجهة الطلبات فقط (للتجهيز والمراجعة) — لا واجهة المخزن
   if (authedUser.role === 'warehouse') {
     return (
+      <ErrorBoundary>
       <>
         <GlobalStyles />
         <div style={styles.appWrap} className="alfhd-app-wrap">
-          <WarehouseView />
+          <main style={{ ...styles.mainArea, marginRight: 0, width: '100%' }} className="alfhd-main-area">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid rgba(255,255,255,0.07)` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Package size={18} color="#F0A868" />
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5' }}>التجهيز — {authedUser.name}</span>
+              </div>
+              <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 9, color: '#E53935', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                <LogOut size={14} /> خروج
+              </button>
+            </div>
+            <OrdersView
+              orders={orders}
+              pages={pages}
+              setOrders={setOrders}
+              conversations={conversations}
+              setConversations={setConversations}
+              pendingOpenOrderId={pendingOpenOrderId}
+              clearPendingOpenOrderId={() => setPendingOpenOrderId(null)}
+              onViewConversation={goToConversation}
+              pendingNewOrderFromConv={pendingNewOrderFromConv}
+              clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
+              currentUser={authedUser}
+              warehouseProducts={warehouseProducts}
+            />
+          </main>
         </div>
       </>
+      </ErrorBoundary>
     );
   }
 
@@ -5254,6 +5607,68 @@ export default function AlFhdApp() {
     <ErrorBoundary>
     <>
       <GlobalStyles />
+      {/* ── جرس الإشعارات العائم ── */}
+      <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999 }} className="alfhd-no-print">
+        <button
+          onClick={() => {
+            setShowNotifications((v) => !v);
+            if (!showNotifications) setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+          }}
+          style={{
+            position: 'relative', width: 42, height: 42, borderRadius: '50%',
+            background: 'rgba(23,33,43,0.95)', border: '1px solid rgba(42,171,238,0.3)',
+            color: '#E7ECF3', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+            animation: notifications.some((n) => !n.read) ? 'alfhdBellGlow 1.6s var(--ease-tg) infinite' : 'none',
+            backdropFilter: 'blur(10px)',
+          }}
+          title="الإشعارات"
+        >
+          <Bell size={19} />
+          {notifications.some((n) => !n.read) && (
+            <span style={{
+              position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, padding: '0 4px',
+              borderRadius: 8, background: '#F25050', color: '#fff', fontSize: 10, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>{notifications.filter((n) => !n.read).length}</span>
+          )}
+        </button>
+
+        {showNotifications && (
+          <div style={{
+            position: 'absolute', top: 50, left: 0, width: 320, maxHeight: 420, overflowY: 'auto',
+            background: '#17212B', border: '1px solid rgba(42,171,238,0.25)', borderRadius: 14,
+            boxShadow: '0 12px 36px rgba(0,0,0,0.6)', padding: 8,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px 10px' }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#E7ECF3' }}>الإشعارات</span>
+              {notifications.length > 0 && (
+                <button onClick={() => setNotifications([])}
+                  style={{ fontSize: 11, color: '#546880', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  مسح الكل
+                </button>
+              )}
+            </div>
+            {notifications.length === 0 && (
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: '#546880', fontSize: 12.5 }}>
+                لا إشعارات
+              </div>
+            )}
+            {notifications.map((n) => (
+              <div key={n.id} style={{
+                padding: '10px 12px', marginBottom: 5, borderRadius: 10,
+                background: n.type === 'returned' ? 'rgba(242,80,80,0.08)' : 'rgba(77,219,107,0.06)',
+                border: `1px solid ${n.type === 'returned' ? 'rgba(242,80,80,0.2)' : 'rgba(77,219,107,0.15)'}`,
+              }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: n.type === 'returned' ? '#F25050' : '#4DDB6B' }}>{n.title}</div>
+                <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3, lineHeight: 1.5 }}>{n.body}</div>
+                <div style={{ fontSize: 10, color: '#546880', marginTop: 3 }}>{new Date(n.time).toLocaleString('ar')}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div style={styles.appWrap} className="alfhd-app-wrap">
         <Sidebar
           activeView={activeView}
@@ -6594,6 +7009,89 @@ function GlobalStyles() {
         .alfhd-orders-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
         .alfhd-no-print { display: none !important; }
       }
+
+      /* ═══════════════════════════════════════════════
+         ✨ طبقة السحر — تحسينات بصرية فاخرة عامة (144Hz)
+         ═══════════════════════════════════════════════ */
+
+      /* نعومة عامة 144Hz — كل العناصر التفاعلية */
+      button, a, .alfhd-order-card, input, select, textarea, [role="button"] {
+        transition-timing-function: var(--ease-tg) !important;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* انكباس فاخر عند ضغط أي زر */
+      button:active:not(:disabled) {
+        transform: scale(0.96) !important;
+        transition: transform 0.08s var(--ease-tg) !important;
+      }
+
+      /* توهّج ذهبي ناعم للمبالغ المهمة */
+      .alfhd-amount-glow {
+        background: linear-gradient(135deg, #FFD479, #F0A868) !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        text-shadow: 0 0 18px rgba(240,168,104,0.25);
+        font-weight: 900 !important;
+      }
+
+      /* زجاجية فاخرة للنوافذ المنبثقة */
+      .alfhd-modal {
+        backdrop-filter: blur(20px) saturate(1.2) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
+        background: linear-gradient(145deg, rgba(28,40,54,0.92), rgba(20,30,42,0.92)) !important;
+      }
+
+      /* خلفية التطبيق بعمق متدرّج خفيف */
+      .alfhd-app-wrap {
+        background:
+          radial-gradient(1200px 600px at 70% -10%, rgba(42,171,238,0.06), transparent 60%),
+          radial-gradient(900px 500px at 10% 110%, rgba(240,168,104,0.04), transparent 55%),
+          var(--tg-bg, #0E1621) !important;
+      }
+
+      /* نقطة حالة نابضة (متصل) */
+      @keyframes alfhdPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(77,219,107,0.5); }
+        70%  { box-shadow: 0 0 0 7px rgba(77,219,107,0); }
+        100% { box-shadow: 0 0 0 0 rgba(77,219,107,0); }
+      }
+      .alfhd-pulse { animation: alfhdPulse 2s var(--ease-tg) infinite; }
+
+      /* دخول ناعم منزلق للعناصر */
+      @keyframes alfhdFadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .alfhd-fade-up { animation: alfhdFadeUp 0.4s var(--ease-bounce) both; }
+
+      /* رسالة محادثة تنزلق بنعومة عند الوصول */
+      @keyframes alfhdMsgIn {
+        from { opacity: 0; transform: translateY(6px) scale(0.98); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .alfhd-msg-row { animation: alfhdMsgIn 0.32s var(--ease-bounce) both; }
+
+      /* جرس الإشعارات — توهّج خفيف عند وجود جديد */
+      @keyframes alfhdBellGlow {
+        0%,100% { box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+        50%     { box-shadow: 0 4px 20px rgba(242,80,80,0.4); }
+      }
+
+      /* تمرير ناعم في كل الحاويات */
+      * { scroll-behavior: smooth; }
+
+      /* شريط تمرير أنيق */
+      ::-webkit-scrollbar { width: 7px; height: 7px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.25); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.45); }
+
+      /* تقليل الحركة لمن يفضّل ذلك (وصول) */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      }
     `}</style>
   );
 }
@@ -6746,8 +7244,8 @@ const styles = {
   linkedOrderLabel: { fontSize: 11.5, color: TDM },
   linkedOrderValue: { fontSize: 12.5, color: TTX, fontWeight: 600 },
   linkedOrderDetailBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '8px', background: 'rgba(42,171,238,0.09)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700 },
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TDM, fontSize: 13 },
-  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 11, flex: 1, color: TDM, fontSize: 13 },
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '52px 20px', color: TDM, fontSize: 13.5, fontWeight: 500, animation: 'alfhdFadeUp 0.5s var(--ease-bounce) both' },
+  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: TDM, fontSize: 13.5, fontWeight: 500, animation: 'alfhdFadeUp 0.5s var(--ease-bounce) both' },
 
   // ── Orders ──
   printBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
