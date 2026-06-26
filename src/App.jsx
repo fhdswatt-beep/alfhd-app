@@ -952,10 +952,18 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     }
   }, [setConversations]);
 
+  // صفحة واتساب الافتراضية = أول صفحة مرتبطة (كماليات ابو علي)
+  const waPageId = useMemo(() => {
+    const connected = pages.find((p) => p.connected);
+    return connected?.id || pages[0]?.id || '';
+  }, [pages]);
+  // الصفحة الفعلية للمحادثة (واتساب يُنسب لصفحته الافتراضية)
+  const convPageId = (c) => (c.isWhatsApp ? waPageId : c.pageId);
+
   const filtered = useMemo(() => {
     return conversations.filter((c) => {
       if (c.tab !== activeTab) return false;
-      if (selectedPage !== 'all' && c.pageId !== selectedPage) return false;
+      if (selectedPage !== 'all' && convPageId(c) !== selectedPage) return false;
       if (search) {
         const q = search.trim().toLowerCase();
         const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
@@ -963,12 +971,13 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       }
       return true;
     });
-  }, [conversations, activeTab, selectedPage, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, activeTab, selectedPage, search, waPageId]);
 
   const counts = useMemo(() => {
     const unread = { normal: 0, pinned: 0, handoff: 0 };
     conversations.forEach((c) => {
-      if (selectedPage === 'all' || c.pageId === selectedPage) {
+      if (selectedPage === 'all' || convPageId(c) === selectedPage) {
         if (unread[c.tab] !== undefined) {
           // عدد المحادثات التي عندها رسائل غير مقروءة (مو مجموع الأرقام)
           if (Number(c.unread || 0) > 0) unread[c.tab] += 1;
@@ -976,7 +985,8 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       }
     });
     return { unread };
-  }, [conversations, selectedPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, selectedPage, waPageId]);
 
   const linkedOrder = selectedConv?.orderId
     ? orders.find((o) => o.id === selectedConv.orderId)
@@ -1568,7 +1578,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 800, color: TG_TEXT }}>{selectedConv.customer}</div>
                 <div style={{ fontSize: 11, color: TG_DIM, fontWeight: 500 }}>
-                  {pages.find((p) => p.id === selectedConv.pageId)?.name}
+                  {pages.find((p) => p.id === convPageId(selectedConv))?.name}
                 </div>
               </div>
               {!selectedConv.orderId && (
@@ -1942,9 +1952,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       autoAddress = cleanText;
     }
 
+    // ── تحديد الصفحة ──
+    // واتساب: ينتسب لأول صفحة مرتبطة (كماليات ابو علي)
+    // ماسنجر: صفحة المحادثة الأصلية
+    const waPage = pages.find((p) => p.connected) || pages[0];
+    const resolvedPageId = conv.isWhatsApp
+      ? (waPage?.id || '')
+      : (conv.pageId || pages[0]?.id || '');
+
     setEditingOrder({
       id: null,
-      pageId: conv.pageId || pages[0]?.id || '',
+      pageId: resolvedPageId,
       customer: conv.customer || '',
       phone: conv.phone || '',
       address: autoAddress,
