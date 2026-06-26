@@ -1881,7 +1881,7 @@ function OrderFilters({
 // ──────────────────────────────────────────────
 // عرض الطلبات
 // ──────────────────────────────────────────────
-function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId }) {
+function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId, warehouseProducts = [] }) {
   const [selectedPage, setSelectedPage] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -5179,6 +5179,7 @@ export default function AlFhdApp() {
               pendingNewOrderFromConv={pendingNewOrderFromConv}
               clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
               currentUser={authedUser}
+              warehouseProducts={warehouseProducts}
             />
           )}
           {activeView === 'stats' && (
