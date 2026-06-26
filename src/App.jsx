@@ -5813,8 +5813,8 @@ export default function AlFhdApp() {
     <ErrorBoundary>
     <>
       <GlobalStyles />
-      {/* ── جرس الإشعارات العائم ── */}
-      <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999 }} className="alfhd-no-print">
+      {/* ── جرس الإشعارات العائم (أسفل يمين — فوق شريط التنقل، لا يعارض شيء) ── */}
+      <div style={{ position: 'fixed', bottom: 76, right: 14, zIndex: 90 }} className="alfhd-no-print">
         <button
           onClick={() => {
             setShowNotifications((v) => !v);
@@ -5842,7 +5842,7 @@ export default function AlFhdApp() {
 
         {showNotifications && (
           <div style={{
-            position: 'absolute', top: 50, left: 0, width: 320, maxHeight: 420, overflowY: 'auto',
+            position: 'absolute', bottom: 52, right: 0, width: 320, maxHeight: 420, overflowY: 'auto',
             background: '#17212B', border: '1px solid rgba(42,171,238,0.25)', borderRadius: 14,
             boxShadow: '0 12px 36px rgba(0,0,0,0.6)', padding: 8,
           }}>
