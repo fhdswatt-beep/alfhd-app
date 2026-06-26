@@ -265,6 +265,7 @@ function mapOrderFromDb(row) {
     prepAt: row.prep_at || null,
     reprepNote: row.reprep_note || null,
     reprepByName: row.reprep_by_name || null,
+    storageLocation: row.storage_location || null,
     // شركة التوصيل
     deliveryStatus: row.delivery_status || null,
     governorateCode: row.governorate_code || '',
@@ -2368,6 +2369,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           status: editingOrder.status,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
+          storage_location: editingOrder.storageLocation || null,
         };
         await sbUpdate('alfhd_orders', editingOrder.id, payload);
         const updatedOrder = {
@@ -2752,17 +2754,39 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         alert(`تعذّر جلب الباركود: ${data.error || data.jenni_response?.message || 'غير متاح'}`);
         return;
       }
-      // PDF كـ base64 → افتحه بنافذة جديدة
+
+      // معلومات إضافية تُطبع أسفل الباركود: عنوان التخزين + المجهّز
+      const storageLabel = order.storageLocation || '';
+      const prepName = order.prepByName || '';
+      const extraHtml = `
+        <div style="margin-top:10px;padding:10px 14px;border:1.5px dashed #333;border-radius:8px;font-family:Cairo,Arial,sans-serif;direction:rtl;text-align:right;">
+          <div style="font-size:15px;font-weight:800;">طلب #${order.orderNo} — ${order.customer || ''}</div>
+          <div style="font-size:13px;color:#444;margin-top:3px;">${order.governorateName || ''}${order.area ? ' - ' + order.area : ''}</div>
+          ${storageLabel ? `<div style="font-size:14px;font-weight:700;margin-top:6px;">📍 عنوان الطلب: ${storageLabel}</div>` : `<div style="font-size:13px;color:#888;margin-top:6px;">📍 عنوان الطلب: ______________________</div>`}
+          ${prepName ? `<div style="font-size:13px;margin-top:4px;">👤 موظف التجهيز: ${prepName}</div>` : ''}
+        </div>`;
+
+      let bodyContent = '';
       if (data.type === 'pdf_base64' && data.data) {
-        const blob = await (await fetch(`data:application/pdf;base64,${data.data}`)).blob();
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="500px" />`;
       } else if (data.type === 'url' && data.url) {
-        window.open(data.url, '_blank');
+        bodyContent = `<iframe src="${data.url}" width="100%" height="500px" style="border:none;"></iframe>`;
       } else {
         alert('الباركود غير متاح لهذا الطلب حالياً');
+        return;
       }
+
+      const win = window.open('', '_blank');
+      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
+      win.document.write(`
+        <!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>باركود الطلب #${order.orderNo}</title>
+        <style>body{margin:0;padding:16px;background:#fff;font-family:Cairo,Arial,sans-serif;}@media print{.no-print{display:none;}}</style>
+        </head><body>
+        <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">🖨️ طباعة</button>
+        ${bodyContent}
+        ${extraHtml}
+        </body></html>`);
+      win.document.close();
     } catch (e) {
       alert(`خطأ في جلب الباركود: ${e.message}`);
     }
@@ -3528,6 +3552,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 />
               </div>
 
+              {/* عنوان الطلب — موقع التخزين (يُطبع على الستيكر) */}
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>عنوان الطلب — موقع التخزين <span style={{ color: '#546880', fontSize: 10 }}>(يُطبع على الستيكر — مثال: فرع A رف 3)</span></label>
+                <input
+                  value={editingOrder.storageLocation || ''}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, storageLocation: e.target.value })}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(240,168,104,0.2)', background: '#242F3D' }}
+                  placeholder="مثال: فرع A رف 3"
+                />
+              </div>
+
               {/* نوع الطلب — اختياري (note في Jenni) */}
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري — تُرسَل كـ note لشركة التوصيل)</span></label>
@@ -3638,8 +3673,14 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
         <div style={styles.modalBody}>
           {isRejected && (
             <div style={{ ...styles.rejectReasonBox, margin: 0 }}>
-              <span style={styles.rejectReasonLabel}>لم يُجهَّز من المخزن{o.prepByName ? ` (${o.prepByName})` : ''}:</span>
+              <span style={styles.rejectReasonLabel}>لم يُجهَّز{o.prepByName ? ` (المجهّز: ${o.prepByName})` : ''}:</span>
               <span>{o.prepReason || 'بدون سبب محدد'}</span>
+            </div>
+          )}
+          {o.prepStatus === 'done' && o.prepByName && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px', background: 'rgba(77,219,107,0.08)', border: '1px solid rgba(77,219,107,0.2)', borderRadius: 10, marginBottom: 4 }}>
+              <CheckCircle2 size={15} color="#4DDB6B" />
+              <span style={{ fontSize: 12.5, color: '#EAF0FB' }}>تم التجهيز — <strong>موظف التجهيز: {o.prepByName}</strong></span>
             </div>
           )}
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العميل</span><span style={styles.detailGridValue}>{o.customer}</span></div>
@@ -5096,7 +5137,195 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
   );
 }
 
-// واجهة موظف المخزن المبسطة — يرى فقط الطلبات المثبتة ويعلّمها تم/لم يتم
+// واجهة موظف التجهيز المبسطة — يرى الطلبات المثبتة بدون سعر، ويعلّمها تم/لم يتم
+function PrepWorkerView({ currentUser, onLogout }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [rejectTarget, setRejectTarget] = useState(null); // الطلب الجاري رفضه
+  const [rejectReason, setRejectReason] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const knownIdsRef = React.useRef(new Set());
+
+  // جلب الطلبات المثبتة التي تحتاج تجهيز (غير مُجهّزة بعد)
+  const loadOrders = useCallback(async () => {
+    try {
+      const rows = await sbSelect('alfhd_orders', '&order=created_at.desc&limit=300');
+      if (!rows) return;
+      const mapped = rows.map(mapOrderFromDb)
+        .filter((o) => o.converted !== true && o.stage !== 'delivery' && o.prepStatus !== 'done');
+      // إشعار صوتي عند وصول طلب جديد للتجهيز
+      if (knownIdsRef.current.size > 0) {
+        const isNew = mapped.some((o) => !knownIdsRef.current.has(o.id) && o.prepStatus !== 'rejected');
+        if (isNew) { try { playNotificationSound(); } catch (_e) { /* تجاهل */ } }
+      }
+      knownIdsRef.current = new Set(mapped.map((o) => o.id));
+      setOrders(mapped);
+    } catch (e) {
+      console.error('prep load error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+    const interval = setInterval(loadOrders, 12000);
+    return () => clearInterval(interval);
+  }, [loadOrders]);
+
+  async function markDone(o) {
+    setBusyId(o.id);
+    const patch = { prep_status: 'done', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
+    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
+    setOrders((prev) => prev.filter((x) => x.id !== o.id));
+    setBusyId(null);
+  }
+
+  async function confirmReject() {
+    if (!rejectTarget) return;
+    const o = rejectTarget;
+    setBusyId(o.id);
+    const patch = {
+      prep_status: 'rejected', prep_by: currentUser.id, prep_by_name: currentUser.name,
+      prep_at: new Date().toISOString(), prep_reason: rejectReason.trim() || null,
+    };
+    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
+    setOrders((prev) => prev.filter((x) => x.id !== o.id));
+    setRejectTarget(null);
+    setRejectReason('');
+    setBusyId(null);
+  }
+
+  // الطلبات المعروضة: المثبتة وغير المرفوضة (الجديدة تحتاج تجهيز)
+  const pending = orders.filter((o) => o.prepStatus !== 'rejected');
+
+  return (
+    <ErrorBoundary>
+    <>
+      <GlobalStyles />
+      <div style={styles.appWrap} className="alfhd-app-wrap">
+        <main style={{ ...styles.mainArea, marginRight: 0, width: '100%' }} className="alfhd-main-area">
+          {/* هيدر المجهّز */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(23,33,43,0.6)', backdropFilter: 'blur(10px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(240,168,104,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package size={18} color="#F0A868" />
+              </div>
+              <div>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: '#F5F5F5' }}>التجهيز</div>
+                <div style={{ fontSize: 11, color: '#9FB0C3' }}>{currentUser.name}</div>
+              </div>
+            </div>
+            <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 10, color: '#E53935', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+              <LogOut size={14} /> خروج
+            </button>
+          </div>
+
+          {/* عدّاد الطلبات */}
+          <div style={{ padding: '12px 16px 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#EAF0FB' }}>طلبات بحاجة للتجهيز</span>
+            <span style={{ minWidth: 22, height: 22, padding: '0 7px', borderRadius: 11, background: pending.length ? 'rgba(240,168,104,0.18)' : 'rgba(255,255,255,0.05)', color: pending.length ? '#F0A868' : '#546880', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pending.length}</span>
+          </div>
+
+          <div style={{ padding: '8px 16px 24px', overflowY: 'auto', flex: 1 }}>
+            {loading && <div style={styles.emptyState}><Package size={30} color="#39425C" /><p>جارٍ التحميل...</p></div>}
+            {!loading && pending.length === 0 && (
+              <div style={styles.emptyState}><CheckCircle2 size={34} color="#4DDB6B" /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
+            )}
+            <div style={styles.ordersGrid}>
+              {pending.map((o, i) => (
+                <div key={o.id} style={{ ...styles.orderCard, animationDelay: `${Math.min(i * 0.04, 0.4)}s` }} className="alfhd-order-card alfhd-card-enter">
+                  <div style={{ height: 3, background: '#F0A868', width: '100%' }} />
+                  <div style={{ padding: 14 }}>
+                    {/* رأس الطلب */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Package size={19} color="#2AABEE" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11.5, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                        <div style={{ fontSize: 11.5, color: '#9FB0C3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
+                      </div>
+                    </div>
+
+                    {/* المنتجات (بدون سعر) */}
+                    {o.items && (
+                      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+                        <div style={{ fontSize: 10.5, color: '#546880', fontWeight: 700, marginBottom: 4 }}>المنتجات المطلوبة</div>
+                        <div style={{ fontSize: 13, color: '#EAF0FB', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{o.items}</div>
+                      </div>
+                    )}
+                    {o.orderType && (
+                      <div style={{ fontSize: 12, color: '#9FB0C3', marginBottom: 12 }}>نوع الطلب: <span style={{ color: '#EAF0FB', fontWeight: 600 }}>{o.orderType}</span></div>
+                    )}
+
+                    {/* رسالة المدير إن أرجع الطلب */}
+                    {o.reprepNote && (
+                      <div style={{ background: 'rgba(240,168,104,0.1)', border: '1px solid rgba(240,168,104,0.25)', borderRadius: 10, padding: '9px 12px', marginBottom: 12 }}>
+                        <div style={{ fontSize: 10.5, color: '#F0A868', fontWeight: 700, marginBottom: 2 }}>⚠️ رسالة من المدير</div>
+                        <div style={{ fontSize: 12.5, color: '#EAF0FB' }}>{o.reprepNote}</div>
+                      </div>
+                    )}
+
+                    {/* أزرار تم / لم يتم */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => markDone(o)} disabled={busyId === o.id}
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: busyId === o.id ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <CheckCircle2 size={16} /> تم التجهيز
+                      </button>
+                      <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id}
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', color: '#F25050', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <XCircle size={16} /> لم يتم
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* نافذة سبب الرفض (اختياري) */}
+      {rejectTarget && (
+        <div style={styles.modalOverlay} onClick={() => !busyId && setRejectTarget(null)}>
+          <div style={{ ...styles.modal, maxWidth: 400 }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>لم يتم التجهيز</h3>
+              <button onClick={() => setRejectTarget(null)} style={styles.modalClose}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '4px 17px 17px' }}>
+              <div style={{ fontSize: 12.5, color: '#9FB0C3', marginBottom: 12 }}>
+                طلب #{rejectTarget.orderNo} — {rejectTarget.customer}
+              </div>
+              <label style={{ fontSize: 12, color: '#E7ECF3', fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                السبب <span style={{ color: '#546880', fontWeight: 400 }}>(اختياري)</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="مثال: المنتج غير متوفر، نقص بالمخزون..."
+                rows={3}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 9, background: '#242F3D', border: '1.5px solid rgba(242,80,80,0.25)', color: '#E7ECF3', fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button onClick={() => setRejectTarget(null)} disabled={!!busyId}
+                  style={{ flex: 1, padding: '11px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#9FB0C3', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  رجوع
+                </button>
+                <button onClick={confirmReject} disabled={!!busyId}
+                  style={{ flex: 2, padding: '11px', borderRadius: 9, background: busyId ? '#7a2a2a' : '#F25050', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: busyId ? 'wait' : 'pointer' }}>
+                  {busyId ? 'جارٍ الإرسال...' : 'تأكيد — لم يتم التجهيز'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+    </ErrorBoundary>
+  );
+}
 
 // ──────────────────────────────────────────────
 // التطبيق الرئيسي
@@ -5324,11 +5553,21 @@ export default function AlFhdApp() {
       }
       knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
 
-      // كشف طلب رفضه المجهّز حديثاً لتشغيل صوت إنذار قوي للمدير
+      // كشف طلب رفضه المجهّز حديثاً — صوت إنذار + إشعار للمدير
       const rejectedNow = new Set(mapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
       if (rejectedIdsRef.current) {
-        const newlyRejected = [...rejectedNow].some((id) => !rejectedIdsRef.current.has(id));
-        if (newlyRejected) playAlarmSound();
+        const newlyRejectedOrders = mapped.filter((o) => o.prepStatus === 'rejected' && !rejectedIdsRef.current.has(o.id));
+        if (newlyRejectedOrders.length > 0) {
+          playAlarmSound();
+          for (const ro of newlyRejectedOrders) {
+            pushNotif({
+              type: 'returned',
+              title: '⚠️ طلب لم يُجهَّز',
+              body: `طلب #${ro.orderNo} — ${ro.customer || ''} — المجهّز: ${ro.prepByName || 'غير معروف'}${ro.prepReason ? ' — السبب: ' + ro.prepReason : ''}`,
+              orderNo: ro.orderNo,
+            });
+          }
+        }
       }
       rejectedIdsRef.current = rejectedNow;
 
@@ -5565,42 +5804,9 @@ export default function AlFhdApp() {
   }
 
   // ── واجهة موظف المخزن المبسطة (لا يرى بقية التطبيق) ──
-  // موظف التجهيز: يرى واجهة الطلبات فقط (للتجهيز والمراجعة) — لا واجهة المخزن
+  // موظف التجهيز: واجهة مخصّصة (طلبات بدون سعر + تم/لم يتم)
   if (authedUser.role === 'warehouse') {
-    return (
-      <ErrorBoundary>
-      <>
-        <GlobalStyles />
-        <div style={styles.appWrap} className="alfhd-app-wrap">
-          <main style={{ ...styles.mainArea, marginRight: 0, width: '100%' }} className="alfhd-main-area">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid rgba(255,255,255,0.07)` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Package size={18} color="#F0A868" />
-                <span style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5' }}>التجهيز — {authedUser.name}</span>
-              </div>
-              <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 9, color: '#E53935', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                <LogOut size={14} /> خروج
-              </button>
-            </div>
-            <OrdersView
-              orders={orders}
-              pages={pages}
-              setOrders={setOrders}
-              conversations={conversations}
-              setConversations={setConversations}
-              pendingOpenOrderId={pendingOpenOrderId}
-              clearPendingOpenOrderId={() => setPendingOpenOrderId(null)}
-              onViewConversation={goToConversation}
-              pendingNewOrderFromConv={pendingNewOrderFromConv}
-              clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
-              currentUser={authedUser}
-              warehouseProducts={warehouseProducts}
-            />
-          </main>
-        </div>
-      </>
-      </ErrorBoundary>
-    );
+    return <PrepWorkerView currentUser={authedUser} onLogout={handleLogout} />;
   }
 
   return (
