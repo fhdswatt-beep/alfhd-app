@@ -32,6 +32,7 @@ const FB_SEND_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-send-message`;
 const ORDER_EXTRACT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/order-extract-from-image`;
 const FB_POLL_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/fb-poll-messages`;
 const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shipment`;
+const JENNI_SYNC_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-sync`;
 
 // محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
 const IRAQ_GOVERNORATES = [
@@ -1879,6 +1880,93 @@ function OrderFilters({
 }
 
 // ──────────────────────────────────────────────
+// منتقي المنطقة الذكي — يجلب مدن المحافظة من jenni_cities
+// مع بحث، ومطابقة ذكية للنص المُدخل (مثل المحافظة تماماً)
+// ──────────────────────────────────────────────
+function normalizeArJS(s) {
+  return (s || '')
+    .replace(/[إأآا]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/[ًٌٍَُِّْ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function CityPicker({ govCode, value, onChange, invalid }) {
+  const [cities, setCities] = useState([]);
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // جلب مدن المحافظة عند تغييرها
+  useEffect(() => {
+    if (!govCode) { setCities([]); return; }
+    let alive = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/jenni_cities?governorate_code=eq.${govCode}&select=city_name,city_name_norm&order=city_name.asc`,
+          { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+        );
+        const data = await res.json();
+        if (alive) setCities(Array.isArray(data) ? data : []);
+      } catch { if (alive) setCities([]); }
+      finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [govCode]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return cities.slice(0, 50);
+    const q = normalizeArJS(search).replace(/\s/g, '');
+    return cities
+      .filter((c) => (c.city_name_norm || normalizeArJS(c.city_name)).replace(/\s/g, '').includes(q))
+      .slice(0, 50);
+  }, [cities, search]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        value={open ? search : (value || '')}
+        onChange={(e) => { setSearch(e.target.value); onChange(e.target.value); if (!open) setOpen(true); }}
+        onFocus={() => { setOpen(true); setSearch(''); }}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        disabled={!govCode}
+        style={{
+          ...styles.formInput, borderRadius: 9,
+          border: invalid ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
+          background: govCode ? '#242F3D' : '#1a212b',
+        }}
+        placeholder={govCode ? 'ابحث أو اختر المنطقة...' : 'اختر المحافظة أولاً'}
+      />
+      {open && govCode && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+          background: '#1a212b', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9,
+          maxHeight: 220, overflowY: 'auto', marginTop: 2, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        }}>
+          {loading && <div style={{ padding: 10, color: '#546880', fontSize: 12 }}>جارٍ التحميل...</div>}
+          {!loading && filtered.length === 0 && (
+            <div style={{ padding: 10, color: '#546880', fontSize: 12 }}>
+              لا نتائج — سيُرسَل النص كما هو
+            </div>
+          )}
+          {!loading && filtered.map((c) => (
+            <div
+              key={c.city_name}
+              onMouseDown={() => { onChange(c.city_name); setSearch(''); setOpen(false); }}
+              style={{ padding: '9px 12px', fontSize: 13, color: '#E7ECF3', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(42,171,238,0.12)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              {c.city_name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // عرض الطلبات
 // ──────────────────────────────────────────────
 function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId, warehouseProducts = [] }) {
@@ -2992,7 +3080,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           onDelete={() => handleDelete(detailOrder)}
           onShare={() => handleShare(detailOrder)}
           onViewConversation={detailOrder.conversationId ? () => { onViewConversation?.(detailOrder.conversationId); setDetailOrder(null); } : null}
-          onMoveToDelivery={isPrep ? () => moveToDelivery(detailOrder) : null}
+          onMoveToDelivery={null}
           onReprep={detailOrder.prepStatus === 'rejected' ? (note) => reprepOrder(detailOrder, note) : null}
           onContactCustomer={onContactCustomer}
         />
@@ -3159,16 +3247,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
                   <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city لشركة التوصيل</span>
                 </label>
-                <input
+                <CityPicker
+                  govCode={editingOrder.governorateCode}
                   value={editingOrder.area || ''}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, area: e.target.value })}
-                  style={{
-                    ...styles.formInput,
-                    borderRadius: 9,
-                    border: !String(editingOrder.area || '').trim() ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-                    background: '#242F3D',
-                  }}
-                  placeholder="مثال: الكرادة، المنصور، الكرخ..."
+                  onChange={(val) => setEditingOrder({ ...editingOrder, area: val })}
+                  invalid={!String(editingOrder.area || '').trim()}
                 />
                 {!String(editingOrder.area || '').trim() && (
                   <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لشركة التوصيل</span>
@@ -4988,6 +5071,29 @@ export default function AlFhdApp() {
     const onVis = () => { if (document.hidden) stop(); else { refreshOrders(); start(); } };
     document.addEventListener('visibilitychange', onVis);
     return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
+  }, [storageReady, refreshOrders]);
+
+  // ── مزامنة حالة الشحنات من جيني تلقائياً (كل دقيقة) ──
+  // تجلب الحالة الفعلية وتنقل الطلبات لقسم "لدى شركة التوصيل" عند استلام المندوب
+  useEffect(() => {
+    if (!storageReady) return undefined;
+    const syncJenni = async () => {
+      if (document.hidden) return;
+      try {
+        await fetch(JENNI_SYNC_FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        // بعد المزامنة، حدّث الطلبات محلياً لإظهار الحالة الجديدة
+        await refreshOrders();
+      } catch (_e) { /* تجاهل، المحاولة القادمة ستعيد */ }
+    };
+    syncJenni(); // مزامنة فورية عند الفتح
+    let interval = setInterval(syncJenni, 60000); // كل دقيقة
+    const onVis = () => { if (!document.hidden) syncJenni(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVis); };
   }, [storageReady, refreshOrders]);
 
   // تحميل البيانات الحقيقية من Supabase (لا يمنع عرض الواجهة أبداً)
