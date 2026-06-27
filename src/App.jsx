@@ -465,6 +465,7 @@ function mapConversationFromDb(row) {
     platform: row.source || 'facebook',
     isWhatsApp: isWA,
     lastMsg: row.last_message || '',
+    lastMsgTimeRaw: row.last_message_time || row.created_at || '',
     time: row.last_message_time
       ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
       : '',
@@ -981,6 +982,11 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
         if (!hay.includes(q)) return false;
       }
       return true;
+    }).sort((a, b) => {
+      // الأحدث أولاً دائماً (بالاعتماد على الوقت الخام)
+      const ta = a.lastMsgTimeRaw ? new Date(a.lastMsgTimeRaw).getTime() : 0;
+      const tb = b.lastMsgTimeRaw ? new Date(b.lastMsgTimeRaw).getTime() : 0;
+      return tb - ta;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations, activeTab, selectedPage, search, waPageId]);
@@ -2809,7 +2815,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       });
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
-        alert(`تعذّر جلب الباركود: ${data.error || data.jenni_response?.message || 'غير متاح'}`);
+        const detail = data.error || data.jenni_response?.message || data.jenni_response?.error
+          || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '')
+          || (res.status !== 200 ? `الدالة ردّت بالحالة ${res.status}` : 'غير متاح');
+        alert(`تعذّر جلب الباركود:\n${detail}\n\n(رقم الشحنة: ${order.jenniShipmentId || order.orderNo})`);
+        console.error('JENNI STICKERS FAIL:', JSON.stringify(data));
         return;
       }
 
@@ -5567,7 +5577,7 @@ export default function AlFhdApp() {
     try {
       const dbConversations = await sbSelect(
         'alfhd_conversations',
-        '&order=last_message_time.desc'
+        '&order=last_message_time.desc.nullslast,created_at.desc'
       );
       if (dbConversations) {
         const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
@@ -6201,7 +6211,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
     }catch(e){alert('فشل: '+e.message);}
     setSaving(false);
   }
-  async function del(id){if(!confirm('حذف هذا المنتج؟'))return;await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}
+  async function del(id){if(!confirm('حذف هذا المنتج؟'))return;try{await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}catch(e){alert('فشل الحذف: '+e.message+'\n\nقد تحتاج تفعيل صلاحية الحذف في قاعدة البيانات.');}}
 
   // تصدير كل المنتجات كملف CSV
   function exportProducts(){
@@ -6859,7 +6869,7 @@ function WarehouseView() {
   // helpers مختصرة
   const sbI = (t,d)    => sbInsert(t,d);
   const sbU = (t,id,d) => sbUpdate(t,id,d);
-  const sbD = async (t,id) => { const url=`${SUPABASE_URL}/rest/v1/${t}?id=eq.${id}`; await fetch(url,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}}); };
+  const sbD = async (t,id) => { return await sbDelete(t,id); };
 
   useEffect(()=>{
     async function load(){
