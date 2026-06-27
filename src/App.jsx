@@ -3098,16 +3098,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             );
           })()}
 
-          {/* ── أزرار شركة التوصيل (جيني) — الحالة معروضة مرة واحدة فقط في الأعلى ── */}
-          {o.jenniSent && (
+          {/* ── معلومات شركة التوصيل (للمتابعة فقط — التحكم من جيني) ── */}
+          {o.jenniSent && (o.deliveryNote || o.jenniTracking) && (
             <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.12)', borderRadius: 10 }}>
               {o.deliveryNote && (
                 <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
               )}
               {o.jenniTracking && (
-                <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace', marginBottom: 4 }}>تتبع: #{o.jenniTracking}</div>
+                <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace' }}>تتبع: #{o.jenniTracking}</div>
               )}
-              <JenniActionsPanel o={o} />
             </div>
           )}
         </div>
@@ -6138,7 +6137,11 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
   const [saving,setSaving]=useState(false);
   const [imgUploading,setImgUploading]=useState(false);
   const [newCarMode,setNewCarMode]=useState(false);
+  const [whMenu,setWhMenu]=useState(false);
+  const [locSearchModal,setLocSearchModal]=useState(false);
+  const [locSearch,setLocSearch]=useState('');
   const whImportRef=React.useRef(null);
+  const whMenuItem={display:'block',width:'100%',textAlign:'right',padding:'10px 12px',background:'transparent',border:'none',borderRadius:8,color:'#EAF0F7',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'};
   const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
   function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',branch:'',shelf:'',notes:'',image_url:''});setModal(true);}
   function openEdit(p){
@@ -6246,18 +6249,23 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
         <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المنتجات والمخزون</h3>
         <div style={{display:'flex',gap:7}}>
-          <button onClick={()=>setCarModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.3)',borderRadius:9,color:'#A78BFA',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            <Plus size={13}/> إضافة سيارة
-          </button>
           <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
             <Plus size={13}/> منتج جديد
           </button>
-          <button onClick={exportProducts} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(77,219,107,0.1)',border:'1px solid rgba(77,219,107,0.3)',borderRadius:9,color:'#4DDB6B',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            <Download size={13}/> تصدير
-          </button>
-          <button onClick={()=>whImportRef.current?.click()} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(240,168,104,0.1)',border:'1px solid rgba(240,168,104,0.3)',borderRadius:9,color:'#F0A868',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            <Upload size={13}/> استيراد
-          </button>
+          {/* قائمة 3 نقاط: تصدير / استيراد / بحث عن موقع */}
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setWhMenu(v=>!v)} style={{display:'flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontSize:18,fontWeight:900,lineHeight:1}}>⋮</button>
+            {whMenu&&(
+              <>
+                <div onClick={()=>setWhMenu(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
+                <div style={{position:'absolute',top:42,left:0,zIndex:41,background:'#1A2234',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,minWidth:170,boxShadow:'0 12px 32px rgba(0,0,0,0.5)'}}>
+                  <button onClick={()=>{setWhMenu(false);setLocSearchModal(true);}} style={whMenuItem}>🔍 بحث عن موقع منتج</button>
+                  <button onClick={()=>{setWhMenu(false);exportProducts();}} style={whMenuItem}>📥 تصدير المنتجات</button>
+                  <button onClick={()=>{setWhMenu(false);whImportRef.current?.click();}} style={whMenuItem}>📤 استيراد المنتجات</button>
+                </div>
+              </>
+            )}
+          </div>
           <input type="file" accept=".csv" ref={whImportRef} onChange={importProducts} style={{display:'none'}} />
         </div>
       </div>
@@ -6279,13 +6287,17 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           const isLow=p.quantity<=LOW_STOCK;
           return(
             <div key={p.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
-              <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>
+              {p.image_url
+                ? <img src={p.image_url} alt="" style={{width:42,height:42,borderRadius:10,objectFit:'cover',flexShrink:0,border:'1px solid rgba(255,255,255,0.08)'}}/>
+                : <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{p.car_name}</div>
                 <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
                   <span style={{fontSize:11,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding:'2px 7px',borderRadius:18}}>{t?.label}</span>
                   {p.location&&<span style={{fontSize:11,color:'#546880'}}>📍 {p.location}</span>}
-                  {p.price_iqd>0&&<span style={{fontSize:11,color:'#546880'}}>{whFmt(p.price_iqd)}</span>}
+                  {p.price_iqd>0
+                    ? <span style={{fontSize:11,color:'#546880'}}>~{whFmt(p.price_iqd)}</span>
+                    : <span style={{fontSize:11,color:'#546880'}}>السعر حسب الطلب</span>}
                 </div>
               </div>
               <div style={{textAlign:'center',minWidth:46}}>
@@ -6301,6 +6313,46 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           );
         })}
       </div>
+      {locSearchModal&&(
+        <WhModal title="بحث عن موقع منتج" onClose={()=>{setLocSearchModal(false);setLocSearch('');}}>
+          <WhField label="اسم المنتج">
+            <input value={locSearch} onChange={e=>setLocSearch(e.target.value)} placeholder="اكتب اسم المنتج..." style={whInp} autoFocus/>
+          </WhField>
+          <div style={{marginTop:10,maxHeight:320,overflowY:'auto',display:'flex',flexDirection:'column',gap:8}}>
+            {locSearch.trim().length<1
+              ? <div style={{textAlign:'center',color:'#546880',fontSize:12,padding:'20px 0'}}>اكتب اسم المنتج لعرض موقعه</div>
+              : (()=>{
+                  const res=products.filter(p=>p.car_name?.includes(locSearch.trim()));
+                  if(res.length===0)return <div style={{textAlign:'center',color:'#546880',fontSize:12,padding:'20px 0'}}>لا توجد نتائج</div>;
+                  return res.map(p=>{
+                    const loc=p.location||'';
+                    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
+                    const branch=bm?bm[1].trim():'—';const shelf=sm?sm[1].trim():'—';
+                    return(
+                      <div key={p.id} style={{padding:'11px 13px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:11}}>
+                        <div style={{fontSize:13.5,fontWeight:700,color:'#F5F5F5',marginBottom:6}}>{p.car_name}</div>
+                        <div style={{display:'flex',gap:8}}>
+                          <div style={{flex:1,background:'rgba(42,171,238,0.08)',borderRadius:8,padding:'7px 10px'}}>
+                            <div style={{fontSize:10,color:'#546880'}}>الفرع</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#2AABEE'}}>{branch}</div>
+                          </div>
+                          <div style={{flex:1,background:'rgba(240,168,104,0.08)',borderRadius:8,padding:'7px 10px'}}>
+                            <div style={{fontSize:10,color:'#546880'}}>الرف</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#F0A868'}}>{shelf}</div>
+                          </div>
+                          <div style={{textAlign:'center',padding:'7px 10px'}}>
+                            <div style={{fontSize:10,color:'#546880'}}>الكمية</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{p.quantity}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+          </div>
+          <button onClick={()=>{setLocSearchModal(false);setLocSearch('');}} style={{width:'100%',marginTop:12,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إغلاق</button>
+        </WhModal>
+      )}
       {modal&&(
         <WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
           <WhField label="اسم المنتج" required>
@@ -6312,9 +6364,9 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
             </select>
           </WhField>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الكمية"><input type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd} onChange={e=>setForm(f=>({...f,cost_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="سعر البيع (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="الكمية"><input type="number" value={form.quantity||''} placeholder="0" onChange={e=>setForm(f=>({...f,quantity:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd||''} placeholder="0" onChange={e=>setForm(f=>({...f,cost_iqd:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="سعر البيع التقديري (اختياري)"><input type="number" value={form.price_iqd||''} placeholder="يُحدَّد من الطلب" onChange={e=>setForm(f=>({...f,price_iqd:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
             <WhField label="موقع المخزن">
               <div style={{display:'flex',gap:7}}>
                 <input value={form.branch||''} onChange={e=>setForm(f=>({...f,branch:e.target.value,location:`فرع ${e.target.value||''} - رف ${f.shelf||''}`.trim()}))} placeholder="الفرع: A" style={{...whInp,flex:1}}/>
