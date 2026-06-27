@@ -2771,7 +2771,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           || (jr ? JSON.stringify(jr).slice(0, 300) : '')
           || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '')
           || 'غير متاح';
-        alert(`تعذّر جلب الباركود:\n${detail}\n\nرقم الشحنة المُرسل: ${order.jenniShipmentId || order.orderNo}`);
+        alert(`تعذّر جلب الباركود:\n${detail}\n\nالأرقام المُجرّبة: ${[order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).join(', ')}`);
         console.error('JENNI STICKERS FULL RESPONSE:', JSON.stringify(data, null, 2));
         return;
       }
