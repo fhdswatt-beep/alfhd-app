@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Warehouse, ShoppingCart, CreditCard, DollarSign,
   TrendingUp, Percent, Home, Bell,
+  Download, Upload,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -2342,14 +2343,16 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function handleSaveOrder() {
-    if (!editingOrder.pageId) { alert('اختر الصفحة'); return; }
+    if (!editingOrder.pageId) { alert('اختر الصفحة أولاً'); return; }
+    if (!String(editingOrder.customer || '').trim()) { alert('اسم العميل مطلوب على الأقل'); return; }
 
-    // ── تحقق إجباري من كل حقول جيني قبل الحفظ ──
+    // تحقق من حقول جيني — تحذير فقط، لا يمنع الحفظ
     const validationErrors = validateJenniFields(editingOrder);
-    if (Object.keys(validationErrors).length > 0) {
+    const hasJenniGaps = Object.keys(validationErrors).length > 0;
+    if (hasJenniGaps) {
       const msgs = Object.values(validationErrors).join('\n• ');
-      alert(`⛔ لا يمكن حفظ الطلب — أخطاء إجبارية:\n\n• ${msgs}\n\nهذه الحقول مطلوبة من شركة التوصيل ولا يمكن إرسال الشحنة بدونها.`);
-      return;
+      const proceed = confirm(`⚠️ الطلب سيُحفظ، لكن لن يُرسَل لشركة التوصيل حتى تكتمل هذه الحقول:\n\n• ${msgs}\n\nهل تريد الحفظ الآن وإكمالها لاحقاً؟`);
+      if (!proceed) { return; }
     }
 
     setSaving(true);
@@ -2383,9 +2386,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         };
         setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
         if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
-        // ── إعادة إرسال لجيني إذا لم يُرسَل بعد أو كان فيه خطأ سابق ──
+        // ── إعادة إرسال لجيني فقط إذا اكتملت الحقول ولم يُرسَل بعد ──
         const prevOrder = orders.find((o) => o.id === editingOrder.id);
-        if (!prevOrder?.jenniSent) {
+        if (!prevOrder?.jenniSent && !hasJenniGaps) {
           sendOrderToJenni(updatedOrder, { silent: true });
         }
       } else {
@@ -2413,10 +2416,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           const newOrder = mapOrderFromDb(created[0]);
           setOrders((prev) => [newOrder, ...prev]);
           if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
-          // ── إرسال فوري لجيني عند إنشاء الطلب ──
-          // الطلب يظهر عند جيني بحالة NEW_ORDER_TO_PRINT (جاهز للطباعة)
-          // وهذا هو الـ workflow الصحيح: جيني تعرف بالطلب مبكراً قبل الطباعة
-          sendOrderToJenni(newOrder, { silent: true });
+          // ── إرسال فوري لجيني فقط إذا اكتملت كل الحقول ──
+          // إن نقص حقل، يُحفظ الطلب وينتظر الإكمال (لا يُرسل ناقصاً)
+          if (!hasJenniGaps) {
+            sendOrderToJenni(newOrder, { silent: true });
+          }
         }
       }
       setEditingOrder(null);
@@ -2735,6 +2739,60 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // ── طباعة باركود الشحنة من جيني (PDF) ──
+  // ── طباعة جماعية: باركود عدة طلبات من جيني دفعة واحدة + حفظ الدفعة ──
+  async function printJenniBatch(ordersList, { saveBatch = true } = {}) {
+    const valid = ordersList.filter((o) => o.orderNo || o.jenniShipmentId);
+    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
+
+    try {
+      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
+      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify({ shipment_numbers: shipmentNumbers }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        alert(`تعذّر جلب الباركودات: ${data.error || 'غير متاح'}`);
+        return;
+      }
+
+      // فتح نافذة الطباعة
+      let bodyContent = '';
+      if (data.type === 'pdf_base64' && data.data) {
+        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
+      } else if (data.type === 'url' && data.url) {
+        bodyContent = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
+      } else {
+        alert('الباركودات غير متاحة حالياً'); return;
+      }
+      const win = window.open('', '_blank');
+      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
+      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>طباعة ${valid.length} طلب</title>
+        <style>body{margin:0;padding:16px;background:#fff;font-family:Cairo,Arial,sans-serif;}@media print{.no-print{display:none;}}</style></head><body>
+        <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">🖨️ طباعة ${valid.length} باركود</button>
+        ${bodyContent}</body></html>`);
+      win.document.close();
+
+      // حفظ الدفعة + نقل الطلبات لقيد التجهيز
+      if (saveBatch) {
+        const batchId = `batch-${Date.now()}`;
+        const printedAt = new Date().toISOString();
+        const ids = valid.map((o) => o.id);
+        setOrders((prev) => prev.map((o) =>
+          ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
+        ));
+        try {
+          await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
+            printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
+          })));
+        } catch (e) { console.error('batch save error:', e); }
+      }
+    } catch (e) {
+      alert(`خطأ في الطباعة: ${e.message}`);
+    }
+  }
+
   async function printJenniBarcode(order) {
     if (!order.orderNo && !order.jenniShipmentId) {
       alert('لا يمكن طباعة الباركود: الطلب غير مرسل لشركة التوصيل');
@@ -2856,23 +2914,59 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     );
   }
 
-  function triggerPrint(target, idsToMove) {
-    setPrintTarget(target);
-    setTimeout(() => {
-      window.print();
-      setPrintTarget(null);
-      if (idsToMove?.length) markOrdersPrintedAndPrep(idsToMove);
-    }, 60);
+  // طباعة جماعية من جيني — يجلب باركود كل الطلبات الجاهزة دفعة واحدة
+  async function printJenniBatch(orders, { saveBatch = true } = {}) {
+    const valid = orders.filter((o) => o.orderNo || o.jenniShipmentId);
+    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
+    try {
+      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
+      const shipmentIds = valid.map((o) => o.jenniShipmentId).filter(Boolean);
+      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify(shipmentIds.length ? { shipment_ids: shipmentIds } : { shipment_numbers: shipmentNumbers }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) { alert(`تعذّر جلب الباركود: ${data.error || 'غير متاح'}`); return; }
+
+      // افتح نافذة الطباعة مع PDF جيني
+      let bodyContent = '';
+      if (data.type === 'pdf_base64' && data.data) {
+        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
+      } else if (data.type === 'url' && data.url) {
+        bodyContent = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
+      } else { alert('الباركود غير متاح'); return; }
+
+      const win = window.open('', '_blank');
+      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب'); return; }
+      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>طباعة ${valid.length} طلب</title>
+        <style>body{margin:0;padding:14px;font-family:Cairo,Arial;}@media print{.np{display:none}}</style></head><body>
+        <button class="np" onclick="window.print()" style="padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length} باركود</button>
+        ${bodyContent}</body></html>`);
+      win.document.close();
+
+      // احفظ الدفعة في السجل + انقل الطلبات لقيد التجهيز
+      if (saveBatch) {
+        const batchId = `batch-${Date.now()}`;
+        const printedAt = new Date().toISOString();
+        const ids = valid.map((o) => o.id);
+        setOrders((prev) => prev.map((o) => ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o));
+        for (const id of ids) {
+          try { await sbUpdate('alfhd_orders', id, { printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep' }); } catch (_e) { /* تجاهل */ }
+        }
+      }
+    } catch (e) {
+      alert(`خطأ في الطباعة: ${e.message}`);
+    }
   }
 
   function handlePrintReady() {
-    const ids = stageOrders.map((o) => o.id);
-    if (ids.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
-    triggerPrint('ready', ids);
+    if (stageOrders.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
+    printJenniBatch(stageOrders, { saveBatch: true });
   }
 
   function handleReprintBatch(batchId, batchOrders) {
-    triggerPrint(batchId, null);
+    printJenniBatch(batchOrders, { saveBatch: false });
   }
 
   // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
@@ -2894,8 +2988,18 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function StageStatusBadge({ o }) {
     if (section === 'delivery') {
-      const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus] || DELIVERY_STATUS_CONFIG.sorting;
-      return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
+      // حالة جيني الدقيقة فقط (المصدر الوحيد) — لا حالة موقع تتعارض معها
+      const label = o.deliveryStepAr || 'لدى شركة التوصيل';
+      const stepU = (o.deliveryStep || '').toUpperCase();
+      let color = '#A78BFA', bg = 'rgba(167,139,250,0.12)'; // افتراضي بنفسجي
+      if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) {
+        color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)';
+      } else if (stepU.startsWith('RTO')) {
+        color = '#F25050'; bg = 'rgba(242,80,80,0.12)';
+      } else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) {
+        color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)';
+      }
+      return <div style={{ ...styles.orderStatusPill, color, background: bg }}>{label}</div>;
     }
     if (section === 'prep') {
       return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
@@ -2994,31 +3098,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             );
           })()}
 
-          {/* ── حالة شركة التوصيل ── */}
+          {/* ── أزرار شركة التوصيل (جيني) — الحالة معروضة مرة واحدة فقط في الأعلى ── */}
           {o.jenniSent && (
             <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.12)', borderRadius: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <Truck size={12} color="#2AABEE" />
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#2AABEE' }}>شركة التوصيل</span>
-                {o.deliveryStatus && (() => {
-                  const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus];
-                  return dcfg ? (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: dcfg.color, background: dcfg.bg, padding: '2px 7px', borderRadius: 20, marginRight: 'auto' }}>
-                      {dcfg.label}
-                    </span>
-                  ) : <span style={{ fontSize: 10.5, color: '#546880', marginRight: 'auto' }}>{o.deliveryStatus}</span>;
-                })()}
-              </div>
               {o.deliveryNote && (
-                <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 2 }}>📝 {o.deliveryNote}</div>
+                <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
               )}
               {o.jenniTracking && (
-                <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace' }}>تتبع: #{o.jenniTracking}</div>
-              )}
-              {o.deliveryUpdatedAt && (
-                <div style={{ fontSize: 10, color: '#546880', marginTop: 2 }}>
-                  آخر تحديث: {new Date(o.deliveryUpdatedAt).toLocaleString('ar-IQ')}
-                </div>
+                <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace', marginBottom: 4 }}>تتبع: #{o.jenniTracking}</div>
               )}
               <JenniActionsPanel o={o} />
             </div>
@@ -3048,32 +3135,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
-          {section === 'delivery' && (
-            o.jenniSent ? (
-              // الطلب عند شركة التوصيل — الحالة تأتي تلقائياً من جيني
-              <div style={{
-                ...styles.statusSelect,
-                color: STATUS_CONFIG[o.status]?.color || '#9AA3B8',
-                background: STATUS_CONFIG[o.status]?.bg || 'rgba(154,163,184,0.1)',
-                borderColor: (STATUS_CONFIG[o.status]?.color || '#9AA3B8') + '44',
-                flex: 1.4, display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontWeight: 700, cursor: 'default',
-              }}>
-                <Truck size={12} />
-                {STATUS_CONFIG[o.status]?.label || o.deliveryStepAr || 'جاري التحديث...'}
-              </div>
-            ) : (
-              <select
-                value={o.status}
-                onChange={(e) => updateStatus(o.id, e.target.value)}
-                style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status]?.color, borderColor: (STATUS_CONFIG[o.status]?.color || '#999') + '44', background: STATUS_CONFIG[o.status]?.bg, flex: 1.4 }}
-              >
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
-              </select>
-            )
+          {/* زر طباعة فردي من جيني — فقط في قسم جاهز للطباعة */}
+          {section === 'ready' && (
+            <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#2AABEE', borderColor: 'rgba(42,171,238,0.3)' }} title="طباعة باركود هذا الطلب">
+              <Printer size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>طباعة</span>
+            </button>
           )}
+          {/* زر المحادثة — الزر الوحيد من الموقع، يفتح محادثة الزبون */}
           {o.conversationId && (
-            <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
+            <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="محادثة الزبون">
               <MessageSquare size={14} />
             </button>
           )}
@@ -4194,18 +4264,28 @@ function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
   async function reprintSelected() {
     const ids = [...selected];
     if (ids.length === 0) { alert('حدّد طلباً واحداً على الأقل'); return; }
-    const batchId = `batch-${Date.now()}`;
-    const printedAt = new Date().toISOString();
-    // أعدها لمرحلة التجهيز بدفعة طباعة جديدة
-    setOrders((prev) => prev.map((o) => (
-      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
-    )));
+    const selectedOrders = orders.filter((o) => ids.includes(o.id));
+    const valid = selectedOrders.filter((o) => o.orderNo || o.jenniShipmentId);
+    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة من شركة التوصيل'); return; }
     try {
-      await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
-        printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
-      })));
-    } catch (e) { console.error('reprint neglected error:', e); }
-    setTimeout(() => window.print(), 80);
+      const shipmentIds = valid.map((o) => o.jenniShipmentId).filter(Boolean);
+      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/jenni-stickers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify(shipmentIds.length ? { shipment_ids: shipmentIds } : { shipment_numbers: shipmentNumbers }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) { alert(`تعذّر جلب الباركود: ${data.error || 'غير متاح'}`); return; }
+      let body = '';
+      if (data.type === 'pdf_base64' && data.data) body = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
+      else if (data.type === 'url' && data.url) body = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
+      else { alert('الباركود غير متاح'); return; }
+      const win = window.open('', '_blank');
+      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب'); return; }
+      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>إعادة طباعة</title><style>body{margin:0;padding:14px;font-family:Cairo,Arial}@media print{.np{display:none}}</style></head><body><button class="np" onclick="window.print()" style="padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length}</button>${body}</body></html>`);
+      win.document.close();
+    } catch (e) { alert(`خطأ: ${e.message}`); }
     setSelected(new Set());
   }
 
@@ -6053,20 +6133,48 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
   const [modal,setModal]=useState(false);
   const [carModal,setCarModal]=useState(false);
   const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});
+  const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:'',image_url:''});
   const [carForm,setCarForm]=useState({name:''});
   const [saving,setSaving]=useState(false);
+  const [imgUploading,setImgUploading]=useState(false);
+  const [newCarMode,setNewCarMode]=useState(false);
+  const whImportRef=React.useRef(null);
   const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
-  function openNew(){setEditing(null);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});setModal(true);}
-  function openEdit(p){setEditing(p);setForm({...p});setModal(true);}
+  function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:'',image_url:''});setModal(true);}
+  function openEdit(p){setEditing(p);setNewCarMode(false);setForm({car_name:p.car_name||'',type:p.type||'mother_dosah',quantity:p.quantity||0,cost_iqd:p.cost_iqd||0,price_iqd:p.price_iqd||0,location:p.location||'',notes:p.notes||'',image_url:p.image_url||''});setModal(true);}
+  // ضغط الصورة لـ base64 وتخزينها مع المنتج
+  function handlePickImage(e){
+    const file=e.target.files?.[0]; if(!file)return;
+    setImgUploading(true);
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new window.Image();
+      img.onload=()=>{
+        const canvas=document.createElement('canvas');
+        const max=600; let{width,height}=img;
+        if(width>height&&width>max){height=height*max/width;width=max;}
+        else if(height>max){width=width*max/height;height=max;}
+        canvas.width=width;canvas.height=height;
+        canvas.getContext('2d').drawImage(img,0,0,width,height);
+        setForm(f=>({...f,image_url:canvas.toDataURL('image/jpeg',0.7)}));
+        setImgUploading(false);
+      };
+      img.onerror=()=>{setImgUploading(false);alert('تعذّر قراءة الصورة');};
+      img.src=reader.result;
+    };
+    reader.onerror=()=>{setImgUploading(false);};
+    reader.readAsDataURL(file);
+  }
   async function save(){
     if(!form.car_name.trim()){alert('أدخل اسم السيارة');return;}
     setSaving(true);
+    // أرسل الحقول الصالحة فقط (بدون id/created_at لتجنّب أخطاء التحديث)
+    const clean={car_name:form.car_name.trim(),type:form.type,quantity:Number(form.quantity)||0,cost_iqd:Number(form.cost_iqd)||0,price_iqd:Number(form.price_iqd)||0,location:form.location||'',notes:form.notes||'',image_url:form.image_url||''};
     try{
-      if(editing){await sbU('wh_products',editing.id,form);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...form}:p));}
-      else{const r=await sbI('wh_products',{...form,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
+      if(editing){await sbU('wh_products',editing.id,clean);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...clean}:p));}
+      else{const r=await sbI('wh_products',{...clean,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
       setModal(false);
-    }catch(e){alert('فشل: '+e.message);}
+    }catch(e){alert('فشل الحفظ: '+e.message);}
     setSaving(false);
   }
   async function addCar(){
@@ -6082,6 +6190,48 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
     setSaving(false);
   }
   async function del(id){if(!confirm('حذف هذا المنتج؟'))return;await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}
+
+  // تصدير كل المنتجات كملف CSV
+  function exportProducts(){
+    if(products.length===0){alert('لا توجد منتجات للتصدير');return;}
+    const cols=['car_name','type','quantity','cost_iqd','price_iqd','location','notes'];
+    const header=['اسم السيارة','النوع','الكمية','التكلفة','السعر','الموقع','ملاحظات'];
+    const esc=(v)=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+    const rows=products.map(p=>cols.map(c=>esc(p[c])).join(','));
+    const csv='\uFEFF'+[header.join(','),...rows].join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`منتجات-المخزن-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  // استيراد منتجات من ملف CSV
+  async function importProducts(e){
+    const file=e.target.files?.[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=async()=>{
+      try{
+        const text=String(reader.result).replace(/^\uFEFF/,'');
+        const lines=text.split(/\r?\n/).filter(l=>l.trim());
+        if(lines.length<2){alert('الملف فارغ أو لا يحتوي بيانات');return;}
+        // تجاهل صف العناوين، استورد الباقي
+        const parseLine=(line)=>{const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===','&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out;};
+        const typeIds=WH_PRODUCT_TYPES.map(t=>t.id);
+        let added=0;
+        for(let i=1;i<lines.length;i++){
+          const c=parseLine(lines[i]);
+          if(!c[0]?.trim())continue;
+          const rec={car_name:c[0].trim(),type:typeIds.includes(c[1]?.trim())?c[1].trim():'mother_dosah',quantity:Number(c[2])||0,cost_iqd:Number(c[3])||0,price_iqd:Number(c[4])||0,location:c[5]||'',notes:c[6]||'',created_at:new Date().toISOString()};
+          const r=await sbI('wh_products',rec);
+          if(r?.[0]){setProducts(prev=>[r[0],...prev]);added++;}
+        }
+        alert(`✅ تم استيراد ${added} منتج بنجاح`);
+      }catch(err){alert('فشل الاستيراد: '+err.message);}
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  }
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
@@ -6093,6 +6243,13 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
             <Plus size={13}/> منتج جديد
           </button>
+          <button onClick={exportProducts} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(77,219,107,0.1)',border:'1px solid rgba(77,219,107,0.3)',borderRadius:9,color:'#4DDB6B',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <Download size={13}/> تصدير
+          </button>
+          <button onClick={()=>whImportRef.current?.click()} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(240,168,104,0.1)',border:'1px solid rgba(240,168,104,0.3)',borderRadius:9,color:'#F0A868',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <Upload size={13}/> استيراد
+          </button>
+          <input type="file" accept=".csv" ref={whImportRef} onChange={importProducts} style={{display:'none'}} />
         </div>
       </div>
       <div style={{display:'flex',gap:7,marginBottom:12,flexWrap:'wrap'}}>
@@ -6138,12 +6295,14 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
       {modal&&(
         <WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
           <WhField label="اسم السيارة" required>
-            <select value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={whInp}>
+            <select value={cars.includes(form.car_name)?form.car_name:'__new__'} onChange={e=>{const v=e.target.value;setForm(f=>({...f,car_name:v==='__new__'?'':v}));setNewCarMode(v==='__new__');}} style={whInp}>
               <option value="">اختر سيارة...</option>
               {cars.map(c=><option key={c} value={c}>{c}</option>)}
               <option value="__new__">+ اكتب اسم جديد</option>
             </select>
-            {form.car_name==='__new__'&&<input placeholder="اسم السيارة الجديدة" onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={{...whInp,marginTop:6}}/>}
+            {(newCarMode||!cars.includes(form.car_name))&&(
+              <input value={form.car_name==='__new__'?'':form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} placeholder="اكتب اسم السيارة" style={{...whInp,marginTop:6}}/>
+            )}
           </WhField>
           <WhField label="نوع المنتج" required>
             <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
@@ -6157,6 +6316,24 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
             <WhField label="موقع المخزن (A-350)"><input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="فرع A، رف 350" style={whInp}/></WhField>
           </div>
           <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
+          <WhField label="صورة المنتج">
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              {form.image_url?(
+                <div style={{position:'relative'}}>
+                  <img src={form.image_url} alt="" style={{width:60,height:60,borderRadius:10,objectFit:'cover',border:'1px solid rgba(255,255,255,0.1)'}}/>
+                  <button onClick={()=>setForm(f=>({...f,image_url:''}))} style={{position:'absolute',top:-6,left:-6,width:20,height:20,borderRadius:'50%',background:'#F25050',border:'none',color:'#fff',fontSize:12,cursor:'pointer',lineHeight:1}}>×</button>
+                </div>
+              ):(
+                <div style={{width:60,height:60,borderRadius:10,background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <Image size={20} color="#546880"/>
+                </div>
+              )}
+              <label style={{padding:'8px 14px',background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.3)',borderRadius:9,color:'#2AABEE',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                {imgUploading?'جارٍ المعالجة...':(form.image_url?'تغيير الصورة':'اختر صورة')}
+                <input type="file" accept="image/*" onChange={handlePickImage} style={{display:'none'}}/>
+              </label>
+            </div>
+          </WhField>
           <div style={{display:'flex',gap:9,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
             <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
