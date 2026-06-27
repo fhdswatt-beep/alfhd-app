@@ -6140,8 +6140,16 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
   const [newCarMode,setNewCarMode]=useState(false);
   const whImportRef=React.useRef(null);
   const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
-  function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:'',image_url:''});setModal(true);}
-  function openEdit(p){setEditing(p);setNewCarMode(false);setForm({car_name:p.car_name||'',type:p.type||'mother_dosah',quantity:p.quantity||0,cost_iqd:p.cost_iqd||0,price_iqd:p.price_iqd||0,location:p.location||'',notes:p.notes||'',image_url:p.image_url||''});setModal(true);}
+  function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',branch:'',shelf:'',notes:'',image_url:''});setModal(true);}
+  function openEdit(p){
+    setEditing(p);setNewCarMode(false);
+    // فكّ الموقع المحفوظ "فرع X - رف Y" إلى حقلين
+    let branch='',shelf='';
+    const loc=p.location||'';
+    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
+    if(bm)branch=bm[1].trim();if(sm)shelf=sm[1].trim();
+    setForm({car_name:p.car_name||'',type:p.type||'mother_dosah',quantity:p.quantity||0,cost_iqd:p.cost_iqd||0,price_iqd:p.price_iqd||0,location:loc,branch,shelf,notes:p.notes||'',image_url:p.image_url||''});setModal(true);
+  }
   // ضغط الصورة لـ base64 وتخزينها مع المنتج
   function handlePickImage(e){
     const file=e.target.files?.[0]; if(!file)return;
@@ -6169,7 +6177,8 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
     if(!form.car_name.trim()){alert('أدخل اسم السيارة');return;}
     setSaving(true);
     // أرسل الحقول الصالحة فقط (بدون id/created_at لتجنّب أخطاء التحديث)
-    const clean={car_name:form.car_name.trim(),type:form.type,quantity:Number(form.quantity)||0,cost_iqd:Number(form.cost_iqd)||0,price_iqd:Number(form.price_iqd)||0,location:form.location||'',notes:form.notes||'',image_url:form.image_url||''};
+    const locClean=(form.branch||form.shelf)?`فرع ${form.branch||''} - رف ${form.shelf||''}`.trim():'';
+    const clean={car_name:form.car_name.trim(),type:form.type,quantity:Number(form.quantity)||0,cost_iqd:Number(form.cost_iqd)||0,price_iqd:Number(form.price_iqd)||0,location:locClean,notes:form.notes||'',image_url:form.image_url||''};
     try{
       if(editing){await sbU('wh_products',editing.id,clean);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...clean}:p));}
       else{const r=await sbI('wh_products',{...clean,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
@@ -6294,15 +6303,8 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
       </div>
       {modal&&(
         <WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
-          <WhField label="اسم السيارة" required>
-            <select value={cars.includes(form.car_name)?form.car_name:'__new__'} onChange={e=>{const v=e.target.value;setForm(f=>({...f,car_name:v==='__new__'?'':v}));setNewCarMode(v==='__new__');}} style={whInp}>
-              <option value="">اختر سيارة...</option>
-              {cars.map(c=><option key={c} value={c}>{c}</option>)}
-              <option value="__new__">+ اكتب اسم جديد</option>
-            </select>
-            {(newCarMode||!cars.includes(form.car_name))&&(
-              <input value={form.car_name==='__new__'?'':form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} placeholder="اكتب اسم السيارة" style={{...whInp,marginTop:6}}/>
-            )}
+          <WhField label="اسم المنتج" required>
+            <input value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} placeholder="اكتب اسم المنتج" style={whInp}/>
           </WhField>
           <WhField label="نوع المنتج" required>
             <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
@@ -6313,7 +6315,12 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
             <WhField label="الكمية"><input type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
             <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd} onChange={e=>setForm(f=>({...f,cost_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
             <WhField label="سعر البيع (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="موقع المخزن (A-350)"><input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="فرع A، رف 350" style={whInp}/></WhField>
+            <WhField label="موقع المخزن">
+              <div style={{display:'flex',gap:7}}>
+                <input value={form.branch||''} onChange={e=>setForm(f=>({...f,branch:e.target.value,location:`فرع ${e.target.value||''} - رف ${f.shelf||''}`.trim()}))} placeholder="الفرع: A" style={{...whInp,flex:1}}/>
+                <input value={form.shelf||''} onChange={e=>setForm(f=>({...f,shelf:e.target.value,location:`فرع ${f.branch||''} - رف ${e.target.value||''}`.trim()}))} placeholder="الرف: 350" style={{...whInp,flex:1}}/>
+              </div>
+            </WhField>
           </div>
           <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
           <WhField label="صورة المنتج">
