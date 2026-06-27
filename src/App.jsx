@@ -2745,59 +2745,6 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // ── طباعة باركود الشحنة من جيني (PDF) ──
-  // ── طباعة جماعية: باركود عدة طلبات من جيني دفعة واحدة + حفظ الدفعة ──
-  async function printJenniBatch(ordersList, { saveBatch = true } = {}) {
-    const valid = ordersList.filter((o) => o.orderNo || o.jenniShipmentId);
-    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
-
-    try {
-      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
-      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
-        body: JSON.stringify({ shipment_numbers: shipmentNumbers }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) {
-        alert(`تعذّر جلب الباركودات: ${data.error || 'غير متاح'}`);
-        return;
-      }
-
-      // فتح نافذة الطباعة
-      let bodyContent = '';
-      if (data.type === 'pdf_base64' && data.data) {
-        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
-      } else if (data.type === 'url' && data.url) {
-        bodyContent = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
-      } else {
-        alert('الباركودات غير متاحة حالياً'); return;
-      }
-      const win = window.open('', '_blank');
-      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
-      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>طباعة ${valid.length} طلب</title>
-        <style>body{margin:0;padding:16px;background:#fff;font-family:Cairo,Arial,sans-serif;}@media print{.no-print{display:none;}}</style></head><body>
-        <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">🖨️ طباعة ${valid.length} باركود</button>
-        ${bodyContent}</body></html>`);
-      win.document.close();
-
-      // حفظ الدفعة + نقل الطلبات لقيد التجهيز
-      if (saveBatch) {
-        const batchId = `batch-${Date.now()}`;
-        const printedAt = new Date().toISOString();
-        const ids = valid.map((o) => o.id);
-        setOrders((prev) => prev.map((o) =>
-          ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
-        ));
-        try {
-          await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
-            printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
-          })));
-        } catch (e) { console.error('batch save error:', e); }
-      }
-    } catch (e) {
-      alert(`خطأ في الطباعة: ${e.message}`);
-    }
-  }
 
   async function printJenniBarcode(order) {
     if (!order.orderNo && !order.jenniShipmentId) {
@@ -2805,9 +2752,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       return;
     }
     try {
-      const payload = order.jenniShipmentId
-        ? { shipment_ids: [order.jenniShipmentId] }
-        : { shipment_numbers: [String(order.orderNo)] };
+      // أرسل كل المعرّفات المتاحة — الدالة تجرّبها حتى تنجح واحدة
+      const payload = {
+        shipment_ids: order.jenniShipmentId ? [order.jenniShipmentId] : [],
+        shipment_numbers: [order.orderNo, order.jenniShipmentId, order.jenniTracking]
+          .filter(Boolean).map(String),
+      };
       const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
@@ -2815,11 +2765,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       });
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
-        const detail = data.error || data.jenni_response?.message || data.jenni_response?.error
+        const jr = data.jenni_response;
+        const detail = data.error
+          || jr?.message || jr?.error || jr?.msg
+          || (jr ? JSON.stringify(jr).slice(0, 300) : '')
           || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '')
-          || (res.status !== 200 ? `الدالة ردّت بالحالة ${res.status}` : 'غير متاح');
-        alert(`تعذّر جلب الباركود:\n${detail}\n\n(رقم الشحنة: ${order.jenniShipmentId || order.orderNo})`);
-        console.error('JENNI STICKERS FAIL:', JSON.stringify(data));
+          || 'غير متاح';
+        alert(`تعذّر جلب الباركود:\n${detail}\n\nرقم الشحنة المُرسل: ${order.jenniShipmentId || order.orderNo}`);
+        console.error('JENNI STICKERS FULL RESPONSE:', JSON.stringify(data, null, 2));
         return;
       }
 
@@ -2929,15 +2882,25 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     const valid = orders.filter((o) => o.orderNo || o.jenniShipmentId);
     if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
     try {
-      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
-      const shipmentIds = valid.map((o) => o.jenniShipmentId).filter(Boolean);
+      // أرسل كل المعرّفات المتاحة لكل الطلبات — الدالة تجرّبها حتى تنجح
+      const allNumbers = [];
+      const allIds = [];
+      valid.forEach((o) => {
+        if (o.jenniShipmentId) allIds.push(o.jenniShipmentId);
+        [o.orderNo, o.jenniShipmentId, o.jenniTracking].filter(Boolean).forEach((n) => allNumbers.push(String(n)));
+      });
       const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
-        body: JSON.stringify(shipmentIds.length ? { shipment_ids: shipmentIds } : { shipment_numbers: shipmentNumbers }),
+        body: JSON.stringify({ shipment_ids: allIds, shipment_numbers: allNumbers }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!data.success) { alert(`تعذّر جلب الباركود: ${data.error || 'غير متاح'}`); return; }
+      if (!data.success) {
+        const jr = data.jenni_response;
+        const detail = data.error || jr?.message || jr?.error || (jr ? JSON.stringify(jr).slice(0,200) : '') || 'غير متاح';
+        alert(`تعذّر جلب الباركود:\n${detail}`);
+        return;
+      }
 
       // افتح نافذة الطباعة مع PDF جيني
       let bodyContent = '';
