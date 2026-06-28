@@ -2590,12 +2590,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       if (!silent) alert(msg);
       return false;
     }
-    const cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1] || '';
+    // المنطقة: من area أو العنوان، وإن لم توجد نستخدم اسم المحافظة (لا نرفض الإرسال)
+    let cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1]?.trim() || '';
     if (!cityValue) {
-      const msg = 'المنطقة/المدينة مطلوبة — عدّل الطلب وأضف المنطقة';
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
-      if (!silent) alert(msg);
-      return false;
+      // لا منطقة دقيقة — استخدم اسم المحافظة حتى يُرسل الطلب
+      cityValue = String(o.governorateName || '').trim() || String(o.address || '').split(' - ')[0]?.trim() || 'غير محدد';
     }
     if (!Number(o.total) || Number(o.total) <= 0) {
       const msg = 'المبلغ يجب أن يكون أكبر من صفر';
@@ -2906,12 +2905,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         }
       }
 
-      // اجمع كل المعرّفات المتاحة لكل الطلبات
+      // اجمع أرقام الطلبات (order_no = shipment_number عند جيني) + معرّفات الشحنات
+      // نرسل order_no لكل طلب معاً ليطبع جيني كل الوصولات دفعة واحدة
       const allNumbers = [];
       const allIds = [];
       valid.forEach((o) => {
-        if (o.jenniShipmentId) allIds.push(o.jenniShipmentId);
-        [o.orderNo, o.jenniShipmentId, o.jenniTracking].filter(Boolean).forEach((n) => allNumbers.push(String(n)));
+        if (o.orderNo) allNumbers.push(String(o.orderNo));
+        if (o.jenniTracking && o.jenniTracking !== o.orderNo) allNumbers.push(String(o.jenniTracking));
+        if (o.jenniShipmentId) allIds.push(String(o.jenniShipmentId));
       });
       const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
         method: 'POST',
