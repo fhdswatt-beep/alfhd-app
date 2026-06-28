@@ -10,7 +10,7 @@ import {
   AlertCircle,
   Warehouse, ShoppingCart, CreditCard, DollarSign,
   TrendingUp, Percent, Home, Bell,
-  Download, Upload,
+  Download, Upload, Clock,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -2021,6 +2021,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   // modal الطباعة داخل الموقع (بدل نافذة منبثقة)
   const [printModal, setPrintModal] = useState(null); // {html, title} أو null
   const [printLoading, setPrintLoading] = useState(false);
+  const [batchHistoryOpen, setBatchHistoryOpen] = useState(false);
   const [printTarget, setPrintTarget] = useState(null);
   // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
   const [jenniAction, setJenniAction] = useState(null);
@@ -2943,6 +2944,31 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     printJenniBatch(batchOrders, { saveBatch: false });
   }
 
+  // تجميع الطلبات المطبوعة في دفعات (للسجل) — من بيانات الطلبات نفسها
+  const printBatches = useMemo(() => {
+    const map = {};
+    orders.forEach((o) => {
+      if (!o.printBatchId || !o.printed) return;
+      if (!map[o.printBatchId]) map[o.printBatchId] = { batchId: o.printBatchId, printedAt: o.printedAt, orders: [] };
+      map[o.printBatchId].orders.push(o);
+      // خذ أحدث تاريخ
+      if (o.printedAt && (!map[o.printBatchId].printedAt || o.printedAt > map[o.printBatchId].printedAt)) {
+        map[o.printBatchId].printedAt = o.printedAt;
+      }
+    });
+    return Object.values(map).sort((a, b) => (b.printedAt || '').localeCompare(a.printedAt || ''));
+  }, [orders]);
+
+  function fmtBatchDate(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      const date = d.toLocaleDateString('ar-IQ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const time = d.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
+      return `${date} · ${time}`;
+    } catch { return iso; }
+  }
+
   // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
   // إذا لم يكن منشأ لأي سبب، نحاول إنشاءه قبل النقل حتى يبقى التطابق صحيحاً.
   async function moveToDelivery(o) {
@@ -3219,6 +3245,19 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               <Printer size={15} /> طباعة الكل ({stageOrders.length})
             </button>
           )}
+          {/* زر دائرة سجل الدفعات المطبوعة */}
+          <button
+            onClick={() => setBatchHistoryOpen(true)}
+            title="سجل الطباعة"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: '50%',
+              background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)',
+              color: '#A78BFA', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <Clock size={17} />
+          </button>
         </div>
       </div>
 
@@ -5186,6 +5225,63 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
           );
         })}
       </div>
+
+      {/* ── modal سجل الدفعات المطبوعة ── */}
+      {batchHistoryOpen && (
+        <div
+          onClick={() => setBatchHistoryOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={18} color="#A78BFA" />
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>سجل الطباعة</div>
+              </div>
+              <button onClick={() => setBatchHistoryOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
+              {printBatches.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
+                  لا توجد دفعات مطبوعة بعد
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {printBatches.map((batch) => (
+                    <div key={batch.batchId} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Printer size={18} color="#2AABEE" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
+                            <div style={{ fontSize: 11, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleReprintBatch(batch.batchId, batch.orders)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <Printer size={13} /> إعادة طباعة
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#546880', lineHeight: 1.6 }}>
+                        {batch.orders.slice(0, 4).map((o) => `#${o.orderNo}`).join('، ')}
+                        {batch.orders.length > 4 ? ` +${batch.orders.length - 4}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── modal الطباعة (داخل الموقع — لا نافذة منبثقة) ── */}
       {printModal && (
