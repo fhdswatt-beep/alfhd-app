@@ -2018,6 +2018,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const [ocrLoading, setOcrLoading] = useState(false);
   const ocrInputRef = React.useRef(null);
   const [section, setSection] = useState('ready');
+  // modal الطباعة داخل الموقع (بدل نافذة منبثقة)
+  const [printModal, setPrintModal] = useState(null); // {html, title} أو null
+  const [printLoading, setPrintLoading] = useState(false);
   const [printTarget, setPrintTarget] = useState(null);
   // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
   const [jenniAction, setJenniAction] = useState(null);
@@ -2751,34 +2754,25 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       alert('لا يمكن طباعة الباركود: الطلب غير مرسل لشركة التوصيل');
       return;
     }
-    // افتح النافذة فوراً (قبل أي await) لتجنّب حظر المتصفح للنوافذ المنبثقة
-    const win = window.open('', '_blank');
-    if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>جارٍ التحميل...</title>
-      <style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:Cairo,Arial,sans-serif;font-size:20px;color:#555;background:#fff;}</style>
-      </head><body><div>⏳ جارٍ تحميل الباركود...</div></body></html>`);
-    win.document.close();
-
+    setPrintLoading(true);
+    setPrintModal({ title: `باركود الطلب #${order.orderNo}`, html: '', loading: true });
     try {
-      // إن لم يُرسَل الطلب لجيني بعد (طلب في قسم "قيد الطباعة" لم يُرسل) → أرسله الآن أولاً
+      // إن لم يُرسَل الطلب لجيني بعد → أرسله الآن أولاً
       if (!order.jenniSent && !order.jenniShipmentId) {
-        win.document.body.innerHTML = `<div style="text-align:center;font-family:Cairo,Arial;font-size:18px;color:#555;padding:40px;">⏳ جارٍ إرسال الطلب لشركة التوصيل أولاً...</div>`;
+        setPrintModal({ title: `طلب #${order.orderNo}`, html: '', loading: true, note: 'جارٍ إرسال الطلب لشركة التوصيل أولاً...' });
         try {
           const sent = await sendOrderToJenni(order, { silent: true });
-          // حدّث المعرّفات من النتيجة إن توفّرت
           if (sent && (sent.shipment_id || sent.tracking_number)) {
             order = { ...order, jenniSent: true, jenniShipmentId: sent.shipment_id || order.jenniShipmentId, jenniTracking: sent.tracking_number || order.jenniTracking };
           } else {
             order = { ...order, jenniSent: true };
           }
-        } catch (_e) { /* نكمل بالأرقام المتاحة */ }
+        } catch (_e) { /* نكمل */ }
       }
 
-      // أرسل كل المعرّفات المتاحة — الدالة تجرّبها حتى تنجح واحدة
       const payload = {
         shipment_ids: order.jenniShipmentId ? [order.jenniShipmentId] : [],
-        shipment_numbers: [order.orderNo, order.jenniShipmentId, order.jenniTracking]
-          .filter(Boolean).map(String),
+        shipment_numbers: [order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).map(String),
       };
       const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
         method: 'POST',
@@ -2788,50 +2782,25 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
         const jr = data.jenni_response;
-        const detail = data.error
-          || jr?.message || jr?.error || jr?.msg
+        const detail = data.error || jr?.message || jr?.error || jr?.msg
           || (jr ? JSON.stringify(jr).slice(0, 300) : '')
-          || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '')
-          || 'غير متاح';
+          || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '') || 'غير متاح';
         const tried = [order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).join(', ');
-        win.document.body.innerHTML = `<div style="color:#c00;text-align:center;font-family:Cairo,Arial;padding:20px;">تعذّر جلب الباركود:<br><br>${detail}<br><br><small>الأرقام المُجرّبة: ${tried}</small></div>`;
-        console.error('JENNI STICKERS FULL RESPONSE:', JSON.stringify(data, null, 2));
+        setPrintModal({ title: 'تعذّر الطباعة', error: `${detail}\n\nالأرقام المُجرّبة: ${tried}` });
+        console.error('JENNI STICKERS:', JSON.stringify(data, null, 2));
         return;
       }
 
-      // معلومات إضافية تُطبع أسفل الباركود: عنوان التخزين + المجهّز
-      const storageLabel = order.storageLocation || '';
-      const prepName = order.prepByName || '';
-      const extraHtml = `
-        <div style="margin-top:10px;padding:10px 14px;border:1.5px dashed #333;border-radius:8px;font-family:Cairo,Arial,sans-serif;direction:rtl;text-align:right;">
-          <div style="font-size:15px;font-weight:800;">طلب #${order.orderNo} — ${order.customer || ''}</div>
-          <div style="font-size:13px;color:#444;margin-top:3px;">${order.governorateName || ''}${order.area ? ' - ' + order.area : ''}</div>
-          ${storageLabel ? `<div style="font-size:14px;font-weight:700;margin-top:6px;">📍 عنوان الطلب: ${storageLabel}</div>` : `<div style="font-size:13px;color:#888;margin-top:6px;">📍 عنوان الطلب: ______________________</div>`}
-          ${prepName ? `<div style="font-size:13px;margin-top:4px;">👤 موظف التجهيز: ${prepName}</div>` : ''}
-        </div>`;
+      let src = '';
+      if (data.type === 'pdf_base64' && data.data) src = `data:application/pdf;base64,${data.data}`;
+      else if (data.type === 'url' && data.url) src = data.url;
+      else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح لهذا الطلب' }); return; }
 
-      let bodyContent = '';
-      if (data.type === 'pdf_base64' && data.data) {
-        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="500px" />`;
-      } else if (data.type === 'url' && data.url) {
-        bodyContent = `<iframe src="${data.url}" width="100%" height="500px" style="border:none;"></iframe>`;
-      } else {
-        win.document.body.innerHTML = `<div style="color:#c00;text-align:center;font-family:Cairo,Arial;padding:20px;">الباركود غير متاح لهذا الطلب حالياً</div>`;
-        return;
-      }
-
-      win.document.open();
-      win.document.write(`
-        <!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>باركود الطلب #${order.orderNo}</title>
-        <style>body{margin:0;padding:16px;background:#fff;font-family:Cairo,Arial,sans-serif;}@media print{.no-print{display:none;}}</style>
-        </head><body>
-        <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">🖨️ طباعة</button>
-        ${bodyContent}
-        ${extraHtml}
-        </body></html>`);
-      win.document.close();
+      setPrintModal({ title: `باركود الطلب #${order.orderNo}`, src, count: 1 });
     } catch (e) {
-      try { win.document.body.innerHTML = `<div style="color:#c00;text-align:center;font-family:Cairo,Arial;padding:20px;">خطأ في جلب الباركود: ${e.message}</div>`; } catch (_) {}
+      setPrintModal({ title: 'خطأ', error: e.message });
+    } finally {
+      setPrintLoading(false);
     }
   }
 
@@ -2899,19 +2868,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     );
   }
 
-  // طباعة جماعية من جيني — يجلب باركود كل الطلبات الجاهزة دفعة واحدة
+  // طباعة جماعية من جيني — يجلب باركود كل الطلبات دفعة واحدة (داخل modal)
   async function printJenniBatch(orders, { saveBatch = true } = {}) {
     const valid = orders.filter((o) => o.orderNo || o.jenniShipmentId);
     if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
-    // افتح النافذة فوراً (قبل أي await) لتجنّب حظر المتصفح
-    const win = window.open('', '_blank');
-    if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>جارٍ التحميل...</title>
-      <style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:Cairo,Arial,sans-serif;font-size:20px;color:#555;background:#fff;}</style>
-      </head><body><div>⏳ جارٍ تحميل ${valid.length} باركود...</div></body></html>`);
-    win.document.close();
+    setPrintLoading(true);
+    setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ تحميل ${valid.length} باركود...` });
     try {
-      // أرسل كل المعرّفات المتاحة لكل الطلبات — الدالة تجرّبها حتى تنجح
+      // أرسل الطلبات غير المُرسلة لجيني أولاً (سبب فشل طباعة الكل سابقاً)
+      const notSent = valid.filter((o) => !o.jenniSent && !o.jenniShipmentId);
+      if (notSent.length > 0) {
+        setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ إرسال ${notSent.length} طلب لشركة التوصيل أولاً...` });
+        for (let i = 0; i < notSent.length; i++) {
+          try {
+            const sent = await sendOrderToJenni(notSent[i], { silent: true });
+            if (sent && (sent.shipment_id || sent.tracking_number)) {
+              const idx = valid.findIndex((v) => v.id === notSent[i].id);
+              if (idx >= 0) valid[idx] = { ...valid[idx], jenniSent: true, jenniShipmentId: sent.shipment_id || valid[idx].jenniShipmentId, jenniTracking: sent.tracking_number || valid[idx].jenniTracking };
+            }
+          } catch (_e) { /* تابع */ }
+        }
+      }
+
+      // اجمع كل المعرّفات المتاحة لكل الطلبات
       const allNumbers = [];
       const allIds = [];
       valid.forEach((o) => {
@@ -2927,29 +2906,18 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       if (!data.success) {
         const jr = data.jenni_response;
         const detail = data.error || jr?.message || jr?.error || (jr ? JSON.stringify(jr).slice(0,200) : '') || 'غير متاح';
-        win.document.body.innerHTML = `<div style="color:#c00;text-align:center;font-family:Cairo,Arial;padding:20px;">تعذّر جلب الباركود:<br><br>${detail}</div>`;
+        setPrintModal({ title: 'تعذّر الطباعة', error: detail });
         return;
       }
 
-      // عرض PDF جيني
-      let bodyContent = '';
-      if (data.type === 'pdf_base64' && data.data) {
-        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
-      } else if (data.type === 'url' && data.url) {
-        bodyContent = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
-      } else {
-        win.document.body.innerHTML = `<div style="color:#c00;text-align:center;font-family:Cairo,Arial;padding:20px;">الباركود غير متاح</div>`;
-        return;
-      }
+      let src = '';
+      if (data.type === 'pdf_base64' && data.data) src = `data:application/pdf;base64,${data.data}`;
+      else if (data.type === 'url' && data.url) src = data.url;
+      else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح' }); return; }
 
-      win.document.open();
-      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>طباعة ${valid.length} طلب</title>
-        <style>body{margin:0;padding:14px;font-family:Cairo,Arial;}@media print{.np{display:none}}</style></head><body>
-        <button class="np" onclick="window.print()" style="padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length} باركود</button>
-        ${bodyContent}</body></html>`);
-      win.document.close();
+      setPrintModal({ title: `طباعة ${valid.length} طلب`, src, count: valid.length });
 
-      // احفظ الدفعة في السجل + انقل الطلبات لقيد التجهيز
+      // احفظ الدفعة + انقل لقيد التجهيز
       if (saveBatch) {
         const batchId = `batch-${Date.now()}`;
         const printedAt = new Date().toISOString();
@@ -2960,7 +2928,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         }
       }
     } catch (e) {
-      try { win.document.body.innerHTML = `<div style="color:#c00;text-align:center;font-family:Cairo,Arial;padding:20px;">خطأ في الطباعة: ${e.message}</div>`; } catch (_) {}
+      setPrintModal({ title: 'خطأ', error: e.message });
+    } finally {
+      setPrintLoading(false);
     }
   }
 
@@ -5216,6 +5186,70 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
           );
         })}
       </div>
+
+      {/* ── modal الطباعة (داخل الموقع — لا نافذة منبثقة) ── */}
+      {printModal && (
+        <div
+          onClick={() => setPrintModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+          >
+            {/* رأس الـ modal */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2234' }}>{printModal.title || 'طباعة الباركود'}</div>
+              <button onClick={() => setPrintModal(null)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#f1f1f1', color: '#555', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* المحتوى */}
+            <div style={{ flex: 1, overflow: 'auto', background: '#f7f7f7', minHeight: 200 }}>
+              {printModal.loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 14, color: '#555' }}>
+                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#2AABEE', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{printModal.note || 'جارٍ التحميل...'}</div>
+                  <style>{`@keyframes alfhd-spin{to{transform:rotate(360deg)}}`}</style>
+                </div>
+              ) : printModal.error ? (
+                <div style={{ padding: 30, textAlign: 'center', color: '#c0392b', fontSize: 15, fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.7 }}>
+                  ⚠️ {printModal.error}
+                </div>
+              ) : printModal.src ? (
+                <iframe
+                  id="alfhd-print-frame"
+                  src={printModal.src}
+                  title="باركود"
+                  style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
+                />
+              ) : null}
+            </div>
+
+            {/* أزرار أسفل */}
+            {printModal.src && !printModal.loading && !printModal.error && (
+              <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderTop: '1px solid #eee', flexShrink: 0 }}>
+                <button
+                  onClick={() => {
+                    const f = document.getElementById('alfhd-print-frame');
+                    try { f.contentWindow.focus(); f.contentWindow.print(); }
+                    catch (_e) { window.open(printModal.src, '_blank'); }
+                  }}
+                  style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
+                >
+                  🖨️ طباعة {printModal.count > 1 ? `(${printModal.count})` : ''}
+                </button>
+                <a
+                  href={printModal.src}
+                  download={`barcode-${Date.now()}.pdf`}
+                  style={{ flex: 1, padding: '12px', background: '#f1f1f1', borderRadius: 10, color: '#333', fontSize: 14, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}
+                >
+                  ⬇️ تحميل
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
