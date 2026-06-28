@@ -3149,8 +3149,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
-          {/* زر طباعة فردي من جيني — فقط في قسم جاهز للطباعة */}
-          {section === 'ready' && (
+          {/* زر طباعة فردي من جيني — في قسم الطباعة والتجهيز */}
+          {(section === 'ready' || section === 'prep') && (
             <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#2AABEE', borderColor: 'rgba(42,171,238,0.3)' }} title="طباعة باركود هذا الطلب">
               <Printer size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>طباعة</span>
             </button>
@@ -3737,6 +3737,129 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
         </div>
       )}
+
+      {/* ── modal سجل الدفعات المطبوعة ── */}
+      {batchHistoryOpen && (
+        <div
+          onClick={() => setBatchHistoryOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={18} color="#A78BFA" />
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>سجل الطباعة</div>
+              </div>
+              <button onClick={() => setBatchHistoryOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
+              {printBatches.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
+                  لا توجد دفعات مطبوعة بعد
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {printBatches.map((batch) => (
+                    <div key={batch.batchId} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Printer size={18} color="#2AABEE" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
+                            <div style={{ fontSize: 11, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleReprintBatch(batch.batchId, batch.orders)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <Printer size={13} /> إعادة طباعة
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#546880', lineHeight: 1.6 }}>
+                        {batch.orders.slice(0, 4).map((o) => `#${o.orderNo}`).join('، ')}
+                        {batch.orders.length > 4 ? ` +${batch.orders.length - 4}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── modal الطباعة (داخل الموقع — لا نافذة منبثقة) ── */}
+      {printModal && (
+        <div
+          onClick={() => setPrintModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+          >
+            {/* رأس الـ modal */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2234' }}>{printModal.title || 'طباعة الباركود'}</div>
+              <button onClick={() => setPrintModal(null)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#f1f1f1', color: '#555', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* المحتوى */}
+            <div style={{ flex: 1, overflow: 'auto', background: '#f7f7f7', minHeight: 200 }}>
+              {printModal.loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 14, color: '#555' }}>
+                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#2AABEE', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{printModal.note || 'جارٍ التحميل...'}</div>
+                  <style>{`@keyframes alfhd-spin{to{transform:rotate(360deg)}}`}</style>
+                </div>
+              ) : printModal.error ? (
+                <div style={{ padding: 30, textAlign: 'center', color: '#c0392b', fontSize: 15, fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.7 }}>
+                  ⚠️ {printModal.error}
+                </div>
+              ) : printModal.src ? (
+                <iframe
+                  id="alfhd-print-frame"
+                  src={printModal.src}
+                  title="باركود"
+                  style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
+                />
+              ) : null}
+            </div>
+
+            {/* أزرار أسفل */}
+            {printModal.src && !printModal.loading && !printModal.error && (
+              <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderTop: '1px solid #eee', flexShrink: 0 }}>
+                <button
+                  onClick={() => {
+                    const f = document.getElementById('alfhd-print-frame');
+                    try { f.contentWindow.focus(); f.contentWindow.print(); }
+                    catch (_e) { window.open(printModal.src, '_blank'); }
+                  }}
+                  style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
+                >
+                  🖨️ طباعة {printModal.count > 1 ? `(${printModal.count})` : ''}
+                </button>
+                <a
+                  href={printModal.src}
+                  download={`barcode-${Date.now()}.pdf`}
+                  style={{ flex: 1, padding: '12px', background: '#f1f1f1', borderRadius: 10, color: '#333', fontSize: 14, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}
+                >
+                  ⬇️ تحميل
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -5241,126 +5364,6 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
         })}
       </div>
 
-      {/* ── modal سجل الدفعات المطبوعة ── */}
-      {batchHistoryOpen && (
-        <div
-          onClick={() => setBatchHistoryOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} color="#A78BFA" />
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>سجل الطباعة</div>
-              </div>
-              <button onClick={() => setBatchHistoryOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
-            </div>
-
-            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
-              {printBatches.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
-                  لا توجد دفعات مطبوعة بعد
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {printBatches.map((batch) => (
-                    <div key={batch.batchId} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Printer size={18} color="#2AABEE" />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
-                            <div style={{ fontSize: 11, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleReprintBatch(batch.batchId, batch.orders)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          <Printer size={13} /> إعادة طباعة
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#546880', lineHeight: 1.6 }}>
-                        {batch.orders.slice(0, 4).map((o) => `#${o.orderNo}`).join('، ')}
-                        {batch.orders.length > 4 ? ` +${batch.orders.length - 4}` : ''}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── modal الطباعة (داخل الموقع — لا نافذة منبثقة) ── */}
-      {printModal && (
-        <div
-          onClick={() => setPrintModal(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
-          >
-            {/* رأس الـ modal */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2234' }}>{printModal.title || 'طباعة الباركود'}</div>
-              <button onClick={() => setPrintModal(null)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#f1f1f1', color: '#555', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
-            </div>
-
-            {/* المحتوى */}
-            <div style={{ flex: 1, overflow: 'auto', background: '#f7f7f7', minHeight: 200 }}>
-              {printModal.loading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 14, color: '#555' }}>
-                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#2AABEE', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{printModal.note || 'جارٍ التحميل...'}</div>
-                  <style>{`@keyframes alfhd-spin{to{transform:rotate(360deg)}}`}</style>
-                </div>
-              ) : printModal.error ? (
-                <div style={{ padding: 30, textAlign: 'center', color: '#c0392b', fontSize: 15, fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.7 }}>
-                  ⚠️ {printModal.error}
-                </div>
-              ) : printModal.src ? (
-                <iframe
-                  id="alfhd-print-frame"
-                  src={printModal.src}
-                  title="باركود"
-                  style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
-                />
-              ) : null}
-            </div>
-
-            {/* أزرار أسفل */}
-            {printModal.src && !printModal.loading && !printModal.error && (
-              <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderTop: '1px solid #eee', flexShrink: 0 }}>
-                <button
-                  onClick={() => {
-                    const f = document.getElementById('alfhd-print-frame');
-                    try { f.contentWindow.focus(); f.contentWindow.print(); }
-                    catch (_e) { window.open(printModal.src, '_blank'); }
-                  }}
-                  style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
-                >
-                  🖨️ طباعة {printModal.count > 1 ? `(${printModal.count})` : ''}
-                </button>
-                <a
-                  href={printModal.src}
-                  download={`barcode-${Date.now()}.pdf`}
-                  style={{ flex: 1, padding: '12px', background: '#f1f1f1', borderRadius: 10, color: '#333', fontSize: 14, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}
-                >
-                  ⬇️ تحميل
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
