@@ -280,6 +280,7 @@ function mapOrderFromDb(row) {
     governorateCode: row.governorate_code || '',
     governorateName: row.governorate_name || '',
     area: row.area || '',
+    cityId: row.city_id || null,
     jenniShipmentId: row.jenni_shipment_id || null,
     jenniSent: !!row.jenni_sent,
     jenniTracking: row.jenni_tracking || null,
@@ -2596,6 +2597,23 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       // لا منطقة دقيقة — استخدم اسم المحافظة حتى يُرسل الطلب
       cityValue = String(o.governorateName || '').trim() || String(o.address || '').split(' - ')[0]?.trim() || 'غير محدد';
     }
+    // طابق المنطقة مع jenni_cities لجلب city_id (الكود الذي تتطلبه جيني)
+    let cityId = o.cityId || null;
+    if (!cityId && o.governorateCode && cityValue) {
+      try {
+        const norm = (s) => normalizeArJS(s).replace(/\s/g, '');
+        const cities = await sbSelect('jenni_cities', `governorate_code=eq.${o.governorateCode}&select=city_id,city_name,city_name_norm`);
+        if (Array.isArray(cities) && cities.length) {
+          const target = norm(cityValue);
+          // مطابقة دقيقة ثم احتواء
+          let match = cities.find((c) => norm(c.city_name_norm || c.city_name) === target);
+          if (!match) match = cities.find((c) => { const cn = norm(c.city_name_norm || c.city_name); return cn.includes(target) || target.includes(cn); });
+          // إن لم نجد، خذ أول مدينة في المحافظة (أفضل من الرفض)
+          if (!match) match = cities[0];
+          if (match) { cityId = match.city_id; cityValue = match.city_name; }
+        }
+      } catch (_e) { /* نكمل بالاسم فقط */ }
+    }
     if (!Number(o.total) || Number(o.total) <= 0) {
       const msg = 'المبلغ يجب أن يكون أكبر من صفر';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
@@ -2618,6 +2636,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       receiver_phone_1: cleanPhone,
       governorate_code: o.governorateCode,
       city: cityValue,
+      ...(cityId ? { city_id: cityId } : {}),
       address: String(o.address || '').trim(),
       amount_iqd: cleanAmount,
       note: noteText || undefined,
