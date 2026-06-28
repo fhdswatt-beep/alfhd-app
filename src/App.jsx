@@ -21,6 +21,14 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
 
+// تحويل الأرقام العربية/الفارسية إلى إنجليزية (٠١٢٣٤٥٦٧٨٩ → 0123456789) — دالة عامة
+function arabicToEnglishDigits(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+}
+
 // ──────────────────────────────────────────────
 // إعدادات ربط فيسبوك الحقيقي (OAuth)
 // ──────────────────────────────────────────────
@@ -2551,12 +2559,18 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
+  // تحويل الأرقام العربية/الفارسية إلى إنجليزية
+  function toEnglishDigits(str) {
+    return arabicToEnglishDigits(str);
+  }
+
   // تنظيف رقم الهاتف ليكون بصيغة 07XXXXXXXXX التي تقبلها جيني
   function normalizeIraqiPhone(raw) {
     if (!raw) return '';
-    let digits = String(raw).replace(/[^0-9]/g, '');
-    if (digits.startsWith('964')) digits = '0' + digits.slice(3);
+    // حوّل الأرقام العربية لإنجليزية أولاً ثم أزل غير الأرقام
+    let digits = toEnglishDigits(raw).replace(/[^0-9]/g, '');
     if (digits.startsWith('00964')) digits = '0' + digits.slice(5);
+    else if (digits.startsWith('964')) digits = '0' + digits.slice(3);
     if (!digits.startsWith('0')) digits = '0' + digits;
     return digits.slice(0, 11); // 07XXXXXXXXX = 11 رقماً
   }
@@ -2597,6 +2611,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     ].filter(Boolean).join(' — ');
 
     // ── البيانات المرسلة لشركة التوصيل ──
+    const cleanAmount = Number(toEnglishDigits(String(o.total || '')).replace(/[^0-9.]/g, '')) || 0;
     const shipmentPayload = {
       external_shipment_id: String(o.id),
       shipment_number: String(o.orderNo || o.id),
@@ -2605,7 +2620,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       governorate_code: o.governorateCode,
       city: cityValue,
       address: String(o.address || '').trim(),
-      amount_iqd: Number(o.total) || 0,
+      amount_iqd: cleanAmount,
       note: noteText || undefined,
     };
 
@@ -3492,7 +3507,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                     <>
                       <input
                         value={editingOrder.phone}
-                        onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })}
+                        onChange={(e) => setEditingOrder({ ...editingOrder, phone: toEnglishDigits(e.target.value) })}
                         style={{
                           ...styles.formInput,
                           borderRadius: 9,
@@ -5048,7 +5063,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
                   </div>
                   <div style={styles.formGroup}>
                     <label style={styles.formLabel}>رقم واتساب</label>
-                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} style={styles.formInput} placeholder="07XXXXXXXXX" />
+                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: arabicToEnglishDigits(e.target.value) })} style={styles.formInput} placeholder="07XXXXXXXXX" />
                   </div>
                 </>
               )}
@@ -6688,7 +6703,7 @@ function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
       {modal&&(
         <WhModal title={editing?'تعديل موزع':'إضافة موزع جديد'} onClose={()=>setModal(false)}>
           <WhField label="اسم الموزع" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
-          <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="07XXXXXXXXX" style={whInp}/></WhField>
+          <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} placeholder="07XXXXXXXXX" style={whInp}/></WhField>
           <WhField label="العنوان"><input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={whInp}/></WhField>
           <WhField label="المنتجات المتوفرة عنده"><textarea value={form.available_products} onChange={e=>setForm(f=>({...f,available_products:e.target.value}))} placeholder="كامري 2020 جلد، لاندكروزر ربل..." style={{...whInp,minHeight:65,resize:'vertical'}}/></WhField>
           <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
@@ -6871,7 +6886,7 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
             <WhField label="الاسم" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
             <WhField label="المسمى الوظيفي"><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="موظف، محاسب..." style={whInp}/></WhField>
             <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={whInp}/></WhField>
+            <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} style={whInp}/></WhField>
           </div>
           <div style={{display:'flex',gap:9,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
