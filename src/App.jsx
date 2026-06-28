@@ -2641,7 +2641,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
         console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', data.shipment_id);
-        return true;
+        return { success: true, shipment_id: data.shipment_id || null, tracking_number: data.tracking_number || null };
       }
 
       // 409 = موجود مسبقاً
@@ -2760,6 +2760,20 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     win.document.close();
 
     try {
+      // إن لم يُرسَل الطلب لجيني بعد (طلب في قسم "قيد الطباعة" لم يُرسل) → أرسله الآن أولاً
+      if (!order.jenniSent && !order.jenniShipmentId) {
+        win.document.body.innerHTML = `<div style="text-align:center;font-family:Cairo,Arial;font-size:18px;color:#555;padding:40px;">⏳ جارٍ إرسال الطلب لشركة التوصيل أولاً...</div>`;
+        try {
+          const sent = await sendOrderToJenni(order, { silent: true });
+          // حدّث المعرّفات من النتيجة إن توفّرت
+          if (sent && (sent.shipment_id || sent.tracking_number)) {
+            order = { ...order, jenniSent: true, jenniShipmentId: sent.shipment_id || order.jenniShipmentId, jenniTracking: sent.tracking_number || order.jenniTracking };
+          } else {
+            order = { ...order, jenniSent: true };
+          }
+        } catch (_e) { /* نكمل بالأرقام المتاحة */ }
+      }
+
       // أرسل كل المعرّفات المتاحة — الدالة تجرّبها حتى تنجح واحدة
       const payload = {
         shipment_ids: order.jenniShipmentId ? [order.jenniShipmentId] : [],
