@@ -10,7 +10,7 @@ import {
   AlertCircle,
   Warehouse, ShoppingCart, CreditCard, DollarSign,
   TrendingUp, Percent, Home, Bell,
-  Download, Upload, Clock,
+  Download, Upload, Clock, AlertTriangle,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -244,6 +244,7 @@ function mapOrderFromDb(row) {
   return {
     id: row.id,
     orderNo: row.order_no,
+    sourceMessageId: row.source_message_id || null,
     pageId: row.page_id,
     customer: row.customer_name,
     phone: row.phone,
@@ -428,7 +429,7 @@ function matchOrderToWarehouseProduct(order, warehouseProducts) {
 // دالة حساب الربح
 function calcProfit(salePrice, costPrice) {
   const profit = Number(salePrice) - Number(costPrice);
-  const margin = costPrice > 0 ? ((profit / costPrice) * 100).toFixed(1) : 0;
+  const margin = costPrice > 0 ? Number(((profit / costPrice) * 100).toFixed(1)) : 0;
   return { profit, margin };
 }
 
@@ -926,8 +927,17 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   useEffect(() => {
     if (!selectedConv) return;
     const fresh = conversations.find((c) => c.id === selectedConv.id);
-    if (fresh && fresh !== selectedConv) setSelectedConv(fresh);
-  }, [conversations, selectedConv]);
+    // حدّث فقط إذا تغيّرت بيانات مهمة فعلاً (لا بمجرد تغيّر المرجع كل دورة polling)
+    if (fresh && (
+      fresh.lastMessage !== selectedConv.lastMessage ||
+      fresh.unread !== selectedConv.unread ||
+      fresh.lastMessageTime !== selectedConv.lastMessageTime ||
+      fresh.orderId !== selectedConv.orderId
+    )) {
+      setSelectedConv(fresh);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
   const [composerText, setComposerText] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -1052,13 +1062,14 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     }
   }
 
-  const loadMessages = useCallback(async (convId) => {
+  const loadMessages = useCallback(async (convId, isCancelled) => {
     if (!convId) return;
     try {
       const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.asc`);
+      // تجاهل النتيجة إذا بدّل المستخدم المحادثة أثناء التحميل
+      if (isCancelled && isCancelled()) return;
       const mapped = (dbMsgs || []).map(mapMessageFromDb);
       setMessages(mapped);
-      // كشف تلقائي لرسائل التحويل
       await maybeHandoffConversation(convId, mapped);
     } catch (e) {
       console.error('load messages error:', e);
@@ -1068,32 +1079,33 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
   useEffect(() => {
     if (!selectedConv) { setMessages([]); return undefined; }
+    let cancelled = false;
+    const convId = selectedConv.id;
     setLoadingMsgs(true);
-    loadMessages(selectedConv.id).finally(() => setLoadingMsgs(false));
-    // علّم كمقروء مرة واحدة عند الفتح فقط (مو كل دورة)
-    markConversationRead(selectedConv.id);
+    // حمّل فقط إذا لم نبدّل المحادثة أثناء التحميل
+    loadMessages(convId, () => cancelled).finally(() => { if (!cancelled) setLoadingMsgs(false); });
+    markConversationRead(convId);
     const isWA = selectedConv.isWhatsApp;
-    // أثناء فتح المحادثة: حدّث الرسائل دورياً
-    // واتساب: يصل تلقائياً من Railway، فقط نعيد التحميل المحلي (بدون FB poll)
-    // ماسنجر: نسحب من فيسبوك مباشرة
     const refreshOpenChat = async () => {
+      if (cancelled) return;
       if (!isWA) {
         try {
           await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
-        } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
+        } catch (_e) { /* تجاهل */ }
       }
-      await loadMessages(selectedConv.id);
+      if (!cancelled) await loadMessages(convId, () => cancelled);
     };
-    // واتساب أبطأ قليلاً (4 ث) لأنه فوري من Railway، ماسنجر 3 ث
     const interval = setInterval(refreshOpenChat, isWA ? 4000 : 3000);
-    return () => clearInterval(interval);
+    return () => { cancelled = true; clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const el = scrollRef.current;
+    if (!el) return;
+    // مرّر للأسفل فقط إذا كان المستخدم قريباً من الأسفل أصلاً (لا تقطعه وهو يقرأ القديم)
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   function touchConvLocally(convId, lastMessage) {
@@ -1208,6 +1220,9 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       await loadMessages(selectedConv.id);
     } catch (e) {
       console.error('send text error:', e);
+      // أرجِع النص للحقل وأزِل الرسالة المؤقتة الفاشلة حتى لا تضيع
+      setComposerText(text);
+      setMessages((prev) => prev.filter((m) => !(typeof m.id === 'string' && m.id.startsWith('temp-') && m.content === text)));
       alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
     } finally {
       setSendingMsg(false);
@@ -1706,7 +1721,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                       style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
                     >
                       <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
-                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} />}
+                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} onError={(e)=>{e.target.style.display='none';}} />}
                         {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
                         {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
                         <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
@@ -2031,6 +2046,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const [printModal, setPrintModal] = useState(null); // {html, title} أو null
   const [printLoading, setPrintLoading] = useState(false);
   const [batchHistoryOpen, setBatchHistoryOpen] = useState(false);
+  // قسم المهمل
+  const [neglectedOpen, setNeglectedOpen] = useState(false);
+  const [neglectedSelected, setNeglectedSelected] = useState([]); // ids المحددة
+  const sendingJenniRef = React.useRef(null); // قفل ضد الإرسال المزدوج لجيني
   const [printTarget, setPrintTarget] = useState(null);
   // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
   const [jenniAction, setJenniAction] = useState(null);
@@ -2158,11 +2177,16 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   const THREE_DAYS = 3 * 86400000;
-  function isWithinPrepWindow(o) {
-    // طلبات "قيد التجهيز" تبقى ظاهرة 3 أيام فقط، بعدها تنتقل للمهملة
-    const ref = o.printedAt || o.createdAt || o.date;
-    if (!ref) return true;
-    return (Date.now() - new Date(ref).getTime()) <= THREE_DAYS;
+  // طلب مهمل: في قيد التجهيز أو لدى شركة التوصيل، مرّ عليه 3 أيام دون أن تتغير حالته/تستلمه الشركة
+  function isNeglected(o) {
+    const stage = o.stage || (o.printed ? 'prep' : 'ready');
+    if (stage !== 'prep' && stage !== 'delivery') return false;
+    // إذا الشركة استلمته أو تغيّرت حالته الفعلية، فهو ليس مهملاً
+    if (o.deliveryStep || o.deliveryStatus) return false;
+    // المرجع الزمني: آخر تحديث للحالة أو وقت الطباعة أو الإنشاء
+    const ref = o.deliveryUpdatedAt || o.printedAt || o.createdAt || o.date;
+    if (!ref) return false;
+    return (Date.now() - new Date(ref).getTime()) > THREE_DAYS;
   }
 
   const stageOrders = useMemo(() => {
@@ -2170,19 +2194,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
       if (stage !== section) return false;
       if (!passesCommon(o)) return false;
-      if (section === 'prep' && !isWithinPrepWindow(o)) return false;
+      // استبعد المهملة من أقسام التجهيز/التوصيل (تظهر في قسم المهمل فقط)
+      if ((section === 'prep' || section === 'delivery') && isNeglected(o)) return false;
       if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleOrders, section, selectedPage, statusFilter, search, datePreset, customMonth, customYear]);
 
+  // الطلبات المهملة (لكل الصفحات المرئية)
+  const neglectedOrders = useMemo(() => {
+    return visibleOrders.filter((o) => {
+      if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
+      return isNeglected(o);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleOrders, selectedPage]);
+
   const stageCounts = useMemo(() => {
     const c = { ready: 0, prep: 0, delivery: 0 };
     visibleOrders.forEach((o) => {
       if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
-      if (stage === 'prep' && !isWithinPrepWindow(o)) return;
+      if ((stage === 'prep' || stage === 'delivery') && isNeglected(o)) return;
       if (c[stage] !== undefined) c[stage]++;
     });
     return c;
@@ -2577,6 +2611,24 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function sendOrderToJenni(o, { silent = false } = {}) {
+    // ── قفل ضد الإرسال المزدوج (يمنع إنشاء شحنتين لنفس الطلب) ──
+    if (!sendingJenniRef.current) sendingJenniRef.current = new Set();
+    if (sendingJenniRef.current.has(o.id)) {
+      return false; // إرسال جارٍ بالفعل لهذا الطلب
+    }
+    // إن كان مُرسلاً مسبقاً، لا نعيد الإرسال
+    if (o.jenniSent || o.jenniShipmentId) {
+      return { success: true, shipment_id: o.jenniShipmentId, tracking_number: o.jenniTracking, already: true };
+    }
+    sendingJenniRef.current.add(o.id);
+    try {
+      return await _sendOrderToJenniInner(o, { silent });
+    } finally {
+      sendingJenniRef.current.delete(o.id);
+    }
+  }
+
+  async function _sendOrderToJenniInner(o, { silent = false } = {}) {
     // ── خط دفاع: التحقق من كل الحقول الإجبارية قبل الإرسال ──
     if (!o.governorateCode || !o.phone) {
       const msg = 'لا يمكن الإرسال لشركة التوصيل: المحافظة ورقم الهاتف مطلوبان';
@@ -2599,18 +2651,66 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
     // طابق المنطقة مع jenni_cities لجلب city_id (الكود الذي تتطلبه جيني)
     let cityId = o.cityId || null;
-    if (!cityId && o.governorateCode && cityValue) {
+    if (!cityId && cityValue) {
       try {
-        const norm = (s) => normalizeArJS(s).replace(/\s/g, '');
-        const cities = await sbSelect('jenni_cities', `governorate_code=eq.${o.governorateCode}&select=city_id,city_name,city_name_norm`);
+        const norm = (s) => normalizeArJS(String(s || '')).replace(/\s/g, '');
+        // مسافة ليفنشتاين للتشابه
+        const lev = (a, b) => {
+          if (a === b) return 0;
+          const m = a.length, n = b.length;
+          if (!m) return n; if (!n) return m;
+          let prev = Array.from({ length: n + 1 }, (_, i) => i);
+          for (let i = 1; i <= m; i++) {
+            const cur = [i];
+            for (let j = 1; j <= n; j++) {
+              cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            }
+            prev = cur;
+          }
+          return prev[n];
+        };
+
+        // اجلب مدن المحافظة (أو كل المدن إن لم تتوفر محافظة)
+        const q = o.governorateCode
+          ? `governorate_code=eq.${o.governorateCode}&select=city_id,city_name,city_name_norm`
+          : `select=city_id,city_name,city_name_norm,governorate_code&limit=2000`;
+        const cities = await sbSelect('jenni_cities', q);
+
         if (Array.isArray(cities) && cities.length) {
           const target = norm(cityValue);
-          // مطابقة دقيقة ثم احتواء
+          const targetWords = normalizeArJS(String(cityValue || '')).split(/\s+/).filter((w) => w.length > 1);
+
+          // 1) تطابق دقيق
           let match = cities.find((c) => norm(c.city_name_norm || c.city_name) === target);
-          if (!match) match = cities.find((c) => { const cn = norm(c.city_name_norm || c.city_name); return cn.includes(target) || target.includes(cn); });
-          // إن لم نجد، خذ أول مدينة في المحافظة (أفضل من الرفض)
-          if (!match) match = cities[0];
-          if (match) { cityId = match.city_id; cityValue = match.city_name; }
+          // 2) احتواء (اسم المدينة داخل النص أو العكس)
+          if (!match) match = cities.find((c) => { const cn = norm(c.city_name_norm || c.city_name); return cn && (cn.includes(target) || target.includes(cn)); });
+          // 3) تطابق بالكلمات (أي كلمة من المنطقة تطابق اسم مدينة)
+          if (!match && targetWords.length) {
+            match = cities.find((c) => {
+              const cn = normalizeArJS(c.city_name_norm || c.city_name);
+              return targetWords.some((w) => cn.includes(w) || w.includes(cn));
+            });
+          }
+          // 4) أقرب تشابه (ليفنشتاين) — فقط إذا كان قريباً جداً
+          if (!match) {
+            let best = null, bestScore = 99;
+            for (const c of cities) {
+              const cn = norm(c.city_name_norm || c.city_name);
+              if (!cn) continue;
+              const d = lev(target, cn);
+              const ratio = d / Math.max(target.length, cn.length);
+              if (ratio < 0.4 && d < bestScore) { bestScore = d; best = c; }
+            }
+            if (best) match = best;
+          }
+
+          if (match) {
+            cityId = match.city_id;
+            cityValue = match.city_name;
+            // إن جاءت المدينة من بحث شامل، حدّث كود المحافظة
+            if (!o.governorateCode && match.governorate_code) o.governorateCode = match.governorate_code;
+          }
+          // إن لم نجد مطابقة، نُبقي الاسم الأصلي (لا نختار مدينة عشوائية خاطئة)
         }
       } catch (_e) { /* نكمل بالاسم فقط */ }
     }
@@ -2909,8 +3009,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setPrintLoading(true);
     setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ تحميل ${valid.length} باركود...` });
     try {
-      // أرسل الطلبات غير المُرسلة لجيني أولاً (سبب فشل طباعة الكل سابقاً)
-      const notSent = valid.filter((o) => !o.jenniSent && !o.jenniShipmentId);
+      // أرسل الطلبات غير المُرسلة لجيني أولاً — فقط عند الطباعة الأصلية (لا عند إعادة الطباعة)
+      const notSent = saveBatch ? valid.filter((o) => !o.jenniSent && !o.jenniShipmentId) : [];
       if (notSent.length > 0) {
         setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ إرسال ${notSent.length} طلب لشركة التوصيل أولاً...` });
         for (let i = 0; i < notSent.length; i++) {
@@ -3002,6 +3102,34 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const time = d.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
       return `${date} · ${time}`;
     } catch { return iso; }
+  }
+
+  // إعادة طلبات مهملة لقسم الطباعة
+  async function restoreNeglected(ids) {
+    if (!ids.length) return;
+    const now = new Date().toISOString();
+    setOrders((prev) => prev.map((o) => ids.includes(o.id)
+      ? { ...o, stage: 'ready', printed: false, printBatchId: null, printedAt: null, createdAt: now }
+      : o));
+    for (const id of ids) {
+      try { await sbUpdate('alfhd_orders', id, { stage: 'ready', printed: false, print_batch_id: null, printed_at: null, created_at: now }); } catch (_e) { /* تجاهل */ }
+    }
+    setNeglectedSelected([]);
+  }
+
+  // حذف طلبات مهملة نهائياً
+  async function deleteNeglected(ids) {
+    if (!ids.length) return;
+    if (!window.confirm(`حذف ${ids.length} طلب نهائياً؟ لا يمكن التراجع.`)) return;
+    setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
+    for (const id of ids) {
+      try { await sbDelete('alfhd_orders', id); } catch (_e) { /* تجاهل */ }
+    }
+    setNeglectedSelected([]);
+  }
+
+  function toggleNeglectedSelect(id) {
+    setNeglectedSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
 
   // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
@@ -3194,9 +3322,31 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     <div style={styles.viewWrap}>
       {/* ── هيدر الطلبات ── */}
       <div style={styles.viewHeader} className="alfhd-view-header alfhd-no-print">
-        <div>
-          <h2 style={styles.viewTitle}>الطلبات</h2>
-          <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div>
+            <h2 style={styles.viewTitle}>الطلبات</h2>
+            <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
+          </div>
+          {/* مثلث الطلبات المهملة */}
+          <button
+            onClick={() => { setNeglectedOpen(true); setNeglectedSelected([]); }}
+            title={neglectedOrders.length ? `${neglectedOrders.length} طلب مهمل` : 'الطلبات المهملة'}
+            style={{
+              position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: 10, cursor: 'pointer',
+              background: neglectedOrders.length ? 'rgba(244,91,105,0.15)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${neglectedOrders.length ? 'rgba(244,91,105,0.45)' : 'rgba(255,255,255,0.08)'}`,
+            }}
+          >
+            <AlertTriangle size={18} color={neglectedOrders.length ? '#F45B69' : '#5E6986'} />
+            {neglectedOrders.length > 0 && (
+              <span style={{
+                position: 'absolute', top: -7, right: -7, minWidth: 19, height: 19, padding: '0 5px',
+                borderRadius: 10, background: '#F45B69', color: '#fff', fontSize: 11, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0E1420',
+              }}>{neglectedOrders.length}</span>
+            )}
+          </button>
         </div>
         {/* أزرار الإجراءات — صف أنيق */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -3758,6 +3908,73 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         </div>
       )}
 
+      {/* ── modal الطلبات المهملة ── */}
+      {neglectedOpen && (
+        <div onClick={() => setNeglectedOpen(false)} style={styles.modalOverlay}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 580, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(244,91,105,0.2)' }}>
+            {/* رأس */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={18} color="#F45B69" />
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>الطلبات المهملة</div>
+                {neglectedOrders.length > 0 && <span style={{ fontSize: 12, color: '#8B9AB3' }}>({neglectedOrders.length})</span>}
+              </div>
+              <button onClick={() => setNeglectedOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
+            </div>
+
+            {/* شريط الإجراءات الجماعية */}
+            {neglectedOrders.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, flexWrap: 'wrap' }}>
+                <button onClick={() => setNeglectedSelected(neglectedSelected.length === neglectedOrders.length ? [] : neglectedOrders.map((o) => o.id))}
+                  style={{ padding: '6px 11px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#9FB0C3', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                  {neglectedSelected.length === neglectedOrders.length ? 'إلغاء التحديد' : 'تحديد الكل'}
+                </button>
+                <span style={{ fontSize: 11.5, color: '#8B9AB3' }}>{neglectedSelected.length} محدد</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => restoreNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(42,171,238,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#2AABEE' : '#546880', fontSize: 11.5, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
+                  <Printer size={13} /> إعادة للطباعة
+                </button>
+                <button onClick={() => deleteNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(244,91,105,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(244,91,105,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#F45B69' : '#546880', fontSize: 11.5, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
+                  <Trash2 size={13} /> حذف
+                </button>
+              </div>
+            )}
+
+            {/* قائمة الطلبات */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
+              {neglectedOrders.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
+                  لا توجد طلبات مهملة 🎉
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {neglectedOrders.map((o) => {
+                    const sel = neglectedSelected.includes(o.id);
+                    return (
+                      <div key={o.id} onClick={() => toggleNeglectedSelect(o.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 11, cursor: 'pointer', background: sel ? 'rgba(42,171,238,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${sel ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.06)'}` }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? '#2AABEE' : 'transparent', border: `1.5px solid ${sel ? '#2AABEE' : '#546880'}` }}>
+                          {sel && <CheckCircle2 size={13} color="#fff" />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#EAF0F7' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                          <div style={{ fontSize: 11, color: '#8B9AB3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''} · {fmtBatchDate(o.printedAt || o.createdAt)}</div>
+                        </div>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F0A868', flexShrink: 0 }}>
+                          {(o.stage === 'delivery') ? 'لدى الشركة' : 'قيد التجهيز'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── modal سجل الدفعات المطبوعة ── */}
       {batchHistoryOpen && (
         <div
@@ -3854,28 +4071,6 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               ) : null}
             </div>
 
-            {/* أزرار أسفل */}
-            {printModal.src && !printModal.loading && !printModal.error && (
-              <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderTop: '1px solid #eee', flexShrink: 0 }}>
-                <button
-                  onClick={() => {
-                    const f = document.getElementById('alfhd-print-frame');
-                    try { f.contentWindow.focus(); f.contentWindow.print(); }
-                    catch (_e) { window.open(printModal.src, '_blank'); }
-                  }}
-                  style={{ flex: 2, padding: '12px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
-                >
-                  🖨️ طباعة {printModal.count > 1 ? `(${printModal.count})` : ''}
-                </button>
-                <a
-                  href={printModal.src}
-                  download={`barcode-${Date.now()}.pdf`}
-                  style={{ flex: 1, padding: '12px', background: '#f1f1f1', borderRadius: 10, color: '#333', fontSize: 14, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}
-                >
-                  ⬇️ تحميل
-                </a>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -4762,7 +4957,7 @@ function PagesView({ pages, setPages }) {
               padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
             }}>
               {c.avatar
-                ? <img src={c.avatar} alt="" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ? <img src={c.avatar} alt="" onError={(e)=>{e.target.style.display='none';}} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Facebook size={20} color="#fff" /></div>
               }
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -5402,8 +5597,20 @@ function PrepWorkerView({ currentUser, onLogout }) {
     try {
       const rows = await sbSelect('alfhd_orders', '&order=created_at.desc&limit=300');
       if (!rows) return;
-      const mapped = rows.map(mapOrderFromDb)
+      let mapped = rows.map(mapOrderFromDb)
         .filter((o) => o.converted !== true && o.stage !== 'delivery' && o.prepStatus !== 'done');
+      // حماية: أزِل أي طلبات مكررة (نفس source_message_id أو نفس id) من العرض
+      const seenIds = new Set();
+      const seenMsg = new Set();
+      mapped = mapped.filter((o) => {
+        if (seenIds.has(o.id)) return false;
+        seenIds.add(o.id);
+        if (o.sourceMessageId) {
+          if (seenMsg.has(o.sourceMessageId)) return false;
+          seenMsg.add(o.sourceMessageId);
+        }
+        return true;
+      });
       // إشعار صوتي عند وصول طلب جديد للتجهيز
       if (knownIdsRef.current.size > 0) {
         const isNew = mapped.some((o) => !knownIdsRef.current.has(o.id) && o.prepStatus !== 'rejected');
@@ -5430,6 +5637,27 @@ function PrepWorkerView({ currentUser, onLogout }) {
     try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
     setOrders((prev) => prev.filter((x) => x.id !== o.id));
     setBusyId(null);
+  }
+
+  // استلام الطلب: يعلّمه "قيد التجهيز" باسم الموظف ليراه الباقون
+  async function claimOrder(o) {
+    // إن كان مستلماً من موظف آخر، لا نسمح بالاستلام (إلا إن كان نفس الموظف)
+    if (o.prepStatus === 'claiming' && o.prepBy && o.prepBy !== currentUser.id) {
+      return; // محجوز من غيره
+    }
+    // إن كان مستلماً مني، ألغِ الاستلام (toggle)
+    const isMine = o.prepStatus === 'claiming' && o.prepBy === currentUser.id;
+    const patch = isMine
+      ? { prep_status: null, prep_by: null, prep_by_name: null, prep_at: null }
+      : { prep_status: 'claiming', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
+    // تحديث فوري بالواجهة
+    setOrders((prev) => prev.map((x) => x.id === o.id ? {
+      ...x,
+      prepStatus: patch.prep_status,
+      prepBy: patch.prep_by,
+      prepByName: patch.prep_by_name,
+    } : x));
+    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
   }
 
   async function confirmReject() {
@@ -5484,12 +5712,42 @@ function PrepWorkerView({ currentUser, onLogout }) {
               <div style={styles.emptyState}><CheckCircle2 size={34} color="#4DDB6B" /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
             )}
             <div style={styles.ordersGrid}>
-              {pending.map((o, i) => (
-                <div key={o.id} style={{ ...styles.orderCard, animationDelay: `${Math.min(i * 0.04, 0.4)}s` }} className="alfhd-order-card alfhd-card-enter">
-                  <div style={{ height: 3, background: '#F0A868', width: '100%' }} />
+              {pending.map((o, i) => {
+                const claimed = o.prepStatus === 'claiming';
+                const claimedByMe = claimed && o.prepBy === currentUser.id;
+                const claimedByOther = claimed && o.prepBy && o.prepBy !== currentUser.id;
+                // لون الشريط العلوي حسب الحالة
+                const topColor = claimedByMe ? '#2AABEE' : claimedByOther ? '#A78BFA' : '#F0A868';
+                return (
+                <div key={o.id} style={{
+                  ...styles.orderCard,
+                  animationDelay: `${Math.min(i * 0.04, 0.4)}s`,
+                  opacity: claimedByOther ? 0.72 : 1,
+                  border: claimedByMe ? '1.5px solid rgba(42,171,238,0.5)' : claimedByOther ? '1px solid rgba(167,139,250,0.3)' : undefined,
+                  background: claimedByMe ? 'rgba(42,171,238,0.04)' : claimedByOther ? 'rgba(167,139,250,0.03)' : undefined,
+                }} className="alfhd-order-card alfhd-card-enter">
+                  <div style={{ height: 3, background: topColor, width: '100%' }} />
                   <div style={{ padding: 14 }}>
-                    {/* رأس الطلب */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    {/* شارة قيد التجهيز من قبل موظف */}
+                    {claimed && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+                        padding: '7px 11px', borderRadius: 9,
+                        background: claimedByMe ? 'rgba(42,171,238,0.12)' : 'rgba(167,139,250,0.12)',
+                        border: `1px solid ${claimedByMe ? 'rgba(42,171,238,0.3)' : 'rgba(167,139,250,0.3)'}`,
+                      }}>
+                        <Package size={13} color={claimedByMe ? '#2AABEE' : '#A78BFA'} />
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: claimedByMe ? '#2AABEE' : '#A78BFA' }}>
+                          {claimedByMe ? '🔧 قيد التجهيز عندك' : `🔒 قيد التجهيز من قبل ${o.prepByName || 'موظف آخر'}`}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* رأس الطلب — الضغط عليه يستلم/يلغي الاستلام */}
+                    <div
+                      onClick={() => !claimedByOther && claimOrder(o)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: claimedByOther ? 'not-allowed' : 'pointer' }}
+                    >
                       <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <Package size={19} color="#2AABEE" />
                       </div>
@@ -5497,6 +5755,9 @@ function PrepWorkerView({ currentUser, onLogout }) {
                         <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11.5, color: '#5E6986' }}>#{o.orderNo}</span></div>
                         <div style={{ fontSize: 11.5, color: '#9FB0C3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
                       </div>
+                      {!claimed && (
+                        <div style={{ fontSize: 10, color: '#546880', fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>اضغط<br/>للاستلام</div>
+                      )}
                     </div>
 
                     {/* المنتجات (بدون سعر) */}
@@ -5518,20 +5779,21 @@ function PrepWorkerView({ currentUser, onLogout }) {
                       </div>
                     )}
 
-                    {/* أزرار تم / لم يتم */}
+                    {/* أزرار تم / لم يتم — معطّلة إن كان الطلب محجوزاً من موظف آخر */}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => markDone(o)} disabled={busyId === o.id}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: busyId === o.id ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <button onClick={() => markDone(o)} disabled={busyId === o.id || claimedByOther}
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: (busyId === o.id || claimedByOther) ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                         <CheckCircle2 size={16} /> تم التجهيز
                       </button>
-                      <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', color: '#F25050', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id || claimedByOther}
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', color: '#F25050', fontSize: 13.5, fontWeight: 800, cursor: claimedByOther ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                         <XCircle size={16} /> لم يتم
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </main>
@@ -5639,11 +5901,17 @@ export default function AlFhdApp() {
   const [warehouseProducts, setWarehouseProducts] = useState([]);
   // مرجع حيّ لمنتجات المخزن — يمنع stale closure عند الاستدعاء من refreshOrders
   const warehouseProductsRef = React.useRef([]);
+  const recordedSalesRef = React.useRef(null); // حماية ضد تسجيل بيعة المخزن مرتين
   useEffect(() => { warehouseProductsRef.current = warehouseProducts; }, [warehouseProducts]);
 
   // ── تسجيل بيعة في المخزن تلقائياً ──
   async function recordWarehouseSale(order) {
     try {
+      // حماية ضد التسجيل المزدوج: تحقق إن لم تُسجّل بيعة لهذا الطلب سابقاً
+      if (!recordedSalesRef.current) recordedSalesRef.current = new Set();
+      if (recordedSalesRef.current.has(order.id)) return;
+      recordedSalesRef.current.add(order.id);
+
       // ابحث عن أفضل منتج مطابق
       const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
       if (!match) {
@@ -5652,6 +5920,11 @@ export default function AlFhdApp() {
       }
 
       const { product, confidence } = match;
+      // لا نخصم من المخزن إذا كانت الثقة منخفضة (قد يكون منتج خطأ)
+      if (confidence === 'low') {
+        console.warn('⚠️ ثقة المطابقة منخفضة — لن يُخصم من المخزن:', order.orderNo);
+        return;
+      }
       console.log(`✅ مطابقة المخزن: ${product.car_name} (${PRODUCT_TYPE_LABELS[product.type]}) — ثقة: ${confidence}`);
 
       // تسجيل البيعة في المخزن
@@ -6460,7 +6733,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           return(
             <div key={p.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
               {p.image_url
-                ? <img src={p.image_url} alt="" style={{width:42,height:42,borderRadius:10,objectFit:'cover',flexShrink:0,border:'1px solid rgba(255,255,255,0.08)'}}/>
+                ? <img src={p.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:42,height:42,borderRadius:10,objectFit:'cover',flexShrink:0,border:'1px solid rgba(255,255,255,0.08)'}}/>
                 : <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{p.car_name}</div>
@@ -6551,7 +6824,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               {form.image_url?(
                 <div style={{position:'relative'}}>
-                  <img src={form.image_url} alt="" style={{width:60,height:60,borderRadius:10,objectFit:'cover',border:'1px solid rgba(255,255,255,0.1)'}}/>
+                  <img src={form.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:60,height:60,borderRadius:10,objectFit:'cover',border:'1px solid rgba(255,255,255,0.1)'}}/>
                   <button onClick={()=>setForm(f=>({...f,image_url:''}))} style={{position:'absolute',top:-6,left:-6,width:20,height:20,borderRadius:'50%',background:'#F25050',border:'none',color:'#fff',fontSize:12,cursor:'pointer',lineHeight:1}}>×</button>
                 </div>
               ):(
@@ -6656,8 +6929,8 @@ function WhSales({ sales, setSales, products, sbI }) {
             </select>
           </WhField>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)||0}))} style={whInp}/></WhField>
+            <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
           </div>
           <div style={{background:'rgba(77,219,107,0.07)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,padding:'10px 13px',marginBottom:12,fontSize:16,fontWeight:800,color:'#4DDB6B'}}>{whFmt(form.price_iqd*form.quantity)}</div>
           <WhField label="اسم الزبون"><input value={form.customer_name} onChange={e=>setForm(f=>({...f,customer_name:e.target.value}))} placeholder="اختياري" style={whInp}/></WhField>
@@ -6820,7 +7093,7 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
             </select>
           </WhField>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
             <WhField label="تاريخ الاستحقاق"><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} style={whInp}/></WhField>
           </div>
           <WhField label="الحالة">
@@ -6908,7 +7181,7 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
             <WhField label="الاسم" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
             <WhField label="المسمى الوظيفي"><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="موظف، محاسب..." style={whInp}/></WhField>
-            <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)||0}))} style={whInp}/></WhField>
             <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} style={whInp}/></WhField>
           </div>
           <div style={{display:'flex',gap:9,marginTop:8}}>
@@ -6919,7 +7192,7 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
       )}
       {payModal&&(
         <WhModal title={`صرف راتب — ${payModal.name}`} onClose={()=>setPayModal(null)}>
-          <WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)}))} style={whInp}/></WhField>
+          <WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)||0}))} style={whInp}/></WhField>
           <WhField label="التاريخ"><input type="date" value={payForm.date} onChange={e=>setPayForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
           <WhField label="ملاحظات"><input value={payForm.notes} onChange={e=>setPayForm(f=>({...f,notes:e.target.value}))} placeholder="راتب شهر..." style={whInp}/></WhField>
           <div style={{display:'flex',gap:9,marginTop:8}}>
@@ -8001,7 +8274,7 @@ const styles = {
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: 20, overflowY: 'auto' },
   modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
