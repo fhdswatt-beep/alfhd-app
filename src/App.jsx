@@ -29,6 +29,12 @@ function arabicToEnglishDigits(str) {
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
 }
 
+// معالجة مبلغ الطلب: أي رقم أقل من 1000 يعني بالآلاف (85 → 85000، 95 → 95000)
+function parseAmountIQD(val) {
+  const num = Number(arabicToEnglishDigits(String(val || '')).replace(/[^0-9.]/g, '')) || 0;
+  return (num > 0 && num < 1000) ? num * 1000 : num;
+}
+
 // ──────────────────────────────────────────────
 // إعدادات ربط فيسبوك الحقيقي (OAuth)
 // ──────────────────────────────────────────────
@@ -2429,7 +2435,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
-          total: Number(editingOrder.total) || 0,
+          total: parseAmountIQD(editingOrder.total),
           status: editingOrder.status,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
@@ -2441,7 +2447,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
           address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
           governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
-          total: Number(editingOrder.total) || 0, status: editingOrder.status,
+          total: parseAmountIQD(editingOrder.total), status: editingOrder.status,
           conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
         };
@@ -2464,7 +2470,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
-          total: Number(editingOrder.total) || 0,
+          total: parseAmountIQD(editingOrder.total),
           status: editingOrder.status || 'pending',
           stage: 'ready',
           order_date: new Date().toISOString().slice(0, 10),
@@ -2736,7 +2742,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     ].filter(Boolean).join(' — ');
 
     // ── البيانات المرسلة لشركة التوصيل ──
-    const cleanAmount = Number(toEnglishDigits(String(o.total || '')).replace(/[^0-9.]/g, '')) || 0;
+    const cleanAmount = parseAmountIQD(o.total);
     const shipmentPayload = {
       external_shipment_id: String(o.id),
       shipment_number: String(o.orderNo || o.id),
@@ -3159,16 +3165,25 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function StageStatusBadge({ o }) {
     if (section === 'delivery') {
-      // حالة جيني الدقيقة فقط (المصدر الوحيد) — لا حالة موقع تتعارض معها
-      const label = o.deliveryStepAr || 'لدى شركة التوصيل';
       const stepU = (o.deliveryStep || '').toUpperCase();
-      let color = '#A78BFA', bg = 'rgba(167,139,250,0.12)'; // افتراضي بنفسجي
-      if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) {
+      // الحالة النهائية: مسلّم أو راجع → من جيني مباشرة
+      const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU);
+      const isReturned = stepU.startsWith('RTO');
+      let label, color, bg;
+      if (isDelivered) {
+        label = o.deliveryStepAr || 'تم التسليم';
         color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)';
-      } else if (stepU.startsWith('RTO')) {
+      } else if (isReturned) {
+        label = o.deliveryStepAr || 'راجع';
         color = '#F25050'; bg = 'rgba(242,80,80,0.12)';
       } else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) {
+        // خارج للتوصيل فعلياً
+        label = o.deliveryStepAr || 'قيد التوصيل';
         color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)';
+      } else {
+        // كل الحالات الوسطى (بمكتب العد/الفرز، بالطريق، لم تُستلم بعد...) → جاهز للنقل
+        label = 'جاهز للنقل';
+        color = '#A78BFA'; bg = 'rgba(167,139,250,0.12)';
       }
       return <div style={{ ...styles.orderStatusPill, color, background: bg }}>{label}</div>;
     }
