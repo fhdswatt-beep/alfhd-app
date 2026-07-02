@@ -73,6 +73,38 @@ const IRAQ_GOVERNORATES = [
   { code: 'SMH', name: 'السليمانية' },
 ];
 
+// خريطة الأسماء الشائعة للمدن/المراكز → كود المحافظة (يحل مشكلة "الموصل" و"الناصرية"...)
+const CITY_ALIAS_TO_GOV = {
+  'الموصل': 'NIN', 'موصل': 'NIN', 'نينوى': 'NIN',
+  'الناصرية': 'DHI', 'ناصرية': 'DHI', 'ذيقار': 'DHI', 'ذي قار': 'DHI', 'ذى قار': 'DHI',
+  'الديوانية': 'QAD', 'ديوانية': 'QAD', 'القادسية': 'QAD', 'قادسية': 'QAD',
+  'العمارة': 'MYS', 'عمارة': 'MYS', 'ميسان': 'MYS',
+  'السماوة': 'MTH', 'سماوة': 'MTH', 'المثنى': 'MTH', 'مثنى': 'MTH',
+  'الكوت': 'WST', 'كوت': 'WST', 'واسط': 'WST',
+  'بعقوبة': 'DYL', 'ديالى': 'DYL', 'ديالة': 'DYL',
+  'تكريت': 'SAH', 'صلاحالدين': 'SAH', 'صلاح الدين': 'SAH', 'سامراء': 'SAH',
+  'الرمادي': 'ANB', 'رمادي': 'ANB', 'الأنبار': 'ANB', 'الانبار': 'ANB', 'الفلوجة': 'ANB', 'فلوجة': 'ANB',
+  'بغداد': 'BGD', 'البصرة': 'BAS', 'بصرة': 'BAS',
+  'أربيل': 'ARB', 'اربيل': 'ARB', 'هولير': 'ARB',
+  'النجف': 'NJF', 'نجف': 'NJF',
+  'كربلاء': 'KRB', 'كربلا': 'KRB',
+  'الحلة': 'BBL', 'حلة': 'BBL', 'بابل': 'BBL',
+  'كركوك': 'KRK',
+  'دهوك': 'DOH', 'دهوق': 'DOH',
+  'السليمانية': 'SMH', 'سليمانية': 'SMH',
+};
+
+// استنتاج كود المحافظة من نص المنطقة/العنوان
+function inferGovFromText(text) {
+  if (!text) return null;
+  const norm = String(text).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
+  for (const [alias, code] of Object.entries(CITY_ALIAS_TO_GOV)) {
+    const na = alias.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
+    if (norm.includes(na)) return code;
+  }
+  return null;
+}
+
 function startFacebookLogin() {
   const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
   dialogUrl.searchParams.set('client_id', FB_APP_ID);
@@ -2386,12 +2418,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
 
     // 3. كود المحافظة — governorate_code (إجباري، من قائمة Jenni)
-    if (!order.governorateCode) {
+    // نقبل الاستنتاج من نص المنطقة/العنوان (الموصل→نينوى...)
+    const govCode = order.governorateCode || inferGovFromText(order.area) || inferGovFromText(order.address);
+    if (!govCode) {
       errors.governorateCode = 'المحافظة مطلوبة — إجبارية من شركة التوصيل';
     } else {
       const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
-      if (!validCodes.includes(order.governorateCode)) {
-        errors.governorateCode = `كود المحافظة غير صالح: ${order.governorateCode}`;
+      if (!validCodes.includes(govCode)) {
+        errors.governorateCode = `كود المحافظة غير صالح: ${govCode}`;
       }
     }
 
@@ -2643,6 +2677,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function _sendOrderToJenniInner(o, { silent = false } = {}) {
+    // إن كانت المحافظة مفقودة، استنتجها من نص المنطقة أو العنوان (الموصل→نينوى، الناصرية→ذي قار...)
+    if (!o.governorateCode) {
+      const inferred = inferGovFromText(o.area) || inferGovFromText(o.address);
+      if (inferred) {
+        const gov = IRAQ_GOVERNORATES.find((g) => g.code === inferred);
+        o = { ...o, governorateCode: inferred, governorateName: gov?.name || o.governorateName };
+        // احفظ الاستنتاج
+        try { await sbUpdate('alfhd_orders', o.id, { governorate_code: inferred, governorate_name: gov?.name || null }); } catch (_e) { /* تجاهل */ }
+        setOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, governorateCode: inferred, governorateName: gov?.name } : x));
+      }
+    }
     // ── خط دفاع: التحقق من كل الحقول الإجبارية قبل الإرسال ──
     if (!o.governorateCode || !o.phone) {
       const msg = 'لا يمكن الإرسال لشركة التوصيل: المحافظة ورقم الهاتف مطلوبان';
@@ -2775,24 +2820,35 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
       console.log('📬 رد شركة التوصيل:', res.status, data);
 
-      if (res.ok && (data?.success || data?.shipment_id)) {
+      // نجاح حقيقي = جيني أنشأ شحنة فعلية (shipment_id موجود)
+      const realShipmentId = data.shipment_id || data.data?.shipment_id || data.shipment?.id || null;
+      const realTracking = data.tracking_number || data.data?.tracking_number || data.shipment?.tracking_number || null;
+      if (res.ok && realShipmentId) {
         const patch = {
           jenni_sent: true,
-          jenni_shipment_id: data.shipment_id || null,
-          jenni_tracking: data.tracking_number || null,
+          jenni_shipment_id: realShipmentId,
+          jenni_tracking: realTracking,
           delivery_status: 'sorting',
         };
         setOrders((prev) => prev.map((x) => (x.id === o.id ? {
           ...x,
           jenniSent: true,
-          jenniShipmentId: data.shipment_id || null,
-          jenniTracking: data.tracking_number || null,
+          jenniShipmentId: realShipmentId,
+          jenniTracking: realTracking,
           jenniError: null,
           deliveryStatus: 'sorting',
         } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', data.shipment_id);
-        return { success: true, shipment_id: data.shipment_id || null, tracking_number: data.tracking_number || null };
+        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', realShipmentId);
+        return { success: true, shipment_id: realShipmentId, tracking_number: realTracking };
+      }
+
+      // نجح الرد لكن بدون shipment_id → لم تُنشأ شحنة فعلية (بيانات ناقصة غالباً)
+      if (res.ok && data?.success && !realShipmentId) {
+        const msg = 'لم تُنشئ شركة التوصيل شحنة — تأكد من اكتمال البيانات (المنطقة، الهاتف، المحافظة)';
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg, jenniSent: false } : x)));
+        if (!silent) alert(msg);
+        return false;
       }
 
       // 409 = موجود مسبقاً
@@ -3023,8 +3079,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setPrintLoading(true);
     setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ تحميل ${valid.length} باركود...` });
     try {
-      // أرسل الطلبات غير المُرسلة لجيني أولاً — فقط عند الطباعة الأصلية (لا عند إعادة الطباعة)
-      const notSent = saveBatch ? valid.filter((o) => !o.jenniSent && !o.jenniShipmentId) : [];
+      // أرسل الطلبات غير المُرسلة لجيني أولاً.
+      // عند الطباعة الأصلية: كل الطلبات غير المرسلة. عند إعادة الطباعة: فقط من لا يملك أي رقم شحنة.
+      const notSent = saveBatch
+        ? valid.filter((o) => !o.jenniSent && !o.jenniShipmentId)
+        : valid.filter((o) => !o.jenniShipmentId && !o.jenniTracking && !o.orderNo);
       if (notSent.length > 0) {
         setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ إرسال ${notSent.length} طلب لشركة التوصيل أولاً...` });
         for (let i = 0; i < notSent.length; i++) {
@@ -3038,15 +3097,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         }
       }
 
-      // اجمع أرقام الطلبات (order_no = shipment_number عند جيني) + معرّفات الشحنات
-      // نرسل order_no لكل طلب معاً ليطبع جيني كل الوصولات دفعة واحدة
+      // ── الجذر: افصل الطلبات التي لم تُنشأ لها شحنة فعلية عند جيني ──
+      // (ليس لها shipment_id ولا tracking) — هذه لن يكون لها باركود، فنستبعدها ونبقيها في الطباعة
+      const readyToPrint = valid.filter((o) => o.jenniShipmentId || o.jenniTracking || (o.jenniSent && o.orderNo));
+      const notReady = valid.filter((o) => !(o.jenniShipmentId || o.jenniTracking || (o.jenniSent && o.orderNo)));
+
+      if (readyToPrint.length === 0) {
+        const names = notReady.map((o) => `#${o.orderNo || '?'}`).join('، ');
+        setPrintModal({ title: 'تعذّر الطباعة', error: `لم تُنشأ شحنات لهذه الطلبات في شركة التوصيل (بيانات ناقصة): ${names}\n\nتحقق من المنطقة والهاتف والمحافظة لكل طلب.` });
+        return;
+      }
+
+      // اجمع أرقام الطلبات الجاهزة فقط
       const allNumbers = [];
       const allIds = [];
-      valid.forEach((o) => {
+      readyToPrint.forEach((o) => {
         if (o.orderNo) allNumbers.push(String(o.orderNo));
         if (o.jenniTracking && o.jenniTracking !== o.orderNo) allNumbers.push(String(o.jenniTracking));
         if (o.jenniShipmentId) allIds.push(String(o.jenniShipmentId));
       });
+      if (allNumbers.length === 0 && allIds.length === 0) {
+        setPrintModal({ title: 'تعذّر الطباعة', error: 'هذه الطلبات لا تحتوي أرقام شحنات صالحة. أعد إرسالها لشركة التوصيل أولاً.' });
+        return;
+      }
       const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
@@ -3065,16 +3138,27 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       else if (data.type === 'url' && data.url) src = data.url;
       else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح' }); return; }
 
-      setPrintModal({ title: `طباعة ${valid.length} طلب`, src, count: valid.length });
+      setPrintModal({ title: `طباعة ${readyToPrint.length} طلب`, src, count: readyToPrint.length });
 
       // احفظ الدفعة + انقل لقيد التجهيز
+      // readyToPrint مضمونة: لها shipment_id أو tracking فعلي (تحقّقنا عند الإرسال)
       if (saveBatch) {
+        const printedIds = readyToPrint.map((o) => o.id);
         const batchId = `batch-${Date.now()}`;
         const printedAt = new Date().toISOString();
-        const ids = valid.map((o) => o.id);
-        setOrders((prev) => prev.map((o) => ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o));
-        for (const id of ids) {
+        setOrders((prev) => prev.map((o) => printedIds.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o));
+        for (const id of printedIds) {
           try { await sbUpdate('alfhd_orders', id, { printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep' }); } catch (_e) { /* تجاهل */ }
+        }
+
+        // تنبيه عن الطلبات الناقصة التي استُبعدت (لم تُنشأ لها شحنة)
+        if (notReady.length > 0) {
+          const names = notReady.map((o) => `#${o.orderNo || '?'}`).join('، ');
+          setPrintModal({
+            title: `طُبع ${printedIds.length} من ${valid.length}`,
+            src, count: printedIds.length,
+            warning: `${notReady.length} طلب لم يُطبع (بيانات ناقصة): ${names}. بقيت في قسم الطباعة — صحّح بياناتها.`,
+          });
         }
       }
     } catch (e) {
@@ -3086,7 +3170,18 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function handlePrintReady() {
     if (stageOrders.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
-    printJenniBatch(stageOrders, { saveBatch: true });
+    // افصل المكتمل عن الناقص — لا نحاول طباعة طلب ناقص البيانات
+    const complete = stageOrders.filter((o) => Object.keys(validateJenniFields(o)).length === 0);
+    const incomplete = stageOrders.filter((o) => Object.keys(validateJenniFields(o)).length > 0);
+    if (complete.length === 0) {
+      alert(`كل الطلبات (${incomplete.length}) تحتاج إكمال بيانات قبل الطباعة.\nراجع الطلبات المميّزة باللون البرتقالي وأكمل الناقص (المنطقة، الهاتف، المحافظة).`);
+      return;
+    }
+    if (incomplete.length > 0) {
+      const names = incomplete.map((o) => `#${o.orderNo || '?'}`).join('، ');
+      if (!window.confirm(`${complete.length} طلب جاهز للطباعة.\n\n${incomplete.length} طلب ناقص البيانات سيُتخطّى: ${names}\n\nمتابعة طباعة المكتمل فقط؟`)) return;
+    }
+    printJenniBatch(complete, { saveBatch: true });
   }
 
   function handleReprintBatch(batchId, batchOrders) {
@@ -3219,6 +3314,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <span>لم يُجهَّز من قبل المخزن — تحقق قبل الطباعة</span>
           </div>
         )}
+
+        {/* بانر نقص البيانات — يظهر في قسم الطباعة إذا الطلب غير مكتمل لجيني */}
+        {isReady && (() => {
+          const errs = validateJenniFields(o);
+          const missing = Object.values(errs);
+          if (missing.length === 0) return null;
+          return (
+            <div style={{ background: 'rgba(240,168,104,0.12)', borderBottom: '1px solid rgba(240,168,104,0.25)', padding: '9px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <AlertTriangle size={15} color="#F0A868" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: 11.5, color: '#F0A868', fontWeight: 600, lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 800 }}>يحتاج إكمال قبل الطباعة:</span> {missing.join(' · ')}
+              </div>
+            </div>
+          );
+        })()}
 
         <div style={styles.orderTicketHead}>
           <div style={styles.orderTicketAvatar}>{o.customer?.[0] || '؟'}</div>
@@ -4085,12 +4195,19 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   ⚠️ {printModal.error}
                 </div>
               ) : printModal.src ? (
-                <iframe
-                  id="alfhd-print-frame"
-                  src={printModal.src}
-                  title="باركود"
-                  style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
-                />
+                <>
+                  {printModal.warning && (
+                    <div style={{ margin: 12, padding: '11px 14px', borderRadius: 10, background: 'rgba(240,168,104,0.12)', border: '1px solid rgba(240,168,104,0.35)', color: '#F0A868', fontSize: 12.5, fontWeight: 600, lineHeight: 1.7 }}>
+                      ⚠️ {printModal.warning}
+                    </div>
+                  )}
+                  <iframe
+                    id="alfhd-print-frame"
+                    src={printModal.src}
+                    title="باركود"
+                    style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
+                  />
+                </>
               ) : null}
             </div>
 
