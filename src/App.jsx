@@ -888,7 +888,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={styles.userName}>{currentUser.name}</div>
             <div style={styles.userRole}>
-              {currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة'}
+              {currentUser.workspaceId ? '🔒 مساحة مستقلة' : (currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة')}
             </div>
           </div>
         </div>
@@ -2113,6 +2113,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const [neglectedOpen, setNeglectedOpen] = useState(false);
   const [neglectedSelected, setNeglectedSelected] = useState([]); // ids المحددة
   const sendingJenniRef = React.useRef(null); // قفل ضد الإرسال المزدوج لجيني
+  const citiesCacheRef = React.useRef(null); // كاش جدول مدن جيني للبحث السريع
   const [printTarget, setPrintTarget] = useState(null);
   // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
   const [jenniAction, setJenniAction] = useState(null);
@@ -2434,20 +2435,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       }
     }
 
-    // 3. كود المحافظة — governorate_code (إجباري، من قائمة Jenni)
-    // نقبل الاستنتاج من نص المنطقة/العنوان (الموصل→نينوى...)
+    // 3. كود المحافظة — governorate_code
+    // نقبله إذا: موجود صراحةً، أو يمكن استنتاجه، أو توجد منطقة مكتوبة (سيكتشفها الإرسال من جدول جيني)
     const govCode = order.governorateCode || inferGovFromText(order.area) || inferGovFromText(order.address);
-    if (!govCode) {
+    const hasAreaText = !!(String(order.area || '').trim() || String(order.address || '').trim());
+    if (!govCode && !hasAreaText) {
       errors.governorateCode = 'المحافظة مطلوبة — إجبارية من شركة التوصيل';
-    } else {
+    } else if (govCode) {
       const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
       if (!validCodes.includes(govCode)) {
         errors.governorateCode = `كود المحافظة غير صالح: ${govCode}`;
       }
     }
 
-    // 4. المدينة/المنطقة — city (إجباري)
-    if (!String(order.area || '').trim()) {
+    // 4. المدينة/المنطقة — city (إجباري): نقبل area أو عنوان مكتوب
+    if (!String(order.area || '').trim() && !String(order.address || '').trim()) {
       errors.area = 'المنطقة/المدينة مطلوبة — إجبارية من شركة التوصيل';
     }
 
@@ -2693,14 +2695,99 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
   }
 
+  // البحث عن منطقة في جدول jenni_cities (2515 منطقة) — يرجّع {city_id, city_name, governorate_code}
+  // يكتشف المحافظة من اسم أي منطقة: زاخو→دهوك، شقلاوة→أربيل...
+  async function lookupCityInJenni(text) {
+    if (!text || !text.trim()) return null;
+    try {
+      const norm = (s) => normalizeArJS(String(s || '')).replace(/\s/g, '');
+      const words = normalizeArJS(String(text)).split(/[\s\-،,]+/).filter((w) => w.length >= 3);
+      if (words.length === 0) return null;
+
+      // اجلب كل المدن مرة واحدة (تُخزّن مؤقتاً)
+      if (!citiesCacheRef.current) {
+        const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
+        citiesCacheRef.current = Array.isArray(all) ? all : [];
+      }
+      const cities = citiesCacheRef.current;
+      if (!cities.length) return null;
+
+      const fullNorm = norm(text);
+      // 1) تطابق دقيق لاسم مدينة داخل النص
+      for (const c of cities) {
+        const cn = norm(c.city_name_norm || c.city_name);
+        if (cn && cn.length >= 3 && (fullNorm.includes(cn) || cn === fullNorm)) return c;
+      }
+      // 2) تطابق بأي كلمة من النص مع اسم مدينة
+      for (const w of words) {
+        const wn = norm(w);
+        if (wn.length < 3) continue;
+        const hit = cities.find((c) => {
+          const cn = norm(c.city_name_norm || c.city_name);
+          return cn && (cn === wn || cn.includes(wn) || wn.includes(cn));
+        });
+        if (hit) return hit;
+      }
+      // 3) أقرب تشابه (Levenshtein) لأطول كلمة
+      const longest = words.sort((a, b) => b.length - a.length)[0];
+      const target = norm(longest);
+      let best = null, bestRatio = 0.35;
+      for (const c of cities) {
+        const cn = norm(c.city_name_norm || c.city_name);
+        if (!cn || Math.abs(cn.length - target.length) > 3) continue;
+        let d = 0; const m = Math.max(cn.length, target.length);
+        // مسافة تحرير بسيطة
+        const dp = Array.from({ length: target.length + 1 }, (_, i) => i);
+        for (let i = 1; i <= cn.length; i++) {
+          let prev = dp[0]; dp[0] = i;
+          for (let j = 1; j <= target.length; j++) {
+            const tmp = dp[j];
+            dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (cn[i - 1] === target[j - 1] ? 0 : 1));
+            prev = tmp;
+          }
+        }
+        d = dp[target.length];
+        const ratio = d / m;
+        if (ratio < bestRatio) { bestRatio = ratio; best = c; }
+      }
+      return best;
+    } catch (_e) { return null; }
+  }
+
   async function _sendOrderToJenniInner(o, { silent = false } = {}) {
-    // إن كانت المحافظة مفقودة، استنتجها من نص المنطقة أو العنوان (الموصل→نينوى، الناصرية→ذي قار...)
+    // ══ اكتشاف المحافظة والمنطقة تلقائياً من جدول جيني (2515 منطقة) ══
+    // يحل: "زاخو"→دهوك، "شقلاوة"→أربيل، "عقرة"→دهوك... أي منطقة يكتبها الزبون
+    if (!o.governorateCode || !o.cityId) {
+      const searchText = `${o.area || ''} ${o.address || ''}`.trim();
+      const found = await lookupCityInJenni(searchText);
+      if (found) {
+        const gov = IRAQ_GOVERNORATES.find((g) => g.code === found.governorate_code);
+        o = {
+          ...o,
+          governorateCode: found.governorate_code,
+          governorateName: gov?.name || o.governorateName,
+          cityId: found.city_id,
+          area: o.area || found.city_name,
+        };
+        try {
+          await sbUpdate('alfhd_orders', o.id, {
+            governorate_code: found.governorate_code,
+            governorate_name: gov?.name || null,
+            city_id: found.city_id,
+            area: o.area || found.city_name,
+          });
+        } catch (_e) { /* تجاهل */ }
+        setOrders((prev) => prev.map((x) => x.id === o.id ? {
+          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id, area: x.area || found.city_name,
+        } : x));
+      }
+    }
+    // احتياط: الخريطة اليدوية للمراكز الكبيرة إن لم يجد في الجدول
     if (!o.governorateCode) {
       const inferred = inferGovFromText(o.area) || inferGovFromText(o.address);
       if (inferred) {
         const gov = IRAQ_GOVERNORATES.find((g) => g.code === inferred);
         o = { ...o, governorateCode: inferred, governorateName: gov?.name || o.governorateName };
-        // احفظ الاستنتاج
         try { await sbUpdate('alfhd_orders', o.id, { governorate_code: inferred, governorate_name: gov?.name || null }); } catch (_e) { /* تجاهل */ }
         setOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, governorateCode: inferred, governorateName: gov?.name } : x));
       }
