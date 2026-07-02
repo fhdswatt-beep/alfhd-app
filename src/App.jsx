@@ -21,6 +21,14 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
 
+// معرّف المساحة الحالية للعزل (يُضبط عند الدخول) — null = المساحة الرئيسية
+let CURRENT_WORKSPACE = null;
+function setCurrentWorkspace(wsId) { CURRENT_WORKSPACE = wsId || null; }
+// فلتر workspace لاستعلامات REST: يجلب بيانات المساحة الحالية فقط
+function wsFilter() {
+  return CURRENT_WORKSPACE ? `&workspace_id=eq.${CURRENT_WORKSPACE}` : `&workspace_id=is.null`;
+}
+
 // تحويل الأرقام العربية/الفارسية إلى إنجليزية (٠١٢٣٤٥٦٧٨٩ → 0123456789) — دالة عامة
 function arabicToEnglishDigits(str) {
   if (str === null || str === undefined) return '';
@@ -139,10 +147,18 @@ async function sbSelectColumns(table, columns, query = '') {
 }
 
 async function sbInsert(table, payload) {
+  // إضافة معرّف المساحة تلقائياً للجداول المعزولة (لعزل بيانات الموظف المستقل)
+  const ISOLATED_TABLES = ['alfhd_orders', 'wh_products', 'alfhd_pages', 'alfhd_conversations', 'wh_sales', 'wh_employees', 'wh_debts', 'wh_suppliers'];
+  let body = payload;
+  if (CURRENT_WORKSPACE && ISOLATED_TABLES.includes(table)) {
+    body = Array.isArray(payload)
+      ? payload.map((p) => ({ ...p, workspace_id: CURRENT_WORKSPACE }))
+      : { ...payload, workspace_id: CURRENT_WORKSPACE };
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: { ...sbHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const errBody = await res.text();
@@ -487,6 +503,7 @@ function mapUserFromDb(row) {
     active: row.active,
     jobTitle: row.job_title || '',
     whatsapp: row.whatsapp || '',
+    workspaceId: row.workspace_id || null,
   };
 }
 
@@ -5411,7 +5428,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
   const [adminTab, setAdminTab] = useState('managers'); // managers | warehouse | fulfillment
   const [showAdd, setShowAdd] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+  const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -5419,15 +5436,15 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
   const warehouse = users.filter((u) => u.role === 'warehouse');
 
   const openAddManager = () => {
-    setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+    setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
     setEditingUser(null); setFormError(''); setShowAdd(true);
   };
   const openAddWarehouse = () => {
-    setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '' });
+    setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
     setEditingUser(null); setFormError(''); setShowAdd(true);
   };
   const openEdit = (user) => {
-    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '' });
+    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '', isolated: !!user.workspaceId });
     setEditingUser(user); setFormError(''); setShowAdd(true);
   };
 
@@ -5454,11 +5471,20 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
         job_title: form.jobTitle || null, whatsapp: form.whatsapp || null,
       };
       if (editingUser) {
+        // عند التعديل: لا نغيّر workspace_id الموجود (لتفادي فقدان بيانات مساحته)
         const [updated] = await sbUpdate('alfhd_users', editingUser.id, payload);
         setUsers((prev) => prev.map((u) => u.id === editingUser.id ? mapUserFromDb(updated) : u));
       } else {
         const [created] = await sbInsert('alfhd_users', { ...payload, active: true });
-        setUsers((prev) => [...prev, mapUserFromDb(created)]);
+        // مساحة مستقلة: workspace_id = معرّف المستخدم نفسه (تُحفظ بعد الإنشاء للحصول على id)
+        if (form.isolated && created?.id) {
+          try {
+            const [withWs] = await sbUpdate('alfhd_users', created.id, { workspace_id: created.id });
+            setUsers((prev) => [...prev, mapUserFromDb(withWs || created)]);
+          } catch (_e) { setUsers((prev) => [...prev, mapUserFromDb(created)]); }
+        } else {
+          setUsers((prev) => [...prev, mapUserFromDb(created)]);
+        }
       }
       setShowAdd(false);
     } catch (e) {
@@ -5650,6 +5676,26 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
                 </div>
               )}
 
+              {/* خيار المساحة المستقلة — فقط عند إضافة موظف جديد (غير التجهيز) */}
+              {!editingUser && form.role !== 'warehouse' && (
+                <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 12, padding: '12px 14px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.isolated} onChange={(e) => setForm({ ...form, isolated: e.target.checked })} style={{ ...styles.checkbox, marginTop: 2 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#A78BFA' }}>مساحة مستقلة خاصة 🔒</div>
+                      <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3, lineHeight: 1.7 }}>
+                        يحصل هذا الموظف على مساحة معزولة تماماً: صفحاته ومخزنه وطلباته ومحادثاته خاصة به فقط، لا يراها أحد ولا يرى بيانات الآخرين. يبدأ من الصفر ويشتغل بحرية كاملة.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              )}
+              {!editingUser && form.isolated && form.role !== 'warehouse' && (
+                <div style={{ fontSize: 11, color: '#F0A868', padding: '0 4px', lineHeight: 1.6 }}>
+                  ⚠️ لا يمكن تغيير هذا الخيار بعد الإنشاء.
+                </div>
+              )}
+
               {formError && <p style={{ color: '#F45B69', fontSize: 12, margin: 0 }}>{formError}</p>}
             </div>
             <div style={styles.modalFooter}>
@@ -5797,7 +5843,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
   // جلب الطلبات المثبتة التي تحتاج تجهيز (غير مُجهّزة بعد)
   const loadOrders = useCallback(async () => {
     try {
-      const rows = await sbSelect('alfhd_orders', '&order=created_at.desc&limit=300');
+      const rows = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc&limit=300');
       if (!rows) return;
       let mapped = rows.map(mapOrderFromDb)
         .filter((o) => o.converted !== true && o.stage !== 'delivery' && o.prepStatus !== 'done');
@@ -6181,7 +6227,7 @@ export default function AlFhdApp() {
   useEffect(() => {
     async function loadWarehouseProducts() {
       try {
-        const res = await sbSelect('wh_products', '&order=car_name.asc');
+        const res = await sbSelect('wh_products', wsFilter() + '&order=car_name.asc');
         if (res) setWarehouseProducts(res);
       } catch (e) { console.warn('warehouse load error:', e); }
     }
@@ -6214,7 +6260,7 @@ export default function AlFhdApp() {
     try {
       const dbConversations = await sbSelect(
         'alfhd_conversations',
-        '&order=last_message_time.desc.nullslast,created_at.desc'
+        wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc'
       );
       if (dbConversations) {
         const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
@@ -6269,7 +6315,7 @@ export default function AlFhdApp() {
 
   const refreshOrders = useCallback(async () => {
     try {
-      const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
+      const dbOrders = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc');
       if (!dbOrders) return;
       const mapped = dbOrders.map(mapOrderFromDb);
       // كشف طلب جديد مثبّت من المحادثات لتشغيل صوت الإشعار
@@ -6398,8 +6444,8 @@ export default function AlFhdApp() {
     (async () => {
       try {
         const [dbPages, dbOrders, dbUsers] = await Promise.all([
-          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at', '&order=created_at.asc'),
-          sbSelect('alfhd_orders', '&order=created_at.desc'),
+          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at,workspace_id', wsFilter() + '&order=created_at.asc'),
+          sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc'),
           sbSelect('alfhd_users', '&order=created_at.asc'),
         ]);
 
@@ -6454,6 +6500,7 @@ export default function AlFhdApp() {
       if (saved?.userId) {
         const found = users.find((u) => u.id === saved.userId && u.active);
         if (found) {
+          setCurrentWorkspace(found?.workspaceId || null);
           setAuthedUser(found);
           const store = localStorage.getItem('alfhd_session') ? localStorage : sessionStorage;
           store.setItem('alfhd_session', JSON.stringify({ userId: found.id, userData: found }));
@@ -6470,6 +6517,7 @@ export default function AlFhdApp() {
 
   const handleLogin = (user, rememberMe = true) => {
     ensureAudioReady();
+    setCurrentWorkspace(user?.workspaceId || null); // عزل بيانات المساحة المستقلة
     setAuthedUser(user);
     setAppLoading(false);
     try {
@@ -7513,7 +7561,7 @@ function WarehouseView() {
       setLoading(true);
       try{
         const [p,s,sup,d,e]=await Promise.all([
-          sbSelect('wh_products','&order=car_name.asc'),
+          sbSelect('wh_products', wsFilter() + '&order=car_name.asc'),
           sbSelect('wh_sales','&order=date.desc&limit=300'),
           sbSelect('wh_suppliers','&order=name.asc'),
           sbSelect('wh_debts','&order=due_date.asc'),
@@ -8477,7 +8525,7 @@ const styles = {
 
   // ── Modal ──
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: 20, overflowY: 'auto' },
-  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1 },
+  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginBottom: 20 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
   modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
