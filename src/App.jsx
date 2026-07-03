@@ -2868,6 +2868,28 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         cityValue = strictFound.city_name || cityValue;
       }
     }
+    // ملاذ أخير: المحافظة معروفة لكن لم نجد كود المنطقة → استخدم مركز/أشهر منطقة بالمحافظة
+    // (يضمن قبول جيني بدل رفض الطلب — التوصيل يتواصل مع الزبون للعنوان الدقيق)
+    if (!cityId && o.governorateCode) {
+      try {
+        if (!citiesCacheRef.current) {
+          const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
+          citiesCacheRef.current = Array.isArray(all) ? all : [];
+        }
+        const govCities = citiesCacheRef.current.filter((c) => c.governorate_code === o.governorateCode);
+        if (govCities.length) {
+          // فضّل منطقة اسمها = اسم المحافظة (المركز)، وإلا أول منطقة
+          const govNameNorm = normalizeArJS(o.governorateName || '').replace(/\s/g, '');
+          const center = govCities.find((c) => {
+            const cn = normalizeArJS(c.city_name_norm || c.city_name).replace(/\s/g, '');
+            return cn === govNameNorm || cn.includes(govNameNorm) || govNameNorm.includes(cn);
+          }) || govCities[0];
+          cityId = center.city_id;
+          // نُبقي اسم المنطقة الأصلي في العنوان، ونستخدم كود المركز فقط
+          if (!o.area) cityValue = center.city_name;
+        }
+      } catch (_e) { /* تجاهل */ }
+    }
     if (!Number(o.total) || Number(o.total) <= 0) {
       const msg = 'المبلغ يجب أن يكون أكبر من صفر';
       setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
@@ -2883,6 +2905,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
     // ── البيانات المرسلة لشركة التوصيل ──
     const cleanAmount = parseAmountIQD(o.total);
+    // العنوان الكامل: نضم المنطقة الأصلية التي كتبها الزبون + العنوان التفصيلي
+    // (يضمن وصول المندوب للموقع الصحيح حتى لو استخدمنا كود مركز المحافظة)
+    const fullAddress = [o.area, o.address].filter(Boolean).map((s) => String(s).trim()).filter((s, i, arr) => s && arr.indexOf(s) === i).join(' - ');
     const shipmentPayload = {
       external_shipment_id: String(o.id),
       shipment_number: String(o.orderNo || o.id),
@@ -2891,7 +2916,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       governorate_code: o.governorateCode,
       city: cityValue,
       ...(cityId ? { city_id: cityId } : {}),
-      address: String(o.address || '').trim(),
+      address: fullAddress || String(o.address || '').trim() || cityValue,
       amount_iqd: cleanAmount,
       note: noteText || undefined,
     };
@@ -2938,10 +2963,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         return { success: true, shipment_id: realShipmentId, tracking_number: realTracking };
       }
 
-      // نجح الرد لكن بدون shipment_id → لم تُنشأ شحنة فعلية (بيانات ناقصة غالباً)
-      if (res.ok && data?.success && !realShipmentId) {
-        const msg = 'لم تُنشئ شركة التوصيل شحنة — تأكد من اكتمال البيانات (المنطقة، الهاتف، المحافظة)';
+      // نجح الرد لكن بدون shipment_id → لم تُنشأ شحنة فعلية — نعرض سبب جيني الحقيقي
+      if (res.ok && !realShipmentId) {
+        const reason = data?.jenni_error || data?.create_response?.message || 'بيانات ناقصة أو غير مقبولة';
+        const msg = `لم تُنشئ شركة التوصيل شحنة: ${reason}`;
         setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg, jenniSent: false } : x)));
+        console.error('❌ جيني رفض الطلب:', reason, data?.sent_payload);
         if (!silent) alert(msg);
         return false;
       }
