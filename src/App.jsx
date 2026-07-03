@@ -109,6 +109,15 @@ const CITY_ALIAS_TO_GOV = {
   'كركوك': 'KRK',
   'دهوك': 'DOH', 'دهوق': 'DOH',
   'السليمانية': 'SMH', 'سليمانية': 'SMH',
+  // مناطق بغداد الشهيرة (تُعرف كبغداد قطعاً لمنع الخلط مع مدن مشابهة)
+  'الزعفرانية': 'BGD', 'زعفرانية': 'BGD', 'الدورة': 'BGD', 'دورة': 'BGD',
+  'الكاظمية': 'BGD', 'كاظمية': 'BGD', 'الاعظمية': 'BGD', 'اعظمية': 'BGD',
+  'الصدر': 'BGD', 'مدينة الصدر': 'BGD', 'الشعلة': 'BGD', 'الغزالية': 'BGD',
+  'المنصور': 'BGD', 'منصور': 'BGD', 'اليرموك': 'BGD', 'الكرادة': 'BGD', 'كرادة': 'BGD',
+  'الجادرية': 'BGD', 'جادرية': 'BGD', 'الحرية': 'BGD', 'البياع': 'BGD', 'العامرية': 'BGD',
+  'الشعب': 'BGD', 'الطالبية': 'BGD', 'زيونة': 'BGD', 'الوزيرية': 'BGD', 'الرصافة': 'BGD',
+  'الكرخ': 'BGD', 'كرخ': 'BGD', 'ابو غريب': 'BGD', 'ابوغريب': 'BGD', 'التاجي': 'BGD',
+  'النهروان': 'BGD', 'المدائن': 'BGD', 'الرشيد': 'BGD', 'سبع البور': 'BGD', 'الحسينية': 'BGD',
 };
 
 // استنتاج كود المحافظة من نص المنطقة/العنوان
@@ -2705,61 +2714,87 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // البحث عن منطقة في جدول jenni_cities (2515 منطقة) — يرجّع {city_id, city_name, governorate_code}
-  // يكتشف المحافظة من اسم أي منطقة: زاخو→دهوك، شقلاوة→أربيل...
-  async function lookupCityInJenni(text) {
+  // القاعدة الصارمة: إذا ذُكرت محافظة صريحة في النص، نبحث داخلها فقط (يمنع "الزعفرانية"→أربيل الخاطئ)
+  async function lookupCityInJenni(text, forcedGovCode) {
     if (!text || !text.trim()) return null;
     try {
       const norm = (s) => normalizeArJS(String(s || '')).replace(/\s/g, '');
-      const words = normalizeArJS(String(text)).split(/[\s\-،,]+/).filter((w) => w.length >= 3);
-      if (words.length === 0) return null;
+      const rawWords = normalizeArJS(String(text)).split(/[\s\-،,]+/).filter((w) => w.length >= 3);
+      if (rawWords.length === 0 && !forcedGovCode) return null;
 
-      // اجلب كل المدن مرة واحدة (تُخزّن مؤقتاً)
       if (!citiesCacheRef.current) {
         const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
         citiesCacheRef.current = Array.isArray(all) ? all : [];
       }
-      const cities = citiesCacheRef.current;
-      if (!cities.length) return null;
+      const allCities = citiesCacheRef.current;
+      if (!allCities.length) return null;
 
-      const fullNorm = norm(text);
-      // 1) تطابق دقيق لاسم مدينة داخل النص
-      for (const c of cities) {
-        const cn = norm(c.city_name_norm || c.city_name);
-        if (cn && cn.length >= 3 && (fullNorm.includes(cn) || cn === fullNorm)) return c;
+      // ── الخطوة 1: حدّد المحافظة الملزِمة ──
+      // أولوية: (أ) محافظة ممرّرة، (ب) محافظة صريحة في النص عبر الأسماء الشائعة
+      let govCode = forcedGovCode || null;
+      if (!govCode) {
+        govCode = inferGovFromText(text); // يفحص أسماء المحافظات ومراكزها الصريحة
       }
-      // 2) تطابق بأي كلمة من النص مع اسم مدينة
-      for (const w of words) {
+      // كلمات المنطقة (نستبعد كلمات المحافظة نفسها من البحث عن المنطقة)
+      const stopWords = new Set();
+      for (const g of IRAQ_GOVERNORATES) { stopWords.add(norm(g.name)); stopWords.add(norm(g.name.replace(/^ال/, ''))); }
+      for (const alias of Object.keys(CITY_ALIAS_TO_GOV)) stopWords.add(norm(alias));
+      const words = rawWords.filter((w) => !stopWords.has(norm(w)));
+
+      // النطاق: مدن المحافظة الملزِمة فقط (إن وُجدت)، وإلا كل المدن
+      const scope = govCode ? allCities.filter((c) => c.governorate_code === govCode) : allCities;
+      if (govCode && scope.length === 0) {
+        // محافظة معروفة لكن لا مدن لها في الجدول — نرجّع المحافظة بلا منطقة محددة
+        return { city_id: null, city_name: null, governorate_code: govCode, _govOnly: true };
+      }
+
+      const searchWords = words.length ? words : rawWords;
+      const fullNorm = norm(searchWords.join(''));
+
+      // ── الخطوة 2: طابق المنطقة داخل النطاق فقط ──
+      // (أ) تطابق دقيق لاسم منطقة = كلمة كاملة
+      for (const w of searchWords) {
         const wn = norm(w);
         if (wn.length < 3) continue;
-        const hit = cities.find((c) => {
-          const cn = norm(c.city_name_norm || c.city_name);
-          return cn && (cn === wn || cn.includes(wn) || wn.includes(cn));
-        });
-        if (hit) return hit;
+        const exact = scope.find((c) => norm(c.city_name_norm || c.city_name) === wn);
+        if (exact) return exact;
       }
-      // 3) أقرب تشابه (Levenshtein) لأطول كلمة
-      const longest = words.sort((a, b) => b.length - a.length)[0];
-      const target = norm(longest);
-      let best = null, bestRatio = 0.35;
-      for (const c of cities) {
+      // (ب) اسم المنطقة الرسمي (≥4 حروف) موجود داخل كلمة من النص
+      let best = null, bestLen = 0;
+      for (const c of scope) {
         const cn = norm(c.city_name_norm || c.city_name);
-        if (!cn || Math.abs(cn.length - target.length) > 3) continue;
-        let d = 0; const m = Math.max(cn.length, target.length);
-        // مسافة تحرير بسيطة
-        const dp = Array.from({ length: target.length + 1 }, (_, i) => i);
-        for (let i = 1; i <= cn.length; i++) {
-          let prev = dp[0]; dp[0] = i;
-          for (let j = 1; j <= target.length; j++) {
-            const tmp = dp[j];
-            dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (cn[i - 1] === target[j - 1] ? 0 : 1));
-            prev = tmp;
-          }
+        if (cn.length < 4) continue;
+        for (const w of searchWords) {
+          const wn = norm(w);
+          if ((wn.includes(cn) || cn.includes(wn)) && cn.length > bestLen) { bestLen = cn.length; best = c; }
         }
-        d = dp[target.length];
-        const ratio = d / m;
-        if (ratio < bestRatio) { bestRatio = ratio; best = c; }
       }
-      return best;
+      if (best) return best;
+      // (ج) أقرب تشابه — فقط داخل النطاق وبعتبة صارمة (يمنع المطابقة العشوائية)
+      const longest = [...searchWords].sort((a, b) => b.length - a.length)[0] || '';
+      const target = norm(longest);
+      if (target.length >= 4) {
+        let bestM = null, bestRatio = 0.25; // عتبة صارمة جداً
+        for (const c of scope) {
+          const cn = norm(c.city_name_norm || c.city_name);
+          if (cn.length < 4 || Math.abs(cn.length - target.length) > 2) continue;
+          const dp = Array.from({ length: target.length + 1 }, (_, i) => i);
+          for (let i = 1; i <= cn.length; i++) {
+            let prev = dp[0]; dp[0] = i;
+            for (let j = 1; j <= target.length; j++) {
+              const tmp = dp[j];
+              dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (cn[i - 1] === target[j - 1] ? 0 : 1));
+              prev = tmp;
+            }
+          }
+          const ratio = dp[target.length] / Math.max(cn.length, target.length);
+          if (ratio < bestRatio) { bestRatio = ratio; bestM = c; }
+        }
+        if (bestM) return bestM;
+      }
+      // (د) عرفنا المحافظة لكن ما لقينا المنطقة بدقة → نرجّع المحافظة بلا منطقة (لا نخمّن عشوائياً)
+      if (govCode) return { city_id: null, city_name: null, governorate_code: govCode, _govOnly: true };
+      return null;
     } catch (_e) { return null; }
   }
 
@@ -2768,26 +2803,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     // يحل: "زاخو"→دهوك، "شقلاوة"→أربيل، "عقرة"→دهوك... أي منطقة يكتبها الزبون
     if (!o.governorateCode || !o.cityId) {
       const searchText = `${o.area || ''} ${o.address || ''}`.trim();
-      const found = await lookupCityInJenni(searchText);
+      // مرّر المحافظة الموجودة (إن كانت) لتقييد البحث داخلها فقط
+      const found = await lookupCityInJenni(searchText, o.governorateCode || null);
       if (found) {
         const gov = IRAQ_GOVERNORATES.find((g) => g.code === found.governorate_code);
+        const patch = {
+          governorate_code: found.governorate_code,
+          governorate_name: gov?.name || null,
+        };
+        // حدّث المنطقة والكود فقط إذا وُجدت منطقة فعلية (لا نمسح منطقة صحيحة بـ null)
+        if (found.city_id && found.city_name) {
+          patch.city_id = found.city_id;
+          patch.area = found.city_name;
+        }
         o = {
           ...o,
           governorateCode: found.governorate_code,
           governorateName: gov?.name || o.governorateName,
-          cityId: found.city_id,
-          area: o.area || found.city_name,
+          cityId: found.city_id || o.cityId,
+          area: (found.city_name || o.area),
         };
-        try {
-          await sbUpdate('alfhd_orders', o.id, {
-            governorate_code: found.governorate_code,
-            governorate_name: gov?.name || null,
-            city_id: found.city_id,
-            area: o.area || found.city_name,
-          });
-        } catch (_e) { /* تجاهل */ }
+        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
         setOrders((prev) => prev.map((x) => x.id === o.id ? {
-          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id, area: x.area || found.city_name,
+          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id || x.cityId, area: (found.city_name || x.area),
         } : x));
       }
     }
@@ -2818,73 +2856,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     // المنطقة: من area أو العنوان، وإن لم توجد نستخدم اسم المحافظة (لا نرفض الإرسال)
     let cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1]?.trim() || '';
     if (!cityValue) {
-      // لا منطقة دقيقة — استخدم اسم المحافظة حتى يُرسل الطلب
       cityValue = String(o.governorateName || '').trim() || String(o.address || '').split(' - ')[0]?.trim() || 'غير محدد';
     }
-    // طابق المنطقة مع jenni_cities لجلب city_id (الكود الذي تتطلبه جيني)
+    // city_id: استُنتج مسبقاً من lookupCityInJenni الصارمة (المقيّدة بالمحافظة)
+    // إن لم يوجد، نبحث مرة أخيرة داخل محافظة الطلب فقط (لا بحث شامل عشوائي)
     let cityId = o.cityId || null;
-    if (!cityId && cityValue) {
-      try {
-        const norm = (s) => normalizeArJS(String(s || '')).replace(/\s/g, '');
-        // مسافة ليفنشتاين للتشابه
-        const lev = (a, b) => {
-          if (a === b) return 0;
-          const m = a.length, n = b.length;
-          if (!m) return n; if (!n) return m;
-          let prev = Array.from({ length: n + 1 }, (_, i) => i);
-          for (let i = 1; i <= m; i++) {
-            const cur = [i];
-            for (let j = 1; j <= n; j++) {
-              cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-            }
-            prev = cur;
-          }
-          return prev[n];
-        };
-
-        // اجلب مدن المحافظة (أو كل المدن إن لم تتوفر محافظة)
-        const q = o.governorateCode
-          ? `governorate_code=eq.${o.governorateCode}&select=city_id,city_name,city_name_norm`
-          : `select=city_id,city_name,city_name_norm,governorate_code&limit=2000`;
-        const cities = await sbSelect('jenni_cities', q);
-
-        if (Array.isArray(cities) && cities.length) {
-          const target = norm(cityValue);
-          const targetWords = normalizeArJS(String(cityValue || '')).split(/\s+/).filter((w) => w.length > 1);
-
-          // 1) تطابق دقيق
-          let match = cities.find((c) => norm(c.city_name_norm || c.city_name) === target);
-          // 2) احتواء (اسم المدينة داخل النص أو العكس)
-          if (!match) match = cities.find((c) => { const cn = norm(c.city_name_norm || c.city_name); return cn && (cn.includes(target) || target.includes(cn)); });
-          // 3) تطابق بالكلمات (أي كلمة من المنطقة تطابق اسم مدينة)
-          if (!match && targetWords.length) {
-            match = cities.find((c) => {
-              const cn = normalizeArJS(c.city_name_norm || c.city_name);
-              return targetWords.some((w) => cn.includes(w) || w.includes(cn));
-            });
-          }
-          // 4) أقرب تشابه (ليفنشتاين) — فقط إذا كان قريباً جداً
-          if (!match) {
-            let best = null, bestScore = 99;
-            for (const c of cities) {
-              const cn = norm(c.city_name_norm || c.city_name);
-              if (!cn) continue;
-              const d = lev(target, cn);
-              const ratio = d / Math.max(target.length, cn.length);
-              if (ratio < 0.4 && d < bestScore) { bestScore = d; best = c; }
-            }
-            if (best) match = best;
-          }
-
-          if (match) {
-            cityId = match.city_id;
-            cityValue = match.city_name;
-            // إن جاءت المدينة من بحث شامل، حدّث كود المحافظة
-            if (!o.governorateCode && match.governorate_code) o.governorateCode = match.governorate_code;
-          }
-          // إن لم نجد مطابقة، نُبقي الاسم الأصلي (لا نختار مدينة عشوائية خاطئة)
-        }
-      } catch (_e) { /* نكمل بالاسم فقط */ }
+    if (!cityId && o.governorateCode) {
+      const strictFound = await lookupCityInJenni(`${o.area || ''} ${o.address || ''}`.trim(), o.governorateCode);
+      if (strictFound && strictFound.city_id) {
+        cityId = strictFound.city_id;
+        cityValue = strictFound.city_name || cityValue;
+      }
     }
     if (!Number(o.total) || Number(o.total) <= 0) {
       const msg = 'المبلغ يجب أن يكون أكبر من صفر';
