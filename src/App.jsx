@@ -2963,12 +2963,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         return { success: true, shipment_id: realShipmentId, tracking_number: realTracking };
       }
 
-      // نجح الرد لكن بدون shipment_id → لم تُنشأ شحنة فعلية — نعرض سبب جيني الحقيقي
+      // نجح الرد لكن بدون shipment_id → نعرض سبب جيني الحقيقي + البيانات المُرسلة
       if (res.ok && !realShipmentId) {
         const reason = data?.jenni_error || data?.create_response?.message || 'بيانات ناقصة أو غير مقبولة';
-        const msg = `لم تُنشئ شركة التوصيل شحنة: ${reason}`;
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg, jenniSent: false } : x)));
-        console.error('❌ جيني رفض الطلب:', reason, data?.sent_payload);
+        const sent = data?.sent_payload || {};
+        const diag = `المحافظة: ${sent.governorate_code || o.governorateCode || '—'} | كود المنطقة: ${sent.city_id || cityId || 'مفقود'} | المنطقة: ${cityValue || '—'}`;
+        const msg = `الطلب #${o.orderNo} — لم تُنشأ الشحنة:\n${reason}\n\n${diag}`;
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: `${reason} (${diag})`, jenniSent: false } : x)));
+        console.error('❌ جيني رفض الطلب:', reason, 'المُرسل:', sent);
         if (!silent) alert(msg);
         return false;
       }
