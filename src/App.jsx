@@ -10,7 +10,7 @@ import {
   AlertCircle,
   Warehouse, ShoppingCart, CreditCard, DollarSign,
   TrendingUp, Percent, Home, Bell,
-  Download, Upload, Clock, AlertTriangle,
+  Download, Upload, Clock, AlertTriangle, Copy, MessageCircle,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -41,6 +41,15 @@ function arabicToEnglishDigits(str) {
 function parseAmountIQD(val) {
   const num = Number(arabicToEnglishDigits(String(val || '')).replace(/[^0-9.]/g, '')) || 0;
   return (num > 0 && num < 1000) ? num * 1000 : num;
+}
+
+// تطبيع رقم الهاتف العراقي إلى 07XXXXXXXXX (دالة عامة)
+function normalizeIraqiPhoneStatic(raw) {
+  let d = arabicToEnglishDigits(String(raw || '')).replace(/[^0-9]/g, '');
+  if (d.startsWith('00964')) d = '0' + d.slice(5);
+  else if (d.startsWith('964')) d = '0' + d.slice(3);
+  if (!d.startsWith('0')) d = '0' + d;
+  return d.slice(0, 11);
 }
 
 // ──────────────────────────────────────────────
@@ -3365,25 +3374,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   function StageStatusBadge({ o }) {
     if (section === 'delivery') {
       const stepU = (o.deliveryStep || '').toUpperCase();
-      // الحالة النهائية: مسلّم أو راجع → من جيني مباشرة
       const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU);
       const isReturned = stepU.startsWith('RTO');
-      let label, color, bg;
-      if (isDelivered) {
-        label = o.deliveryStepAr || 'تم التسليم';
-        color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)';
-      } else if (isReturned) {
-        label = o.deliveryStepAr || 'راجع';
-        color = '#F25050'; bg = 'rgba(242,80,80,0.12)';
-      } else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) {
-        // خارج للتوصيل فعلياً
-        label = o.deliveryStepAr || 'قيد التوصيل';
-        color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)';
-      } else {
-        // كل الحالات الوسطى (بمكتب العد/الفرز، بالطريق، لم تُستلم بعد...) → جاهز للنقل
-        label = 'جاهز للنقل';
-        color = '#A78BFA'; bg = 'rgba(167,139,250,0.12)';
-      }
+      let color, bg;
+      if (isDelivered) { color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)'; }
+      else if (isReturned) { color = '#F25050'; bg = 'rgba(242,80,80,0.12)'; }
+      else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) { color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)'; }
+      else { color = '#A78BFA'; bg = 'rgba(167,139,250,0.12)'; }
+      // حالة جيني الفعلية فقط (كما هي عند شركة التوصيل)
+      const label = o.deliveryStepAr || 'بانتظار التحديث';
       return <div style={{ ...styles.orderStatusPill, color, background: bg }}>{label}</div>;
     }
     if (section === 'prep') {
@@ -4338,6 +4337,7 @@ function ClickableStat({ icon: Icon, label, value, color, active, onClick }) {
 }
 
 function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery, onReprep, onContactCustomer }) {
+  const [copied, setCopied] = useState(false);
   const o = order;
   const [reprepMode, setReprepMode] = useState(false);
   const [reprepNote, setReprepNote] = useState('');
@@ -4347,7 +4347,33 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
       <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalHeader}>
           <h3 style={styles.modalTitle}>تفاصيل الطلب #{o.orderNo}</h3>
-          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => {
+                const info = [
+                  `طلب #${o.orderNo}`,
+                  o.customer ? `الاسم: ${o.customer}` : '',
+                  o.phone ? `الهاتف: ${o.phone}` : '',
+                  o.governorateName ? `المحافظة: ${o.governorateName}` : '',
+                  o.area ? `المنطقة: ${o.area}` : '',
+                  o.address ? `العنوان: ${o.address}` : '',
+                  o.orderType ? `نوع الطلب: ${o.orderType}` : '',
+                  o.items ? `المنتجات: ${o.items}` : '',
+                  o.total ? `المبلغ: ${Number(o.total).toLocaleString()} د.ع` : '',
+                ].filter(Boolean).join('\n');
+                try {
+                  navigator.clipboard.writeText(info);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                } catch (_e) { alert('تعذّر النسخ'); }
+              }}
+              title="نسخ معلومات الطلب"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 9, background: copied ? 'rgba(77,219,107,0.15)' : 'rgba(42,171,238,0.12)', border: `1px solid ${copied ? 'rgba(77,219,107,0.4)' : 'rgba(42,171,238,0.3)'}`, color: copied ? '#4DDB6B' : '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              {copied ? <><CheckCircle2 size={14} /> نُسخت</> : <><Copy size={14} /> نسخ</>}
+            </button>
+            <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+          </div>
         </div>
         <div style={styles.modalBody}>
           {isRejected && (
@@ -4365,7 +4391,23 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العميل</span><span style={styles.detailGridValue}>{o.customer}</span></div>
           {page && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الصفحة</span><span style={styles.detailGridValue}>{page.avatar} {page.name}</span></div>}
           {o.orderType && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>نوع الطلب</span><span style={styles.detailGridValue}>{o.orderType}</span></div>}
-          {o.phone && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الهاتف</span><span style={styles.detailGridValue}>{o.phone}</span></div>}
+          {o.phone && (
+            <div style={styles.detailGridRow}>
+              <span style={styles.detailGridLabel}>الهاتف</span>
+              <span style={{ ...styles.detailGridValue, display: 'flex', alignItems: 'center', gap: 8, direction: 'ltr' }}>
+                <a
+                  href={`https://wa.me/964${normalizeIraqiPhoneStatic(o.phone).replace(/^0/, '')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="فتح محادثة واتساب"
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 7, background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.35)', flexShrink: 0 }}
+                >
+                  <MessageCircle size={14} color="#25D366" />
+                </a>
+                <span>{o.phone}</span>
+              </span>
+            </div>
+          )}
           {o.governorateName && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المحافظة</span><span style={styles.detailGridValue}>{o.governorateName}</span></div>}
           {o.area && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المنطقة</span><span style={styles.detailGridValue}>{o.area}</span></div>}
           {o.address && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العنوان</span><span style={styles.detailGridValue}>{o.address}</span></div>}
