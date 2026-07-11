@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Warehouse, ShoppingCart, CreditCard, DollarSign,
   TrendingUp, Percent, Home, Bell,
+  Download, Upload, Clock, AlertTriangle, Copy, MessageCircle,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
@@ -19,6 +20,37 @@ const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 // Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
+
+// معرّف المساحة الحالية للعزل (يُضبط عند الدخول) — null = المساحة الرئيسية
+let CURRENT_WORKSPACE = null;
+function setCurrentWorkspace(wsId) { CURRENT_WORKSPACE = wsId || null; }
+// فلتر workspace لاستعلامات REST: يجلب بيانات المساحة الحالية فقط
+function wsFilter() {
+  return CURRENT_WORKSPACE ? `&workspace_id=eq.${CURRENT_WORKSPACE}` : `&workspace_id=is.null`;
+}
+
+// تحويل الأرقام العربية/الفارسية إلى إنجليزية (٠١٢٣٤٥٦٧٨٩ → 0123456789) — دالة عامة
+function arabicToEnglishDigits(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+}
+
+// معالجة مبلغ الطلب: أي رقم أقل من 1000 يعني بالآلاف (85 → 85000، 95 → 95000)
+function parseAmountIQD(val) {
+  const num = Number(arabicToEnglishDigits(String(val || '')).replace(/[^0-9.]/g, '')) || 0;
+  return (num > 0 && num < 1000) ? num * 1000 : num;
+}
+
+// تطبيع رقم الهاتف العراقي إلى 07XXXXXXXXX (دالة عامة)
+function normalizeIraqiPhoneStatic(raw) {
+  let d = arabicToEnglishDigits(String(raw || '')).replace(/[^0-9]/g, '');
+  if (d.startsWith('00964')) d = '0' + d.slice(5);
+  else if (d.startsWith('964')) d = '0' + d.slice(3);
+  if (!d.startsWith('0')) d = '0' + d;
+  return d.slice(0, 11);
+}
 
 // ──────────────────────────────────────────────
 // إعدادات ربط فيسبوك الحقيقي (OAuth)
@@ -58,6 +90,47 @@ const IRAQ_GOVERNORATES = [
   { code: 'SMH', name: 'السليمانية' },
 ];
 
+// خريطة الأسماء الشائعة للمدن/المراكز → كود المحافظة (يحل مشكلة "الموصل" و"الناصرية"...)
+const CITY_ALIAS_TO_GOV = {
+  'الموصل': 'NIN', 'موصل': 'NIN', 'نينوى': 'NIN',
+  'الناصرية': 'DHI', 'ناصرية': 'DHI', 'ذيقار': 'DHI', 'ذي قار': 'DHI', 'ذى قار': 'DHI',
+  'الديوانية': 'QAD', 'ديوانية': 'QAD', 'القادسية': 'QAD', 'قادسية': 'QAD',
+  'العمارة': 'MYS', 'عمارة': 'MYS', 'ميسان': 'MYS',
+  'السماوة': 'MTH', 'سماوة': 'MTH', 'المثنى': 'MTH', 'مثنى': 'MTH',
+  'الكوت': 'WST', 'كوت': 'WST', 'واسط': 'WST',
+  'بعقوبة': 'DYL', 'ديالى': 'DYL', 'ديالة': 'DYL',
+  'تكريت': 'SAH', 'صلاحالدين': 'SAH', 'صلاح الدين': 'SAH', 'سامراء': 'SAH',
+  'الرمادي': 'ANB', 'رمادي': 'ANB', 'الأنبار': 'ANB', 'الانبار': 'ANB', 'الفلوجة': 'ANB', 'فلوجة': 'ANB',
+  'بغداد': 'BGD', 'البصرة': 'BAS', 'بصرة': 'BAS',
+  'أربيل': 'ARB', 'اربيل': 'ARB', 'هولير': 'ARB',
+  'النجف': 'NJF', 'نجف': 'NJF',
+  'كربلاء': 'KRB', 'كربلا': 'KRB',
+  'الحلة': 'BBL', 'حلة': 'BBL', 'بابل': 'BBL',
+  'كركوك': 'KRK',
+  'دهوك': 'DOH', 'دهوق': 'DOH',
+  'السليمانية': 'SMH', 'سليمانية': 'SMH',
+  // مناطق بغداد الشهيرة (تُعرف كبغداد قطعاً لمنع الخلط مع مدن مشابهة)
+  'الزعفرانية': 'BGD', 'زعفرانية': 'BGD', 'الدورة': 'BGD', 'دورة': 'BGD',
+  'الكاظمية': 'BGD', 'كاظمية': 'BGD', 'الاعظمية': 'BGD', 'اعظمية': 'BGD',
+  'الصدر': 'BGD', 'مدينة الصدر': 'BGD', 'الشعلة': 'BGD', 'الغزالية': 'BGD',
+  'المنصور': 'BGD', 'منصور': 'BGD', 'اليرموك': 'BGD', 'الكرادة': 'BGD', 'كرادة': 'BGD',
+  'الجادرية': 'BGD', 'جادرية': 'BGD', 'الحرية': 'BGD', 'البياع': 'BGD', 'العامرية': 'BGD',
+  'الشعب': 'BGD', 'الطالبية': 'BGD', 'زيونة': 'BGD', 'الوزيرية': 'BGD', 'الرصافة': 'BGD',
+  'الكرخ': 'BGD', 'كرخ': 'BGD', 'ابو غريب': 'BGD', 'ابوغريب': 'BGD', 'التاجي': 'BGD',
+  'النهروان': 'BGD', 'المدائن': 'BGD', 'الرشيد': 'BGD', 'سبع البور': 'BGD', 'الحسينية': 'BGD',
+};
+
+// استنتاج كود المحافظة من نص المنطقة/العنوان
+function inferGovFromText(text) {
+  if (!text) return null;
+  const norm = String(text).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
+  for (const [alias, code] of Object.entries(CITY_ALIAS_TO_GOV)) {
+    const na = alias.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
+    if (norm.includes(na)) return code;
+  }
+  return null;
+}
+
 function startFacebookLogin() {
   const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
   dialogUrl.searchParams.set('client_id', FB_APP_ID);
@@ -92,10 +165,18 @@ async function sbSelectColumns(table, columns, query = '') {
 }
 
 async function sbInsert(table, payload) {
+  // إضافة معرّف المساحة تلقائياً للجداول المعزولة (لعزل بيانات الموظف المستقل)
+  const ISOLATED_TABLES = ['alfhd_orders', 'wh_products', 'alfhd_pages', 'alfhd_conversations', 'wh_sales', 'wh_employees', 'wh_debts', 'wh_suppliers'];
+  let body = payload;
+  if (CURRENT_WORKSPACE && ISOLATED_TABLES.includes(table)) {
+    body = Array.isArray(payload)
+      ? payload.map((p) => ({ ...p, workspace_id: CURRENT_WORKSPACE }))
+      : { ...payload, workspace_id: CURRENT_WORKSPACE };
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: { ...sbHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const errBody = await res.text();
@@ -235,6 +316,7 @@ function mapOrderFromDb(row) {
   return {
     id: row.id,
     orderNo: row.order_no,
+    sourceMessageId: row.source_message_id || null,
     pageId: row.page_id,
     customer: row.customer_name,
     phone: row.phone,
@@ -271,6 +353,7 @@ function mapOrderFromDb(row) {
     governorateCode: row.governorate_code || '',
     governorateName: row.governorate_name || '',
     area: row.area || '',
+    cityId: row.city_id || null,
     jenniShipmentId: row.jenni_shipment_id || null,
     jenniSent: !!row.jenni_sent,
     jenniTracking: row.jenni_tracking || null,
@@ -418,7 +501,7 @@ function matchOrderToWarehouseProduct(order, warehouseProducts) {
 // دالة حساب الربح
 function calcProfit(salePrice, costPrice) {
   const profit = Number(salePrice) - Number(costPrice);
-  const margin = costPrice > 0 ? ((profit / costPrice) * 100).toFixed(1) : 0;
+  const margin = costPrice > 0 ? Number(((profit / costPrice) * 100).toFixed(1)) : 0;
   return { profit, margin };
 }
 
@@ -438,6 +521,7 @@ function mapUserFromDb(row) {
     active: row.active,
     jobTitle: row.job_title || '',
     whatsapp: row.whatsapp || '',
+    workspaceId: row.workspace_id || null,
   };
 }
 
@@ -464,6 +548,7 @@ function mapConversationFromDb(row) {
     platform: row.source || 'facebook',
     isWhatsApp: isWA,
     lastMsg: row.last_message || '',
+    lastMsgTimeRaw: row.last_message_time || row.created_at || '',
     time: row.last_message_time
       ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
       : '',
@@ -821,7 +906,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={styles.userName}>{currentUser.name}</div>
             <div style={styles.userRole}>
-              {currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة'}
+              {currentUser.workspaceId ? '🔒 مساحة مستقلة' : (currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة')}
             </div>
           </div>
         </div>
@@ -915,8 +1000,17 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   useEffect(() => {
     if (!selectedConv) return;
     const fresh = conversations.find((c) => c.id === selectedConv.id);
-    if (fresh && fresh !== selectedConv) setSelectedConv(fresh);
-  }, [conversations, selectedConv]);
+    // حدّث فقط إذا تغيّرت بيانات مهمة فعلاً (لا بمجرد تغيّر المرجع كل دورة polling)
+    if (fresh && (
+      fresh.lastMessage !== selectedConv.lastMessage ||
+      fresh.unread !== selectedConv.unread ||
+      fresh.lastMessageTime !== selectedConv.lastMessageTime ||
+      fresh.orderId !== selectedConv.orderId
+    )) {
+      setSelectedConv(fresh);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
   const [composerText, setComposerText] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -967,19 +1061,32 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     const connected = pages.find((p) => p.connected);
     return connected?.id || pages[0]?.id || '';
   }, [pages]);
-  // الصفحة الفعلية للمحادثة (واتساب يُنسب لصفحته الافتراضية)
-  const convPageId = (c) => (c.isWhatsApp ? waPageId : c.pageId);
+  // الصفحة الفعلية للمحادثة: نستخدم page_id الحقيقي المحفوظ دائماً.
+  // للواتساب: إن لم يكن للمحادثة page_id (محادثات قديمة)، نستخدم صفحة واتساب الافتراضية كحل أخير فقط.
+  const convPageId = (c) => c.pageId || (c.isWhatsApp ? waPageId : null);
 
   const filtered = useMemo(() => {
+    const NEGLECT_MS = 30 * 86400000; // 30 يوماً
+    const now = Date.now();
     return conversations.filter((c) => {
       if (c.tab !== activeTab) return false;
       if (selectedPage !== 'all' && convPageId(c) !== selectedPage) return false;
+      // أخفِ المحادثات القديمة المنتهية (لا رسائل منذ 30 يوماً) من تبويب العادي
+      if (activeTab === 'normal' && Number(c.unread || 0) === 0) {
+        const t = c.lastMsgTimeRaw ? new Date(c.lastMsgTimeRaw).getTime() : 0;
+        if (t > 0 && (now - t) > NEGLECT_MS) return false;
+      }
       if (search) {
         const q = search.trim().toLowerCase();
         const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
+    }).sort((a, b) => {
+      // الأحدث أولاً دائماً (بالاعتماد على الوقت الخام)
+      const ta = a.lastMsgTimeRaw ? new Date(a.lastMsgTimeRaw).getTime() : 0;
+      const tb = b.lastMsgTimeRaw ? new Date(b.lastMsgTimeRaw).getTime() : 0;
+      return tb - ta;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations, activeTab, selectedPage, search, waPageId]);
@@ -1036,13 +1143,14 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     }
   }
 
-  const loadMessages = useCallback(async (convId) => {
+  const loadMessages = useCallback(async (convId, isCancelled) => {
     if (!convId) return;
     try {
       const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.asc`);
+      // تجاهل النتيجة إذا بدّل المستخدم المحادثة أثناء التحميل
+      if (isCancelled && isCancelled()) return;
       const mapped = (dbMsgs || []).map(mapMessageFromDb);
       setMessages(mapped);
-      // كشف تلقائي لرسائل التحويل
       await maybeHandoffConversation(convId, mapped);
     } catch (e) {
       console.error('load messages error:', e);
@@ -1052,32 +1160,33 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
 
   useEffect(() => {
     if (!selectedConv) { setMessages([]); return undefined; }
+    let cancelled = false;
+    const convId = selectedConv.id;
     setLoadingMsgs(true);
-    loadMessages(selectedConv.id).finally(() => setLoadingMsgs(false));
-    // علّم كمقروء مرة واحدة عند الفتح فقط (مو كل دورة)
-    markConversationRead(selectedConv.id);
+    // حمّل فقط إذا لم نبدّل المحادثة أثناء التحميل
+    loadMessages(convId, () => cancelled).finally(() => { if (!cancelled) setLoadingMsgs(false); });
+    markConversationRead(convId);
     const isWA = selectedConv.isWhatsApp;
-    // أثناء فتح المحادثة: حدّث الرسائل دورياً
-    // واتساب: يصل تلقائياً من Railway، فقط نعيد التحميل المحلي (بدون FB poll)
-    // ماسنجر: نسحب من فيسبوك مباشرة
     const refreshOpenChat = async () => {
+      if (cancelled) return;
       if (!isWA) {
         try {
           await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
-        } catch (_e) { /* تجاهل، نكمل بالتحديث المحلي */ }
+        } catch (_e) { /* تجاهل */ }
       }
-      await loadMessages(selectedConv.id);
+      if (!cancelled) await loadMessages(convId, () => cancelled);
     };
-    // واتساب أبطأ قليلاً (4 ث) لأنه فوري من Railway، ماسنجر 3 ث
     const interval = setInterval(refreshOpenChat, isWA ? 4000 : 3000);
-    return () => clearInterval(interval);
+    return () => { cancelled = true; clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const el = scrollRef.current;
+    if (!el) return;
+    // مرّر للأسفل فقط إذا كان المستخدم قريباً من الأسفل أصلاً (لا تقطعه وهو يقرأ القديم)
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   function touchConvLocally(convId, lastMessage) {
@@ -1133,15 +1242,16 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
   async function sendToWhatsApp(conv, { text, imageUrl, audioUrl } = {}) {
     const phone = conv.customerPsid?.replace('wa_', '') || conv.phone;
     if (!phone) throw new Error('رقم واتساب غير متوفر لهذه المحادثة');
+    const pageId = conv.pageId || null; // جلسة الصفحة المربوطة
 
     let endpoint = '/send';
-    let body = { phone, message: text };
+    let body = { phone, message: text, pageId };
     if (imageUrl) {
       endpoint = '/send-image';
-      body = { phone, imageUrl, caption: text || '' };
+      body = { phone, imageUrl, caption: text || '', pageId };
     } else if (audioUrl) {
       endpoint = '/send-audio';
-      body = { phone, audioUrl };
+      body = { phone, audioUrl, pageId };
     }
 
     const res = await fetch(`${WA_BRIDGE_URL}${endpoint}`, {
@@ -1192,6 +1302,9 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
       await loadMessages(selectedConv.id);
     } catch (e) {
       console.error('send text error:', e);
+      // أرجِع النص للحقل وأزِل الرسالة المؤقتة الفاشلة حتى لا تضيع
+      setComposerText(text);
+      setMessages((prev) => prev.filter((m) => !(typeof m.id === 'string' && m.id.startsWith('temp-') && m.content === text)));
       alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
     } finally {
       setSendingMsg(false);
@@ -1690,7 +1803,7 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
                       style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
                     >
                       <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
-                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} />}
+                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} onError={(e)=>{e.target.style.display='none';}} />}
                         {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
                         {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
                         <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
@@ -2011,6 +2124,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const [ocrLoading, setOcrLoading] = useState(false);
   const ocrInputRef = React.useRef(null);
   const [section, setSection] = useState('ready');
+  // modal الطباعة داخل الموقع (بدل نافذة منبثقة)
+  const [printModal, setPrintModal] = useState(null); // {html, title} أو null
+  const [printLoading, setPrintLoading] = useState(false);
+  const [batchHistoryOpen, setBatchHistoryOpen] = useState(false);
+  // قسم المهمل
+  const [neglectedOpen, setNeglectedOpen] = useState(false);
+  const [neglectedSelected, setNeglectedSelected] = useState([]); // ids المحددة
+  const sendingJenniRef = React.useRef(null); // قفل ضد الإرسال المزدوج لجيني
+  const citiesCacheRef = React.useRef(null); // كاش جدول مدن جيني للبحث السريع
   const [printTarget, setPrintTarget] = useState(null);
   // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
   const [jenniAction, setJenniAction] = useState(null);
@@ -2074,12 +2196,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     }
 
     // ── تحديد الصفحة ──
-    // واتساب: ينتسب لأول صفحة مرتبطة (كماليات ابو علي)
-    // ماسنجر: صفحة المحادثة الأصلية
+    // نعتمد دائماً على صفحة المحادثة الحقيقية (page_id المحفوظ من الـ Bridge)
+    // هكذا كل طلب من واتساب صفحة معينة ينتسب لتلك الصفحة بالضبط
     const waPage = pages.find((p) => p.connected) || pages[0];
-    const resolvedPageId = conv.isWhatsApp
-      ? (waPage?.id || '')
-      : (conv.pageId || pages[0]?.id || '');
+    const resolvedPageId = conv.pageId || (conv.isWhatsApp ? (waPage?.id || '') : (pages[0]?.id || ''));
 
     setEditingOrder({
       id: null,
@@ -2138,11 +2258,16 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   const THREE_DAYS = 3 * 86400000;
-  function isWithinPrepWindow(o) {
-    // طلبات "قيد التجهيز" تبقى ظاهرة 3 أيام فقط، بعدها تنتقل للمهملة
-    const ref = o.printedAt || o.createdAt || o.date;
-    if (!ref) return true;
-    return (Date.now() - new Date(ref).getTime()) <= THREE_DAYS;
+  // طلب مهمل: في قيد التجهيز أو لدى شركة التوصيل، مرّ عليه 3 أيام دون أن تتغير حالته/تستلمه الشركة
+  function isNeglected(o) {
+    const stage = o.stage || (o.printed ? 'prep' : 'ready');
+    if (stage !== 'prep' && stage !== 'delivery') return false;
+    // إذا الشركة استلمته أو تغيّرت حالته الفعلية، فهو ليس مهملاً
+    if (o.deliveryStep || o.deliveryStatus) return false;
+    // المرجع الزمني: آخر تحديث للحالة أو وقت الطباعة أو الإنشاء
+    const ref = o.deliveryUpdatedAt || o.printedAt || o.createdAt || o.date;
+    if (!ref) return false;
+    return (Date.now() - new Date(ref).getTime()) > THREE_DAYS;
   }
 
   const stageOrders = useMemo(() => {
@@ -2150,19 +2275,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
       if (stage !== section) return false;
       if (!passesCommon(o)) return false;
-      if (section === 'prep' && !isWithinPrepWindow(o)) return false;
+      // استبعد المهملة من أقسام التجهيز/التوصيل (تظهر في قسم المهمل فقط)
+      if ((section === 'prep' || section === 'delivery') && isNeglected(o)) return false;
       if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleOrders, section, selectedPage, statusFilter, search, datePreset, customMonth, customYear]);
 
+  // الطلبات المهملة (لكل الصفحات المرئية)
+  const neglectedOrders = useMemo(() => {
+    return visibleOrders.filter((o) => {
+      if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
+      return isNeglected(o);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleOrders, selectedPage]);
+
   const stageCounts = useMemo(() => {
     const c = { ready: 0, prep: 0, delivery: 0 };
     visibleOrders.forEach((o) => {
       if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
-      if (stage === 'prep' && !isWithinPrepWindow(o)) return;
+      if ((stage === 'prep' || stage === 'delivery') && isNeglected(o)) return;
       if (c[stage] !== undefined) c[stage]++;
     });
     return c;
@@ -2317,18 +2452,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       }
     }
 
-    // 3. كود المحافظة — governorate_code (إجباري، من قائمة Jenni)
-    if (!order.governorateCode) {
+    // 3. كود المحافظة — governorate_code
+    // نقبله إذا: موجود صراحةً، أو يمكن استنتاجه، أو توجد منطقة مكتوبة (سيكتشفها الإرسال من جدول جيني)
+    const govCode = order.governorateCode || inferGovFromText(order.area) || inferGovFromText(order.address);
+    const hasAreaText = !!(String(order.area || '').trim() || String(order.address || '').trim());
+    if (!govCode && !hasAreaText) {
       errors.governorateCode = 'المحافظة مطلوبة — إجبارية من شركة التوصيل';
-    } else {
+    } else if (govCode) {
       const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
-      if (!validCodes.includes(order.governorateCode)) {
-        errors.governorateCode = `كود المحافظة غير صالح: ${order.governorateCode}`;
+      if (!validCodes.includes(govCode)) {
+        errors.governorateCode = `كود المحافظة غير صالح: ${govCode}`;
       }
     }
 
-    // 4. المدينة/المنطقة — city (إجباري)
-    if (!String(order.area || '').trim()) {
+    // 4. المدينة/المنطقة — city (إجباري): نقبل area أو عنوان مكتوب
+    if (!String(order.area || '').trim() && !String(order.address || '').trim()) {
       errors.area = 'المنطقة/المدينة مطلوبة — إجبارية من شركة التوصيل';
     }
 
@@ -2342,14 +2480,16 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function handleSaveOrder() {
-    if (!editingOrder.pageId) { alert('اختر الصفحة'); return; }
+    if (!editingOrder.pageId) { alert('اختر الصفحة أولاً'); return; }
+    if (!String(editingOrder.customer || '').trim()) { alert('اسم العميل مطلوب على الأقل'); return; }
 
-    // ── تحقق إجباري من كل حقول جيني قبل الحفظ ──
+    // تحقق من حقول جيني — تحذير فقط، لا يمنع الحفظ
     const validationErrors = validateJenniFields(editingOrder);
-    if (Object.keys(validationErrors).length > 0) {
+    const hasJenniGaps = Object.keys(validationErrors).length > 0;
+    if (hasJenniGaps) {
       const msgs = Object.values(validationErrors).join('\n• ');
-      alert(`⛔ لا يمكن حفظ الطلب — أخطاء إجبارية:\n\n• ${msgs}\n\nهذه الحقول مطلوبة من شركة التوصيل ولا يمكن إرسال الشحنة بدونها.`);
-      return;
+      const proceed = confirm(`⚠️ الطلب سيُحفظ، لكن لن يُرسَل لشركة التوصيل حتى تكتمل هذه الحقول:\n\n• ${msgs}\n\nهل تريد الحفظ الآن وإكمالها لاحقاً؟`);
+      if (!proceed) { return; }
     }
 
     setSaving(true);
@@ -2365,7 +2505,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
-          total: Number(editingOrder.total) || 0,
+          total: parseAmountIQD(editingOrder.total),
           status: editingOrder.status,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
@@ -2377,15 +2517,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
           address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
           governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
-          total: Number(editingOrder.total) || 0, status: editingOrder.status,
+          total: parseAmountIQD(editingOrder.total), status: editingOrder.status,
           conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
         };
         setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
         if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
-        // ── إعادة إرسال لجيني إذا لم يُرسَل بعد أو كان فيه خطأ سابق ──
+        // ── إعادة إرسال لجيني فقط إذا اكتملت الحقول ولم يُرسَل بعد ──
         const prevOrder = orders.find((o) => o.id === editingOrder.id);
-        if (!prevOrder?.jenniSent) {
+        if (!prevOrder?.jenniSent && !hasJenniGaps) {
           sendOrderToJenni(updatedOrder, { silent: true });
         }
       } else {
@@ -2400,7 +2540,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           area: editingOrder.area || null,
           items: editingOrder.items,
           order_type: editingOrder.orderType || null,
-          total: Number(editingOrder.total) || 0,
+          total: parseAmountIQD(editingOrder.total),
           status: editingOrder.status || 'pending',
           stage: 'ready',
           order_date: new Date().toISOString().slice(0, 10),
@@ -2413,10 +2553,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           const newOrder = mapOrderFromDb(created[0]);
           setOrders((prev) => [newOrder, ...prev]);
           if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
-          // ── إرسال فوري لجيني عند إنشاء الطلب ──
-          // الطلب يظهر عند جيني بحالة NEW_ORDER_TO_PRINT (جاهز للطباعة)
-          // وهذا هو الـ workflow الصحيح: جيني تعرف بالطلب مبكراً قبل الطباعة
-          sendOrderToJenni(newOrder, { silent: true });
+          // ── إرسال فوري لجيني فقط إذا اكتملت كل الحقول ──
+          // إن نقص حقل، يُحفظ الطلب وينتظر الإكمال (لا يُرسل ناقصاً)
+          if (!hasJenniGaps) {
+            sendOrderToJenni(newOrder, { silent: true });
+          }
         }
       }
       setEditingOrder(null);
@@ -2537,17 +2678,166 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
+  // تحويل الأرقام العربية/الفارسية إلى إنجليزية
+  function toEnglishDigits(str) {
+    return arabicToEnglishDigits(str);
+  }
+
   // تنظيف رقم الهاتف ليكون بصيغة 07XXXXXXXXX التي تقبلها جيني
   function normalizeIraqiPhone(raw) {
     if (!raw) return '';
-    let digits = String(raw).replace(/[^0-9]/g, '');
-    if (digits.startsWith('964')) digits = '0' + digits.slice(3);
+    // حوّل الأرقام العربية لإنجليزية أولاً ثم أزل غير الأرقام
+    let digits = toEnglishDigits(raw).replace(/[^0-9]/g, '');
     if (digits.startsWith('00964')) digits = '0' + digits.slice(5);
+    else if (digits.startsWith('964')) digits = '0' + digits.slice(3);
     if (!digits.startsWith('0')) digits = '0' + digits;
     return digits.slice(0, 11); // 07XXXXXXXXX = 11 رقماً
   }
 
   async function sendOrderToJenni(o, { silent = false } = {}) {
+    // ── قفل ضد الإرسال المزدوج (يمنع إنشاء شحنتين لنفس الطلب) ──
+    if (!sendingJenniRef.current) sendingJenniRef.current = new Set();
+    if (sendingJenniRef.current.has(o.id)) {
+      return false; // إرسال جارٍ بالفعل لهذا الطلب
+    }
+    // إن كان مُرسلاً مسبقاً، لا نعيد الإرسال
+    if (o.jenniSent || o.jenniShipmentId) {
+      return { success: true, shipment_id: o.jenniShipmentId, tracking_number: o.jenniTracking, already: true };
+    }
+    sendingJenniRef.current.add(o.id);
+    try {
+      return await _sendOrderToJenniInner(o, { silent });
+    } finally {
+      sendingJenniRef.current.delete(o.id);
+    }
+  }
+
+  // البحث عن منطقة في جدول jenni_cities (2515 منطقة) — يرجّع {city_id, city_name, governorate_code}
+  // القاعدة الصارمة: إذا ذُكرت محافظة صريحة في النص، نبحث داخلها فقط (يمنع "الزعفرانية"→أربيل الخاطئ)
+  async function lookupCityInJenni(text, forcedGovCode) {
+    if (!text || !text.trim()) return null;
+    try {
+      const norm = (s) => normalizeArJS(String(s || '')).replace(/\s/g, '');
+      const rawWords = normalizeArJS(String(text)).split(/[\s\-،,]+/).filter((w) => w.length >= 3);
+      if (rawWords.length === 0 && !forcedGovCode) return null;
+
+      if (!citiesCacheRef.current) {
+        const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
+        citiesCacheRef.current = Array.isArray(all) ? all : [];
+      }
+      const allCities = citiesCacheRef.current;
+      if (!allCities.length) return null;
+
+      // ── الخطوة 1: حدّد المحافظة الملزِمة ──
+      // أولوية: (أ) محافظة ممرّرة، (ب) محافظة صريحة في النص عبر الأسماء الشائعة
+      let govCode = forcedGovCode || null;
+      if (!govCode) {
+        govCode = inferGovFromText(text); // يفحص أسماء المحافظات ومراكزها الصريحة
+      }
+      // كلمات المنطقة (نستبعد كلمات المحافظة نفسها من البحث عن المنطقة)
+      const stopWords = new Set();
+      for (const g of IRAQ_GOVERNORATES) { stopWords.add(norm(g.name)); stopWords.add(norm(g.name.replace(/^ال/, ''))); }
+      for (const alias of Object.keys(CITY_ALIAS_TO_GOV)) stopWords.add(norm(alias));
+      const words = rawWords.filter((w) => !stopWords.has(norm(w)));
+
+      // النطاق: مدن المحافظة الملزِمة فقط (إن وُجدت)، وإلا كل المدن
+      const scope = govCode ? allCities.filter((c) => c.governorate_code === govCode) : allCities;
+      if (govCode && scope.length === 0) {
+        // محافظة معروفة لكن لا مدن لها في الجدول — نرجّع المحافظة بلا منطقة محددة
+        return { city_id: null, city_name: null, governorate_code: govCode, _govOnly: true };
+      }
+
+      const searchWords = words.length ? words : rawWords;
+      const fullNorm = norm(searchWords.join(''));
+
+      // ── الخطوة 2: طابق المنطقة داخل النطاق فقط ──
+      // (أ) تطابق دقيق لاسم منطقة = كلمة كاملة
+      for (const w of searchWords) {
+        const wn = norm(w);
+        if (wn.length < 3) continue;
+        const exact = scope.find((c) => norm(c.city_name_norm || c.city_name) === wn);
+        if (exact) return exact;
+      }
+      // (ب) اسم المنطقة الرسمي (≥4 حروف) موجود داخل كلمة من النص
+      let best = null, bestLen = 0;
+      for (const c of scope) {
+        const cn = norm(c.city_name_norm || c.city_name);
+        if (cn.length < 4) continue;
+        for (const w of searchWords) {
+          const wn = norm(w);
+          if ((wn.includes(cn) || cn.includes(wn)) && cn.length > bestLen) { bestLen = cn.length; best = c; }
+        }
+      }
+      if (best) return best;
+      // (ج) أقرب تشابه — فقط داخل النطاق وبعتبة صارمة (يمنع المطابقة العشوائية)
+      const longest = [...searchWords].sort((a, b) => b.length - a.length)[0] || '';
+      const target = norm(longest);
+      if (target.length >= 4) {
+        let bestM = null, bestRatio = 0.25; // عتبة صارمة جداً
+        for (const c of scope) {
+          const cn = norm(c.city_name_norm || c.city_name);
+          if (cn.length < 4 || Math.abs(cn.length - target.length) > 2) continue;
+          const dp = Array.from({ length: target.length + 1 }, (_, i) => i);
+          for (let i = 1; i <= cn.length; i++) {
+            let prev = dp[0]; dp[0] = i;
+            for (let j = 1; j <= target.length; j++) {
+              const tmp = dp[j];
+              dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (cn[i - 1] === target[j - 1] ? 0 : 1));
+              prev = tmp;
+            }
+          }
+          const ratio = dp[target.length] / Math.max(cn.length, target.length);
+          if (ratio < bestRatio) { bestRatio = ratio; bestM = c; }
+        }
+        if (bestM) return bestM;
+      }
+      // (د) عرفنا المحافظة لكن ما لقينا المنطقة بدقة → نرجّع المحافظة بلا منطقة (لا نخمّن عشوائياً)
+      if (govCode) return { city_id: null, city_name: null, governorate_code: govCode, _govOnly: true };
+      return null;
+    } catch (_e) { return null; }
+  }
+
+  async function _sendOrderToJenniInner(o, { silent = false } = {}) {
+    // ══ اكتشاف المحافظة والمنطقة تلقائياً من جدول جيني (2515 منطقة) ══
+    // يحل: "زاخو"→دهوك، "شقلاوة"→أربيل، "عقرة"→دهوك... أي منطقة يكتبها الزبون
+    if (!o.governorateCode || !o.cityId) {
+      const searchText = `${o.area || ''} ${o.address || ''}`.trim();
+      // مرّر المحافظة الموجودة (إن كانت) لتقييد البحث داخلها فقط
+      const found = await lookupCityInJenni(searchText, o.governorateCode || null);
+      if (found) {
+        const gov = IRAQ_GOVERNORATES.find((g) => g.code === found.governorate_code);
+        const patch = {
+          governorate_code: found.governorate_code,
+          governorate_name: gov?.name || null,
+        };
+        // حدّث المنطقة والكود فقط إذا وُجدت منطقة فعلية (لا نمسح منطقة صحيحة بـ null)
+        if (found.city_id && found.city_name) {
+          patch.city_id = found.city_id;
+          patch.area = found.city_name;
+        }
+        o = {
+          ...o,
+          governorateCode: found.governorate_code,
+          governorateName: gov?.name || o.governorateName,
+          cityId: found.city_id || o.cityId,
+          area: (found.city_name || o.area),
+        };
+        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
+        setOrders((prev) => prev.map((x) => x.id === o.id ? {
+          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id || x.cityId, area: (found.city_name || x.area),
+        } : x));
+      }
+    }
+    // احتياط: الخريطة اليدوية للمراكز الكبيرة إن لم يجد في الجدول
+    if (!o.governorateCode) {
+      const inferred = inferGovFromText(o.area) || inferGovFromText(o.address);
+      if (inferred) {
+        const gov = IRAQ_GOVERNORATES.find((g) => g.code === inferred);
+        o = { ...o, governorateCode: inferred, governorateName: gov?.name || o.governorateName };
+        try { await sbUpdate('alfhd_orders', o.id, { governorate_code: inferred, governorate_name: gov?.name || null }); } catch (_e) { /* تجاهل */ }
+        setOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, governorateCode: inferred, governorateName: gov?.name } : x));
+      }
+    }
     // ── خط دفاع: التحقق من كل الحقول الإجبارية قبل الإرسال ──
     if (!o.governorateCode || !o.phone) {
       const msg = 'لا يمكن الإرسال لشركة التوصيل: المحافظة ورقم الهاتف مطلوبان';
@@ -2562,12 +2852,42 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       if (!silent) alert(msg);
       return false;
     }
-    const cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1] || '';
+    // المنطقة: من area أو العنوان، وإن لم توجد نستخدم اسم المحافظة (لا نرفض الإرسال)
+    let cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1]?.trim() || '';
     if (!cityValue) {
-      const msg = 'المنطقة/المدينة مطلوبة — عدّل الطلب وأضف المنطقة';
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
-      if (!silent) alert(msg);
-      return false;
+      cityValue = String(o.governorateName || '').trim() || String(o.address || '').split(' - ')[0]?.trim() || 'غير محدد';
+    }
+    // city_id: استُنتج مسبقاً من lookupCityInJenni الصارمة (المقيّدة بالمحافظة)
+    // إن لم يوجد، نبحث مرة أخيرة داخل محافظة الطلب فقط (لا بحث شامل عشوائي)
+    let cityId = o.cityId || null;
+    if (!cityId && o.governorateCode) {
+      const strictFound = await lookupCityInJenni(`${o.area || ''} ${o.address || ''}`.trim(), o.governorateCode);
+      if (strictFound && strictFound.city_id) {
+        cityId = strictFound.city_id;
+        cityValue = strictFound.city_name || cityValue;
+      }
+    }
+    // ملاذ أخير: المحافظة معروفة لكن لم نجد كود المنطقة → استخدم مركز/أشهر منطقة بالمحافظة
+    // (يضمن قبول جيني بدل رفض الطلب — التوصيل يتواصل مع الزبون للعنوان الدقيق)
+    if (!cityId && o.governorateCode) {
+      try {
+        if (!citiesCacheRef.current) {
+          const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
+          citiesCacheRef.current = Array.isArray(all) ? all : [];
+        }
+        const govCities = citiesCacheRef.current.filter((c) => c.governorate_code === o.governorateCode);
+        if (govCities.length) {
+          // فضّل منطقة اسمها = اسم المحافظة (المركز)، وإلا أول منطقة
+          const govNameNorm = normalizeArJS(o.governorateName || '').replace(/\s/g, '');
+          const center = govCities.find((c) => {
+            const cn = normalizeArJS(c.city_name_norm || c.city_name).replace(/\s/g, '');
+            return cn === govNameNorm || cn.includes(govNameNorm) || govNameNorm.includes(cn);
+          }) || govCities[0];
+          cityId = center.city_id;
+          // نُبقي اسم المنطقة الأصلي في العنوان، ونستخدم كود المركز فقط
+          if (!o.area) cityValue = center.city_name;
+        }
+      } catch (_e) { /* تجاهل */ }
     }
     if (!Number(o.total) || Number(o.total) <= 0) {
       const msg = 'المبلغ يجب أن يكون أكبر من صفر';
@@ -2583,6 +2903,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     ].filter(Boolean).join(' — ');
 
     // ── البيانات المرسلة لشركة التوصيل ──
+    const cleanAmount = parseAmountIQD(o.total);
+    // العنوان الكامل: نضم المنطقة الأصلية التي كتبها الزبون + العنوان التفصيلي
+    // (يضمن وصول المندوب للموقع الصحيح حتى لو استخدمنا كود مركز المحافظة)
+    const fullAddress = [o.area, o.address].filter(Boolean).map((s) => String(s).trim()).filter((s, i, arr) => s && arr.indexOf(s) === i).join(' - ');
     const shipmentPayload = {
       external_shipment_id: String(o.id),
       shipment_number: String(o.orderNo || o.id),
@@ -2590,8 +2914,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       receiver_phone_1: cleanPhone,
       governorate_code: o.governorateCode,
       city: cityValue,
-      address: String(o.address || '').trim(),
-      amount_iqd: Number(o.total) || 0,
+      ...(cityId ? { city_id: cityId } : {}),
+      address: fullAddress || String(o.address || '').trim() || cityValue,
+      amount_iqd: cleanAmount,
       note: noteText || undefined,
     };
 
@@ -2614,24 +2939,39 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
       console.log('📬 رد شركة التوصيل:', res.status, data);
 
-      if (res.ok && (data?.success || data?.shipment_id)) {
+      // نجاح حقيقي = جيني أنشأ شحنة فعلية (shipment_id موجود)
+      const realShipmentId = data.shipment_id || data.data?.shipment_id || data.shipment?.id || null;
+      const realTracking = data.tracking_number || data.data?.tracking_number || data.shipment?.tracking_number || null;
+      if (res.ok && realShipmentId) {
         const patch = {
           jenni_sent: true,
-          jenni_shipment_id: data.shipment_id || null,
-          jenni_tracking: data.tracking_number || null,
+          jenni_shipment_id: realShipmentId,
+          jenni_tracking: realTracking,
           delivery_status: 'sorting',
         };
         setOrders((prev) => prev.map((x) => (x.id === o.id ? {
           ...x,
           jenniSent: true,
-          jenniShipmentId: data.shipment_id || null,
-          jenniTracking: data.tracking_number || null,
+          jenniShipmentId: realShipmentId,
+          jenniTracking: realTracking,
           jenniError: null,
           deliveryStatus: 'sorting',
         } : x)));
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', data.shipment_id);
-        return true;
+        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', realShipmentId);
+        return { success: true, shipment_id: realShipmentId, tracking_number: realTracking };
+      }
+
+      // نجح الرد لكن بدون shipment_id → نعرض سبب جيني الحقيقي + البيانات المُرسلة
+      if (res.ok && !realShipmentId) {
+        const reason = data?.jenni_error || data?.create_response?.message || 'بيانات ناقصة أو غير مقبولة';
+        const sent = data?.sent_payload || {};
+        const diag = `المحافظة: ${sent.governorate_code || o.governorateCode || '—'} | كود المنطقة: ${sent.city_id || cityId || 'مفقود'} | المنطقة: ${cityValue || '—'}`;
+        const msg = `الطلب #${o.orderNo} — لم تُنشأ الشحنة:\n${reason}\n\n${diag}`;
+        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: `${reason} (${diag})`, jenniSent: false } : x)));
+        console.error('❌ جيني رفض الطلب:', reason, 'المُرسل:', sent);
+        if (!silent) alert(msg);
+        return false;
       }
 
       // 409 = موجود مسبقاً
@@ -2735,15 +3075,32 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   // ── طباعة باركود الشحنة من جيني (PDF) ──
+
   async function printJenniBarcode(order) {
     if (!order.orderNo && !order.jenniShipmentId) {
       alert('لا يمكن طباعة الباركود: الطلب غير مرسل لشركة التوصيل');
       return;
     }
+    setPrintLoading(true);
+    setPrintModal({ title: `باركود الطلب #${order.orderNo}`, html: '', loading: true });
     try {
-      const payload = order.jenniShipmentId
-        ? { shipment_ids: [order.jenniShipmentId] }
-        : { shipment_numbers: [String(order.orderNo)] };
+      // إن لم يُرسَل الطلب لجيني بعد → أرسله الآن أولاً
+      if (!order.jenniSent && !order.jenniShipmentId) {
+        setPrintModal({ title: `طلب #${order.orderNo}`, html: '', loading: true, note: 'جارٍ إرسال الطلب لشركة التوصيل أولاً...' });
+        try {
+          const sent = await sendOrderToJenni(order, { silent: true });
+          if (sent && (sent.shipment_id || sent.tracking_number)) {
+            order = { ...order, jenniSent: true, jenniShipmentId: sent.shipment_id || order.jenniShipmentId, jenniTracking: sent.tracking_number || order.jenniTracking };
+          } else {
+            order = { ...order, jenniSent: true };
+          }
+        } catch (_e) { /* نكمل */ }
+      }
+
+      const payload = {
+        shipment_ids: order.jenniShipmentId ? [order.jenniShipmentId] : [],
+        shipment_numbers: [order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).map(String),
+      };
       const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
@@ -2751,44 +3108,26 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       });
       const data = await res.json().catch(() => ({}));
       if (!data.success) {
-        alert(`تعذّر جلب الباركود: ${data.error || data.jenni_response?.message || 'غير متاح'}`);
+        const jr = data.jenni_response;
+        const detail = data.error || jr?.message || jr?.error || jr?.msg
+          || (jr ? JSON.stringify(jr).slice(0, 300) : '')
+          || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '') || 'غير متاح';
+        const tried = [order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).join(', ');
+        setPrintModal({ title: 'تعذّر الطباعة', error: `${detail}\n\nالأرقام المُجرّبة: ${tried}` });
+        console.error('JENNI STICKERS:', JSON.stringify(data, null, 2));
         return;
       }
 
-      // معلومات إضافية تُطبع أسفل الباركود: عنوان التخزين + المجهّز
-      const storageLabel = order.storageLocation || '';
-      const prepName = order.prepByName || '';
-      const extraHtml = `
-        <div style="margin-top:10px;padding:10px 14px;border:1.5px dashed #333;border-radius:8px;font-family:Cairo,Arial,sans-serif;direction:rtl;text-align:right;">
-          <div style="font-size:15px;font-weight:800;">طلب #${order.orderNo} — ${order.customer || ''}</div>
-          <div style="font-size:13px;color:#444;margin-top:3px;">${order.governorateName || ''}${order.area ? ' - ' + order.area : ''}</div>
-          ${storageLabel ? `<div style="font-size:14px;font-weight:700;margin-top:6px;">📍 عنوان الطلب: ${storageLabel}</div>` : `<div style="font-size:13px;color:#888;margin-top:6px;">📍 عنوان الطلب: ______________________</div>`}
-          ${prepName ? `<div style="font-size:13px;margin-top:4px;">👤 موظف التجهيز: ${prepName}</div>` : ''}
-        </div>`;
+      let src = '';
+      if (data.type === 'pdf_base64' && data.data) src = `data:application/pdf;base64,${data.data}`;
+      else if (data.type === 'url' && data.url) src = data.url;
+      else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح لهذا الطلب' }); return; }
 
-      let bodyContent = '';
-      if (data.type === 'pdf_base64' && data.data) {
-        bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="500px" />`;
-      } else if (data.type === 'url' && data.url) {
-        bodyContent = `<iframe src="${data.url}" width="100%" height="500px" style="border:none;"></iframe>`;
-      } else {
-        alert('الباركود غير متاح لهذا الطلب حالياً');
-        return;
-      }
-
-      const win = window.open('', '_blank');
-      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب للطباعة'); return; }
-      win.document.write(`
-        <!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>باركود الطلب #${order.orderNo}</title>
-        <style>body{margin:0;padding:16px;background:#fff;font-family:Cairo,Arial,sans-serif;}@media print{.no-print{display:none;}}</style>
-        </head><body>
-        <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">🖨️ طباعة</button>
-        ${bodyContent}
-        ${extraHtml}
-        </body></html>`);
-      win.document.close();
+      setPrintModal({ title: `باركود الطلب #${order.orderNo}`, src, count: 1 });
     } catch (e) {
-      alert(`خطأ في جلب الباركود: ${e.message}`);
+      setPrintModal({ title: 'خطأ', error: e.message });
+    } finally {
+      setPrintLoading(false);
     }
   }
 
@@ -2856,23 +3195,173 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     );
   }
 
-  function triggerPrint(target, idsToMove) {
-    setPrintTarget(target);
-    setTimeout(() => {
-      window.print();
-      setPrintTarget(null);
-      if (idsToMove?.length) markOrdersPrintedAndPrep(idsToMove);
-    }, 60);
+  // طباعة جماعية من جيني — يجلب باركود كل الطلبات دفعة واحدة (داخل modal)
+  async function printJenniBatch(orders, { saveBatch = true } = {}) {
+    const valid = orders.filter((o) => o.orderNo || o.jenniShipmentId);
+    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
+    setPrintLoading(true);
+    setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ تحميل ${valid.length} باركود...` });
+    try {
+      // أرسل الطلبات غير المُرسلة لجيني أولاً.
+      // عند الطباعة الأصلية: كل الطلبات غير المرسلة. عند إعادة الطباعة: فقط من لا يملك أي رقم شحنة.
+      const notSent = saveBatch
+        ? valid.filter((o) => !o.jenniSent && !o.jenniShipmentId)
+        : valid.filter((o) => !o.jenniShipmentId && !o.jenniTracking && !o.orderNo);
+      if (notSent.length > 0) {
+        setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ إرسال ${notSent.length} طلب لشركة التوصيل أولاً...` });
+        for (let i = 0; i < notSent.length; i++) {
+          try {
+            const sent = await sendOrderToJenni(notSent[i], { silent: true });
+            if (sent && (sent.shipment_id || sent.tracking_number)) {
+              const idx = valid.findIndex((v) => v.id === notSent[i].id);
+              if (idx >= 0) valid[idx] = { ...valid[idx], jenniSent: true, jenniShipmentId: sent.shipment_id || valid[idx].jenniShipmentId, jenniTracking: sent.tracking_number || valid[idx].jenniTracking };
+            }
+          } catch (_e) { /* تابع */ }
+        }
+      }
+
+      // ── الجذر: افصل الطلبات التي لم تُنشأ لها شحنة فعلية عند جيني ──
+      // (ليس لها shipment_id ولا tracking) — هذه لن يكون لها باركود، فنستبعدها ونبقيها في الطباعة
+      const readyToPrint = valid.filter((o) => o.jenniShipmentId || o.jenniTracking || (o.jenniSent && o.orderNo));
+      const notReady = valid.filter((o) => !(o.jenniShipmentId || o.jenniTracking || (o.jenniSent && o.orderNo)));
+
+      if (readyToPrint.length === 0) {
+        const names = notReady.map((o) => `#${o.orderNo || '?'}`).join('، ');
+        setPrintModal({ title: 'تعذّر الطباعة', error: `لم تُنشأ شحنات لهذه الطلبات في شركة التوصيل (بيانات ناقصة): ${names}\n\nتحقق من المنطقة والهاتف والمحافظة لكل طلب.` });
+        return;
+      }
+
+      // اجمع أرقام الطلبات الجاهزة فقط
+      const allNumbers = [];
+      const allIds = [];
+      readyToPrint.forEach((o) => {
+        if (o.orderNo) allNumbers.push(String(o.orderNo));
+        if (o.jenniTracking && o.jenniTracking !== o.orderNo) allNumbers.push(String(o.jenniTracking));
+        if (o.jenniShipmentId) allIds.push(String(o.jenniShipmentId));
+      });
+      if (allNumbers.length === 0 && allIds.length === 0) {
+        setPrintModal({ title: 'تعذّر الطباعة', error: 'هذه الطلبات لا تحتوي أرقام شحنات صالحة. أعد إرسالها لشركة التوصيل أولاً.' });
+        return;
+      }
+      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify({ shipment_ids: allIds, shipment_numbers: allNumbers }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        const jr = data.jenni_response;
+        const detail = data.error || jr?.message || jr?.error || (jr ? JSON.stringify(jr).slice(0,200) : '') || 'غير متاح';
+        setPrintModal({ title: 'تعذّر الطباعة', error: detail });
+        return;
+      }
+
+      let src = '';
+      if (data.type === 'pdf_base64' && data.data) src = `data:application/pdf;base64,${data.data}`;
+      else if (data.type === 'url' && data.url) src = data.url;
+      else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح' }); return; }
+
+      setPrintModal({ title: `طباعة ${readyToPrint.length} طلب`, src, count: readyToPrint.length });
+
+      // احفظ الدفعة + انقل لقيد التجهيز
+      // readyToPrint مضمونة: لها shipment_id أو tracking فعلي (تحقّقنا عند الإرسال)
+      if (saveBatch) {
+        const printedIds = readyToPrint.map((o) => o.id);
+        const batchId = `batch-${Date.now()}`;
+        const printedAt = new Date().toISOString();
+        setOrders((prev) => prev.map((o) => printedIds.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o));
+        for (const id of printedIds) {
+          try { await sbUpdate('alfhd_orders', id, { printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep' }); } catch (_e) { /* تجاهل */ }
+        }
+
+        // تنبيه عن الطلبات الناقصة التي استُبعدت (لم تُنشأ لها شحنة)
+        if (notReady.length > 0) {
+          const names = notReady.map((o) => `#${o.orderNo || '?'}`).join('، ');
+          setPrintModal({
+            title: `طُبع ${printedIds.length} من ${valid.length}`,
+            src, count: printedIds.length,
+            warning: `${notReady.length} طلب لم يُطبع (بيانات ناقصة): ${names}. بقيت في قسم الطباعة — صحّح بياناتها.`,
+          });
+        }
+      }
+    } catch (e) {
+      setPrintModal({ title: 'خطأ', error: e.message });
+    } finally {
+      setPrintLoading(false);
+    }
   }
 
   function handlePrintReady() {
-    const ids = stageOrders.map((o) => o.id);
-    if (ids.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
-    triggerPrint('ready', ids);
+    if (stageOrders.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
+    // افصل المكتمل عن الناقص — لا نحاول طباعة طلب ناقص البيانات
+    const complete = stageOrders.filter((o) => Object.keys(validateJenniFields(o)).length === 0);
+    const incomplete = stageOrders.filter((o) => Object.keys(validateJenniFields(o)).length > 0);
+    if (complete.length === 0) {
+      alert(`كل الطلبات (${incomplete.length}) تحتاج إكمال بيانات قبل الطباعة.\nراجع الطلبات المميّزة باللون البرتقالي وأكمل الناقص (المنطقة، الهاتف، المحافظة).`);
+      return;
+    }
+    if (incomplete.length > 0) {
+      const names = incomplete.map((o) => `#${o.orderNo || '?'}`).join('، ');
+      if (!window.confirm(`${complete.length} طلب جاهز للطباعة.\n\n${incomplete.length} طلب ناقص البيانات سيُتخطّى: ${names}\n\nمتابعة طباعة المكتمل فقط؟`)) return;
+    }
+    printJenniBatch(complete, { saveBatch: true });
   }
 
   function handleReprintBatch(batchId, batchOrders) {
-    triggerPrint(batchId, null);
+    printJenniBatch(batchOrders, { saveBatch: false });
+  }
+
+  // تجميع الطلبات المطبوعة في دفعات (للسجل) — من بيانات الطلبات نفسها
+  const printBatches = useMemo(() => {
+    const map = {};
+    orders.forEach((o) => {
+      if (!o.printBatchId || !o.printed) return;
+      if (!map[o.printBatchId]) map[o.printBatchId] = { batchId: o.printBatchId, printedAt: o.printedAt, orders: [] };
+      map[o.printBatchId].orders.push(o);
+      // خذ أحدث تاريخ
+      if (o.printedAt && (!map[o.printBatchId].printedAt || o.printedAt > map[o.printBatchId].printedAt)) {
+        map[o.printBatchId].printedAt = o.printedAt;
+      }
+    });
+    return Object.values(map).sort((a, b) => (b.printedAt || '').localeCompare(a.printedAt || ''));
+  }, [orders]);
+
+  function fmtBatchDate(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      const date = d.toLocaleDateString('ar-IQ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const time = d.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
+      return `${date} · ${time}`;
+    } catch { return iso; }
+  }
+
+  // إعادة طلبات مهملة لقسم الطباعة
+  async function restoreNeglected(ids) {
+    if (!ids.length) return;
+    const now = new Date().toISOString();
+    setOrders((prev) => prev.map((o) => ids.includes(o.id)
+      ? { ...o, stage: 'ready', printed: false, printBatchId: null, printedAt: null, createdAt: now }
+      : o));
+    for (const id of ids) {
+      try { await sbUpdate('alfhd_orders', id, { stage: 'ready', printed: false, print_batch_id: null, printed_at: null, created_at: now }); } catch (_e) { /* تجاهل */ }
+    }
+    setNeglectedSelected([]);
+  }
+
+  // حذف طلبات مهملة نهائياً
+  async function deleteNeglected(ids) {
+    if (!ids.length) return;
+    if (!window.confirm(`حذف ${ids.length} طلب نهائياً؟ لا يمكن التراجع.`)) return;
+    setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
+    for (const id of ids) {
+      try { await sbDelete('alfhd_orders', id); } catch (_e) { /* تجاهل */ }
+    }
+    setNeglectedSelected([]);
+  }
+
+  function toggleNeglectedSelect(id) {
+    setNeglectedSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
 
   // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
@@ -2894,8 +3383,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function StageStatusBadge({ o }) {
     if (section === 'delivery') {
-      const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus] || DELIVERY_STATUS_CONFIG.sorting;
-      return <div style={{ ...styles.orderStatusPill, color: dcfg.color, background: dcfg.bg }}>{dcfg.label}</div>;
+      const stepU = (o.deliveryStep || '').toUpperCase();
+      const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU);
+      const isReturned = stepU.startsWith('RTO');
+      let color, bg;
+      if (isDelivered) { color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)'; }
+      else if (isReturned) { color = '#F25050'; bg = 'rgba(242,80,80,0.12)'; }
+      else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) { color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)'; }
+      else { color = '#A78BFA'; bg = 'rgba(167,139,250,0.12)'; }
+      // حالة جيني الفعلية فقط (كما هي عند شركة التوصيل)
+      const label = o.deliveryStepAr || 'بانتظار التحديث';
+      return <div style={{ ...styles.orderStatusPill, color, background: bg }}>{label}</div>;
     }
     if (section === 'prep') {
       return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
@@ -2929,6 +3427,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <span>لم يُجهَّز من قبل المخزن — تحقق قبل الطباعة</span>
           </div>
         )}
+
+        {/* بانر نقص البيانات — يظهر في قسم الطباعة إذا الطلب غير مكتمل لجيني */}
+        {isReady && (() => {
+          const errs = validateJenniFields(o);
+          const missing = Object.values(errs);
+          if (missing.length === 0) return null;
+          return (
+            <div style={{ background: 'rgba(240,168,104,0.12)', borderBottom: '1px solid rgba(240,168,104,0.25)', padding: '9px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <AlertTriangle size={15} color="#F0A868" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: 11.5, color: '#F0A868', fontWeight: 600, lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 800 }}>يحتاج إكمال قبل الطباعة:</span> {missing.join(' · ')}
+              </div>
+            </div>
+          );
+        })()}
 
         <div style={styles.orderTicketHead}>
           <div style={styles.orderTicketAvatar}>{o.customer?.[0] || '؟'}</div>
@@ -2994,33 +3507,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             );
           })()}
 
-          {/* ── حالة شركة التوصيل ── */}
-          {o.jenniSent && (
+          {/* ── معلومات شركة التوصيل (للمتابعة فقط — التحكم من جيني) ── */}
+          {o.jenniSent && (o.deliveryNote || o.jenniTracking) && (
             <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.12)', borderRadius: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <Truck size={12} color="#2AABEE" />
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#2AABEE' }}>شركة التوصيل</span>
-                {o.deliveryStatus && (() => {
-                  const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus];
-                  return dcfg ? (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: dcfg.color, background: dcfg.bg, padding: '2px 7px', borderRadius: 20, marginRight: 'auto' }}>
-                      {dcfg.label}
-                    </span>
-                  ) : <span style={{ fontSize: 10.5, color: '#546880', marginRight: 'auto' }}>{o.deliveryStatus}</span>;
-                })()}
-              </div>
               {o.deliveryNote && (
-                <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 2 }}>📝 {o.deliveryNote}</div>
+                <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
               )}
               {o.jenniTracking && (
                 <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace' }}>تتبع: #{o.jenniTracking}</div>
               )}
-              {o.deliveryUpdatedAt && (
-                <div style={{ fontSize: 10, color: '#546880', marginTop: 2 }}>
-                  آخر تحديث: {new Date(o.deliveryUpdatedAt).toLocaleString('ar-IQ')}
-                </div>
-              )}
-              <JenniActionsPanel o={o} />
             </div>
           )}
         </div>
@@ -3048,32 +3543,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
-          {section === 'delivery' && (
-            o.jenniSent ? (
-              // الطلب عند شركة التوصيل — الحالة تأتي تلقائياً من جيني
-              <div style={{
-                ...styles.statusSelect,
-                color: STATUS_CONFIG[o.status]?.color || '#9AA3B8',
-                background: STATUS_CONFIG[o.status]?.bg || 'rgba(154,163,184,0.1)',
-                borderColor: (STATUS_CONFIG[o.status]?.color || '#9AA3B8') + '44',
-                flex: 1.4, display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontWeight: 700, cursor: 'default',
-              }}>
-                <Truck size={12} />
-                {STATUS_CONFIG[o.status]?.label || o.deliveryStepAr || 'جاري التحديث...'}
-              </div>
-            ) : (
-              <select
-                value={o.status}
-                onChange={(e) => updateStatus(o.id, e.target.value)}
-                style={{ ...styles.statusSelect, color: STATUS_CONFIG[o.status]?.color, borderColor: (STATUS_CONFIG[o.status]?.color || '#999') + '44', background: STATUS_CONFIG[o.status]?.bg, flex: 1.4 }}
-              >
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
-              </select>
-            )
+          {/* زر طباعة فردي من جيني — في قسم الطباعة والتجهيز */}
+          {(section === 'ready' || section === 'prep') && (
+            <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#2AABEE', borderColor: 'rgba(42,171,238,0.3)' }} title="طباعة باركود هذا الطلب">
+              <Printer size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>طباعة</span>
+            </button>
           )}
+          {/* زر المحادثة — الزر الوحيد من الموقع، يفتح محادثة الزبون */}
           {o.conversationId && (
-            <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="عرض المحادثة">
+            <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="محادثة الزبون">
               <MessageSquare size={14} />
             </button>
           )}
@@ -3090,9 +3568,31 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     <div style={styles.viewWrap}>
       {/* ── هيدر الطلبات ── */}
       <div style={styles.viewHeader} className="alfhd-view-header alfhd-no-print">
-        <div>
-          <h2 style={styles.viewTitle}>الطلبات</h2>
-          <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div>
+            <h2 style={styles.viewTitle}>الطلبات</h2>
+            <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
+          </div>
+          {/* مثلث الطلبات المهملة */}
+          <button
+            onClick={() => { setNeglectedOpen(true); setNeglectedSelected([]); }}
+            title={neglectedOrders.length ? `${neglectedOrders.length} طلب مهمل` : 'الطلبات المهملة'}
+            style={{
+              position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: 10, cursor: 'pointer',
+              background: neglectedOrders.length ? 'rgba(244,91,105,0.15)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${neglectedOrders.length ? 'rgba(244,91,105,0.45)' : 'rgba(255,255,255,0.08)'}`,
+            }}
+          >
+            <AlertTriangle size={18} color={neglectedOrders.length ? '#F45B69' : '#5E6986'} />
+            {neglectedOrders.length > 0 && (
+              <span style={{
+                position: 'absolute', top: -7, right: -7, minWidth: 19, height: 19, padding: '0 5px',
+                borderRadius: 10, background: '#F45B69', color: '#fff', fontSize: 11, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0E1420',
+              }}>{neglectedOrders.length}</span>
+            )}
+          </button>
         </div>
         {/* أزرار الإجراءات — صف أنيق */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -3176,6 +3676,19 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               <Printer size={15} /> طباعة الكل ({stageOrders.length})
             </button>
           )}
+          {/* زر دائرة سجل الدفعات المطبوعة */}
+          <button
+            onClick={() => setBatchHistoryOpen(true)}
+            title="سجل الطباعة"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: '50%',
+              background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)',
+              color: '#A78BFA', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <Clock size={17} />
+          </button>
         </div>
       </div>
 
@@ -3410,7 +3923,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                     <>
                       <input
                         value={editingOrder.phone}
-                        onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })}
+                        onChange={(e) => setEditingOrder({ ...editingOrder, phone: toEnglishDigits(e.target.value) })}
                         style={{
                           ...styles.formInput,
                           borderRadius: 9,
@@ -3640,6 +4153,181 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
         </div>
       )}
+
+      {/* ── modal الطلبات المهملة ── */}
+      {neglectedOpen && (
+        <div onClick={() => setNeglectedOpen(false)} style={styles.modalOverlay}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 580, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(244,91,105,0.2)' }}>
+            {/* رأس */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={18} color="#F45B69" />
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>الطلبات المهملة</div>
+                {neglectedOrders.length > 0 && <span style={{ fontSize: 12, color: '#8B9AB3' }}>({neglectedOrders.length})</span>}
+              </div>
+              <button onClick={() => setNeglectedOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
+            </div>
+
+            {/* شريط الإجراءات الجماعية */}
+            {neglectedOrders.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, flexWrap: 'wrap' }}>
+                <button onClick={() => setNeglectedSelected(neglectedSelected.length === neglectedOrders.length ? [] : neglectedOrders.map((o) => o.id))}
+                  style={{ padding: '6px 11px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#9FB0C3', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                  {neglectedSelected.length === neglectedOrders.length ? 'إلغاء التحديد' : 'تحديد الكل'}
+                </button>
+                <span style={{ fontSize: 11.5, color: '#8B9AB3' }}>{neglectedSelected.length} محدد</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => restoreNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(42,171,238,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#2AABEE' : '#546880', fontSize: 11.5, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
+                  <Printer size={13} /> إعادة للطباعة
+                </button>
+                <button onClick={() => deleteNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(244,91,105,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(244,91,105,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#F45B69' : '#546880', fontSize: 11.5, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
+                  <Trash2 size={13} /> حذف
+                </button>
+              </div>
+            )}
+
+            {/* قائمة الطلبات */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
+              {neglectedOrders.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
+                  لا توجد طلبات مهملة 🎉
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {neglectedOrders.map((o) => {
+                    const sel = neglectedSelected.includes(o.id);
+                    return (
+                      <div key={o.id} onClick={() => toggleNeglectedSelect(o.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 11, cursor: 'pointer', background: sel ? 'rgba(42,171,238,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${sel ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.06)'}` }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? '#2AABEE' : 'transparent', border: `1.5px solid ${sel ? '#2AABEE' : '#546880'}` }}>
+                          {sel && <CheckCircle2 size={13} color="#fff" />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#EAF0F7' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                          <div style={{ fontSize: 11, color: '#8B9AB3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''} · {fmtBatchDate(o.printedAt || o.createdAt)}</div>
+                        </div>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F0A868', flexShrink: 0 }}>
+                          {(o.stage === 'delivery') ? 'لدى الشركة' : 'قيد التجهيز'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── modal سجل الدفعات المطبوعة ── */}
+      {batchHistoryOpen && (
+        <div
+          onClick={() => setBatchHistoryOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={18} color="#A78BFA" />
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>سجل الطباعة</div>
+              </div>
+              <button onClick={() => setBatchHistoryOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
+              {printBatches.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
+                  لا توجد دفعات مطبوعة بعد
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {printBatches.map((batch) => (
+                    <div key={batch.batchId} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Printer size={18} color="#2AABEE" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
+                            <div style={{ fontSize: 11, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleReprintBatch(batch.batchId, batch.orders)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <Printer size={13} /> إعادة طباعة
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#546880', lineHeight: 1.6 }}>
+                        {batch.orders.slice(0, 4).map((o) => `#${o.orderNo}`).join('، ')}
+                        {batch.orders.length > 4 ? ` +${batch.orders.length - 4}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── modal الطباعة (داخل الموقع — لا نافذة منبثقة) ── */}
+      {printModal && (
+        <div
+          onClick={() => setPrintModal(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+          >
+            {/* رأس الـ modal */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2234' }}>{printModal.title || 'طباعة الباركود'}</div>
+              <button onClick={() => setPrintModal(null)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#f1f1f1', color: '#555', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* المحتوى */}
+            <div style={{ flex: 1, overflow: 'auto', background: '#f7f7f7', minHeight: 200 }}>
+              {printModal.loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 14, color: '#555' }}>
+                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#2AABEE', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{printModal.note || 'جارٍ التحميل...'}</div>
+                  <style>{`@keyframes alfhd-spin{to{transform:rotate(360deg)}}`}</style>
+                </div>
+              ) : printModal.error ? (
+                <div style={{ padding: 30, textAlign: 'center', color: '#c0392b', fontSize: 15, fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.7 }}>
+                  ⚠️ {printModal.error}
+                </div>
+              ) : printModal.src ? (
+                <>
+                  {printModal.warning && (
+                    <div style={{ margin: 12, padding: '11px 14px', borderRadius: 10, background: 'rgba(240,168,104,0.12)', border: '1px solid rgba(240,168,104,0.35)', color: '#F0A868', fontSize: 12.5, fontWeight: 600, lineHeight: 1.7 }}>
+                      ⚠️ {printModal.warning}
+                    </div>
+                  )}
+                  <iframe
+                    id="alfhd-print-frame"
+                    src={printModal.src}
+                    title="باركود"
+                    style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
+                  />
+                </>
+              ) : null}
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -3659,6 +4347,7 @@ function ClickableStat({ icon: Icon, label, value, color, active, onClick }) {
 }
 
 function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery, onReprep, onContactCustomer }) {
+  const [copied, setCopied] = useState(false);
   const o = order;
   const [reprepMode, setReprepMode] = useState(false);
   const [reprepNote, setReprepNote] = useState('');
@@ -3668,7 +4357,33 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
       <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalHeader}>
           <h3 style={styles.modalTitle}>تفاصيل الطلب #{o.orderNo}</h3>
-          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => {
+                const info = [
+                  `طلب #${o.orderNo}`,
+                  o.customer ? `الاسم: ${o.customer}` : '',
+                  o.phone ? `الهاتف: ${o.phone}` : '',
+                  o.governorateName ? `المحافظة: ${o.governorateName}` : '',
+                  o.area ? `المنطقة: ${o.area}` : '',
+                  o.address ? `العنوان: ${o.address}` : '',
+                  o.orderType ? `نوع الطلب: ${o.orderType}` : '',
+                  o.items ? `المنتجات: ${o.items}` : '',
+                  o.total ? `المبلغ: ${Number(o.total).toLocaleString()} د.ع` : '',
+                ].filter(Boolean).join('\n');
+                try {
+                  navigator.clipboard.writeText(info);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                } catch (_e) { alert('تعذّر النسخ'); }
+              }}
+              title="نسخ معلومات الطلب"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 9, background: copied ? 'rgba(77,219,107,0.15)' : 'rgba(42,171,238,0.12)', border: `1px solid ${copied ? 'rgba(77,219,107,0.4)' : 'rgba(42,171,238,0.3)'}`, color: copied ? '#4DDB6B' : '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              {copied ? <><CheckCircle2 size={14} /> نُسخت</> : <><Copy size={14} /> نسخ</>}
+            </button>
+            <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
+          </div>
         </div>
         <div style={styles.modalBody}>
           {isRejected && (
@@ -3686,7 +4401,23 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
           <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العميل</span><span style={styles.detailGridValue}>{o.customer}</span></div>
           {page && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الصفحة</span><span style={styles.detailGridValue}>{page.avatar} {page.name}</span></div>}
           {o.orderType && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>نوع الطلب</span><span style={styles.detailGridValue}>{o.orderType}</span></div>}
-          {o.phone && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الهاتف</span><span style={styles.detailGridValue}>{o.phone}</span></div>}
+          {o.phone && (
+            <div style={styles.detailGridRow}>
+              <span style={styles.detailGridLabel}>الهاتف</span>
+              <span style={{ ...styles.detailGridValue, display: 'flex', alignItems: 'center', gap: 8, direction: 'ltr' }}>
+                <a
+                  href={`https://wa.me/964${normalizeIraqiPhoneStatic(o.phone).replace(/^0/, '')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="فتح محادثة واتساب"
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 7, background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.35)', flexShrink: 0 }}
+                >
+                  <MessageCircle size={14} color="#25D366" />
+                </a>
+                <span>{o.phone}</span>
+              </span>
+            </div>
+          )}
           {o.governorateName && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المحافظة</span><span style={styles.detailGridValue}>{o.governorateName}</span></div>}
           {o.area && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المنطقة</span><span style={styles.detailGridValue}>{o.area}</span></div>}
           {o.address && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العنوان</span><span style={styles.detailGridValue}>{o.address}</span></div>}
@@ -4194,18 +4925,28 @@ function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
   async function reprintSelected() {
     const ids = [...selected];
     if (ids.length === 0) { alert('حدّد طلباً واحداً على الأقل'); return; }
-    const batchId = `batch-${Date.now()}`;
-    const printedAt = new Date().toISOString();
-    // أعدها لمرحلة التجهيز بدفعة طباعة جديدة
-    setOrders((prev) => prev.map((o) => (
-      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
-    )));
+    const selectedOrders = orders.filter((o) => ids.includes(o.id));
+    const valid = selectedOrders.filter((o) => o.orderNo || o.jenniShipmentId);
+    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة من شركة التوصيل'); return; }
     try {
-      await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
-        printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
-      })));
-    } catch (e) { console.error('reprint neglected error:', e); }
-    setTimeout(() => window.print(), 80);
+      const shipmentIds = valid.map((o) => o.jenniShipmentId).filter(Boolean);
+      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/jenni-stickers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify(shipmentIds.length ? { shipment_ids: shipmentIds } : { shipment_numbers: shipmentNumbers }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) { alert(`تعذّر جلب الباركود: ${data.error || 'غير متاح'}`); return; }
+      let body = '';
+      if (data.type === 'pdf_base64' && data.data) body = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
+      else if (data.type === 'url' && data.url) body = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
+      else { alert('الباركود غير متاح'); return; }
+      const win = window.open('', '_blank');
+      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب'); return; }
+      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>إعادة طباعة</title><style>body{margin:0;padding:14px;font-family:Cairo,Arial}@media print{.np{display:none}}</style></head><body><button class="np" onclick="window.print()" style="padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length}</button>${body}</body></html>`);
+      win.document.close();
+    } catch (e) { alert(`خطأ: ${e.message}`); }
     setSelected(new Set());
   }
 
@@ -4389,37 +5130,88 @@ function PagesView({ pages, setPages }) {
     }
   };
 
-  // ── إعدادات واتساب للصفحة ──
+  // ── ربط واتساب للصفحة عبر كود الربط (Pairing Code) ──
   const [waSettingsPage, setWaSettingsPage] = useState(null);
   const [waPhoneInput, setWaPhoneInput] = useState('');
-  const [waTokenInput, setWaTokenInput] = useState('');
   const [savingWa, setSavingWa] = useState(false);
+  const [waPairCode, setWaPairCode] = useState('');       // الكود المعروض للمستخدم
+  const [waPairStatus, setWaPairStatus] = useState('');   // رسالة الحالة
+  const waPollRef = React.useRef(null);
 
-  async function saveWaSettings() {
+  // اطلب كود الربط من الـ Bridge
+  async function requestWaPairing() {
     if (!waSettingsPage) return;
-    if (!waPhoneInput.trim()) { alert('أدخل Phone Number ID'); return; }
-    if (!waTokenInput.trim()) { alert('أدخل WhatsApp Token'); return; }
+    const phone = arabicToEnglishDigits(waPhoneInput).replace(/[^0-9]/g, '');
+    if (phone.length < 10) { alert('أدخل رقم هاتف صحيح مع رمز الدولة (مثال: 9647701234567)'); return; }
     setSavingWa(true);
+    setWaPairCode('');
+    setWaPairStatus('جارٍ توليد كود الربط...');
     try {
-      await sbUpdate('alfhd_pages', waSettingsPage.id, {
-        wa_phone_number_id: waPhoneInput.trim(),
-        wa_token: waTokenInput.trim(),
+      const res = await fetch(`${WA_BRIDGE_URL}/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: waSettingsPage.id, phone }),
       });
-      setPages((prev) => prev.map((p) => p.id === waSettingsPage.id ? {
-        ...p, waPhoneNumberId: waPhoneInput.trim(), waToken: waTokenInput.trim(), waConnected: true,
-      } : p));
-      setWaSettingsPage(null);
-      alert('✅ تم ربط واتساب بنجاح!');
-    } catch (e) { alert('فشل الحفظ: ' + e.message); }
-    finally { setSavingWa(false); }
+      const data = await res.json().catch(() => ({}));
+      if (data.alreadyConnected) {
+        await markWaConnected(waSettingsPage.id, phone);
+        setWaPairStatus('✅ واتساب مربوط بالفعل!');
+        return;
+      }
+      if (data.pairingCode) {
+        setWaPairCode(data.pairingCode);
+        setWaPairStatus('أدخل هذا الكود في واتساب خلال دقيقتين');
+        startWaStatusPolling(waSettingsPage.id, phone);
+      } else {
+        setWaPairStatus(`تعذّر توليد الكود: ${data.error || 'حاول مجدداً'}`);
+      }
+    } catch (e) {
+      setWaPairStatus(`خطأ بالاتصال: ${e.message}`);
+    } finally {
+      setSavingWa(false);
+    }
   }
 
-  async function removeWaSettings(pageId) {
-    if (!window.confirm('هل تريد إلغاء ربط واتساب؟')) return;
+  // راقب حالة الربط حتى يكتمل
+  function startWaStatusPolling(pageId, phone) {
+    if (waPollRef.current) clearInterval(waPollRef.current);
+    let tries = 0;
+    waPollRef.current = setInterval(async () => {
+      tries++;
+      if (tries > 60) { clearInterval(waPollRef.current); setWaPairStatus('انتهت المهلة، حاول مجدداً'); return; }
+      try {
+        const r = await fetch(`${WA_BRIDGE_URL}/status/${pageId}`);
+        const d = await r.json().catch(() => ({}));
+        if (d.connected) {
+          clearInterval(waPollRef.current);
+          await markWaConnected(pageId, d.phone || phone);
+          setWaPairCode('');
+          setWaPairStatus('✅ تم الربط بنجاح!');
+          setTimeout(() => { setWaSettingsPage(null); setWaPairStatus(''); }, 1500);
+        }
+      } catch (_e) { /* تجاهل */ }
+    }, 2000);
+  }
+
+  async function markWaConnected(pageId, phone) {
     try {
-      await sbUpdate('alfhd_pages', pageId, { wa_phone_number_id: null, wa_token: null });
-      setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhoneNumberId: null, waToken: null, waConnected: false } : p));
-    } catch (e) { alert('فشل: ' + e.message); }
+      await sbUpdate('alfhd_pages', pageId, { wa_phone: phone, wa_connected: true });
+    } catch (_e) { /* العمود قد لا يكون موجوداً، لا يؤثر على الربط الفعلي */ }
+    setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhone: phone, waConnected: true } : p));
+  }
+
+  React.useEffect(() => () => { if (waPollRef.current) clearInterval(waPollRef.current); }, []);
+
+  async function removeWaSettings(pageId) {
+    if (!window.confirm('هل تريد إلغاء ربط واتساب من هذه الصفحة؟')) return;
+    try {
+      await fetch(`${WA_BRIDGE_URL}/unpair`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId }),
+      });
+    } catch (_e) { /* تجاهل */ }
+    try { await sbUpdate('alfhd_pages', pageId, { wa_phone: null, wa_connected: false }); } catch (_e) {}
+    setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhone: null, waConnected: false } : p));
   }
 
   const subscribePage = async (pageId) => {
@@ -4512,7 +5304,7 @@ function PagesView({ pages, setPages }) {
               padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
             }}>
               {c.avatar
-                ? <img src={c.avatar} alt="" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ? <img src={c.avatar} alt="" onError={(e)=>{e.target.style.display='none';}} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Facebook size={20} color="#fff" /></div>
               }
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -4684,63 +5476,74 @@ function PagesView({ pages, setPages }) {
 
       {/* ── موديل إعدادات واتساب ── */}
       {waSettingsPage && (
-        <div style={styles.modalOverlay} onClick={() => setWaSettingsPage(null)}>
+        <div style={styles.modalOverlay} onClick={() => { setWaSettingsPage(null); setWaPairCode(''); setWaPairStatus(''); }}>
           <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
                 <span style={{ color: '#25D366', marginLeft: 6 }}>●</span>
                 ربط واتساب — {waSettingsPage.name}
               </h3>
-              <button onClick={() => setWaSettingsPage(null)} style={styles.modalClose}><X size={18} /></button>
+              <button onClick={() => { setWaSettingsPage(null); setWaPairCode(''); setWaPairStatus(''); }} style={styles.modalClose}><X size={18} /></button>
             </div>
             <div style={styles.modalBody}>
-              <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.20)', borderRadius: 10, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: '#25D366', lineHeight: 1.7 }}>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>كيف أحصل على هذه المعلومات؟</div>
-                <div>١. افتح developers.facebook.com ← تطبيقك ALfhd-app</div>
-                <div>٢. واتساب ← إعداد واجهة API</div>
-                <div>٣. انسخ <b>معرف رقم الهاتف</b> و<b>رمز الوصول</b></div>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Phone Number ID <span style={{ color: '#F25050', fontWeight: 800 }}>*</span>
-                </label>
-                <input value={waPhoneInput} onChange={(e) => setWaPhoneInput(e.target.value)}
-                  style={{ ...styles.formInput, fontFamily: 'monospace', direction: 'ltr' }}
-                  placeholder="مثال: 1187286511134496" />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  رمز الوصول (Access Token) <span style={{ color: '#F25050', fontWeight: 800 }}>*</span>
-                </label>
-                <textarea value={waTokenInput} onChange={(e) => setWaTokenInput(e.target.value)}
-                  style={{ ...styles.formInput, fontFamily: 'monospace', direction: 'ltr', minHeight: 80, resize: 'vertical', fontSize: 10 }}
-                  placeholder="EAAOXwA1p2Z..." />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Webhook URL للواتساب (انسخه لـ Meta)</label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input readOnly value={`${SUPABASE_URL}/functions/v1/wa-webhook`}
-                    style={{ ...styles.formInput, fontFamily: 'monospace', fontSize: 10, direction: 'ltr', flex: 1, color: '#2AABEE' }} />
-                  <button onClick={() => navigator.clipboard?.writeText(`${SUPABASE_URL}/functions/v1/wa-webhook`)}
-                    style={{ padding: '8px 12px', background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.22)', borderRadius: 8, color: '#2AABEE', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                    نسخ
+              {/* إذا مربوط مسبقاً */}
+              {waSettingsPage.waConnected ? (
+                <>
+                  <div style={{ background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.25)', borderRadius: 12, padding: '16px', textAlign: 'center', marginBottom: 14 }}>
+                    <div style={{ fontSize: 32, marginBottom: 6 }}>✅</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#25D366' }}>واتساب مربوط بنجاح</div>
+                    {waSettingsPage.waPhone && <div style={{ fontSize: 12, color: '#9FB0C3', marginTop: 4, direction: 'ltr' }}>+{waSettingsPage.waPhone}</div>}
+                  </div>
+                  <button onClick={() => { removeWaSettings(waSettingsPage.id); setWaSettingsPage(null); }}
+                    style={{ width: '100%', padding: '11px', background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', borderRadius: 10, color: '#F25050', fontSize: 13, fontWeight: 700 }}>
+                    إلغاء ربط واتساب
                   </button>
-                </div>
-              </div>
-              {waSettingsPage.waConnected && (
-                <button onClick={() => { removeWaSettings(waSettingsPage.id); setWaSettingsPage(null); }}
-                  style={{ width: '100%', padding: '8px', background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.22)', borderRadius: 9, color: '#F25050', fontSize: 12, fontWeight: 700 }}>
-                  إلغاء ربط واتساب من هذه الصفحة
-                </button>
+                </>
+              ) : waPairCode ? (
+                /* عرض كود الربط */
+                <>
+                  <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.2)', borderRadius: 12, padding: '18px', textAlign: 'center', marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, color: '#9FB0C3', marginBottom: 10 }}>أدخل هذا الكود في واتساب على هاتفك</div>
+                    <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: 6, color: '#25D366', fontFamily: 'monospace', direction: 'ltr' }}>
+                      {waPairCode}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#9FB0C3', lineHeight: 1.9, background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700, color: '#EAF0F7', marginBottom: 6 }}>الخطوات على هاتفك:</div>
+                    <div>١. افتح واتساب ← الإعدادات</div>
+                    <div>٢. الأجهزة المرتبطة ← ربط جهاز</div>
+                    <div>٣. اضغط "الربط برقم الهاتف بدلاً من ذلك"</div>
+                    <div>٤. أدخل الكود أعلاه</div>
+                  </div>
+                  {waPairStatus && <div style={{ fontSize: 12, color: '#2AABEE', textAlign: 'center', marginTop: 12, fontWeight: 600 }}>{waPairStatus}</div>}
+                </>
+              ) : (
+                /* إدخال الرقم */
+                <>
+                  <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.20)', borderRadius: 10, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: '#25D366', lineHeight: 1.7 }}>
+                    أدخل رقم واتساب الخاص بهذه الصفحة مع رمز الدولة، وسيظهر لك كود تُدخله في تطبيق واتساب لربط الصفحة.
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      رقم واتساب (مع رمز الدولة) <span style={{ color: '#F25050', fontWeight: 800 }}>*</span>
+                    </label>
+                    <input value={waPhoneInput} onChange={(e) => setWaPhoneInput(arabicToEnglishDigits(e.target.value))}
+                      style={{ ...styles.formInput, fontFamily: 'monospace', direction: 'ltr' }}
+                      placeholder="مثال: 9647701234567" inputMode="numeric" />
+                  </div>
+                  {waPairStatus && <div style={{ fontSize: 12, color: '#F0A868', textAlign: 'center', marginTop: 8 }}>{waPairStatus}</div>}
+                </>
               )}
             </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setWaSettingsPage(null)} style={styles.modalCancelBtn}>إلغاء</button>
-              <button onClick={saveWaSettings} disabled={savingWa}
-                style={{ ...styles.modalSaveBtn, background: 'linear-gradient(135deg,#25D366,#128C7E)' }}>
-                {savingWa ? 'جارٍ الحفظ...' : '✓ حفظ وربط واتساب'}
-              </button>
-            </div>
+            {!waSettingsPage.waConnected && !waPairCode && (
+              <div style={styles.modalFooter}>
+                <button onClick={() => setWaSettingsPage(null)} style={styles.modalCancelBtn}>إلغاء</button>
+                <button onClick={requestWaPairing} disabled={savingWa}
+                  style={{ ...styles.modalSaveBtn, background: 'linear-gradient(135deg,#25D366,#128C7E)' }}>
+                  {savingWa ? 'جارٍ التوليد...' : 'توليد كود الربط'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -4764,7 +5567,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
   const [adminTab, setAdminTab] = useState('managers'); // managers | warehouse | fulfillment
   const [showAdd, setShowAdd] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+  const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -4772,15 +5575,15 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
   const warehouse = users.filter((u) => u.role === 'warehouse');
 
   const openAddManager = () => {
-    setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+    setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
     setEditingUser(null); setFormError(''); setShowAdd(true);
   };
   const openAddWarehouse = () => {
-    setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '' });
+    setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
     setEditingUser(null); setFormError(''); setShowAdd(true);
   };
   const openEdit = (user) => {
-    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '' });
+    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '', isolated: !!user.workspaceId });
     setEditingUser(user); setFormError(''); setShowAdd(true);
   };
 
@@ -4807,11 +5610,20 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
         job_title: form.jobTitle || null, whatsapp: form.whatsapp || null,
       };
       if (editingUser) {
+        // عند التعديل: لا نغيّر workspace_id الموجود (لتفادي فقدان بيانات مساحته)
         const [updated] = await sbUpdate('alfhd_users', editingUser.id, payload);
         setUsers((prev) => prev.map((u) => u.id === editingUser.id ? mapUserFromDb(updated) : u));
       } else {
         const [created] = await sbInsert('alfhd_users', { ...payload, active: true });
-        setUsers((prev) => [...prev, mapUserFromDb(created)]);
+        // مساحة مستقلة: workspace_id = معرّف المستخدم نفسه (تُحفظ بعد الإنشاء للحصول على id)
+        if (form.isolated && created?.id) {
+          try {
+            const [withWs] = await sbUpdate('alfhd_users', created.id, { workspace_id: created.id });
+            setUsers((prev) => [...prev, mapUserFromDb(withWs || created)]);
+          } catch (_e) { setUsers((prev) => [...prev, mapUserFromDb(created)]); }
+        } else {
+          setUsers((prev) => [...prev, mapUserFromDb(created)]);
+        }
       }
       setShowAdd(false);
     } catch (e) {
@@ -4956,7 +5768,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
                   </div>
                   <div style={styles.formGroup}>
                     <label style={styles.formLabel}>رقم واتساب</label>
-                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} style={styles.formInput} placeholder="07XXXXXXXXX" />
+                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: arabicToEnglishDigits(e.target.value) })} style={styles.formInput} placeholder="07XXXXXXXXX" />
                   </div>
                 </>
               )}
@@ -5000,6 +5812,26 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
                 <div style={styles.warehouseNote}>
                   <AlertCircle size={14} color="#F0A868" />
                   <span>موظف التجهيز يرى فقط الطلبات المثبتة من كل الصفحات، ويعلّمها "تم التجهيز" أو "لم يتم" بدون صلاحية تعديل أو حذف.</span>
+                </div>
+              )}
+
+              {/* خيار المساحة المستقلة — فقط عند إضافة موظف جديد (غير التجهيز) */}
+              {!editingUser && form.role !== 'warehouse' && (
+                <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 12, padding: '12px 14px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.isolated} onChange={(e) => setForm({ ...form, isolated: e.target.checked })} style={{ ...styles.checkbox, marginTop: 2 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#A78BFA' }}>مساحة مستقلة خاصة 🔒</div>
+                      <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3, lineHeight: 1.7 }}>
+                        يحصل هذا الموظف على مساحة معزولة تماماً: صفحاته ومخزنه وطلباته ومحادثاته خاصة به فقط، لا يراها أحد ولا يرى بيانات الآخرين. يبدأ من الصفر ويشتغل بحرية كاملة.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              )}
+              {!editingUser && form.isolated && form.role !== 'warehouse' && (
+                <div style={{ fontSize: 11, color: '#F0A868', padding: '0 4px', lineHeight: 1.6 }}>
+                  ⚠️ لا يمكن تغيير هذا الخيار بعد الإنشاء.
                 </div>
               )}
 
@@ -5133,6 +5965,7 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
           );
         })}
       </div>
+
     </div>
   );
 }
@@ -5149,10 +5982,22 @@ function PrepWorkerView({ currentUser, onLogout }) {
   // جلب الطلبات المثبتة التي تحتاج تجهيز (غير مُجهّزة بعد)
   const loadOrders = useCallback(async () => {
     try {
-      const rows = await sbSelect('alfhd_orders', '&order=created_at.desc&limit=300');
+      const rows = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc&limit=300');
       if (!rows) return;
-      const mapped = rows.map(mapOrderFromDb)
+      let mapped = rows.map(mapOrderFromDb)
         .filter((o) => o.converted !== true && o.stage !== 'delivery' && o.prepStatus !== 'done');
+      // حماية: أزِل أي طلبات مكررة (نفس source_message_id أو نفس id) من العرض
+      const seenIds = new Set();
+      const seenMsg = new Set();
+      mapped = mapped.filter((o) => {
+        if (seenIds.has(o.id)) return false;
+        seenIds.add(o.id);
+        if (o.sourceMessageId) {
+          if (seenMsg.has(o.sourceMessageId)) return false;
+          seenMsg.add(o.sourceMessageId);
+        }
+        return true;
+      });
       // إشعار صوتي عند وصول طلب جديد للتجهيز
       if (knownIdsRef.current.size > 0) {
         const isNew = mapped.some((o) => !knownIdsRef.current.has(o.id) && o.prepStatus !== 'rejected');
@@ -5179,6 +6024,27 @@ function PrepWorkerView({ currentUser, onLogout }) {
     try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
     setOrders((prev) => prev.filter((x) => x.id !== o.id));
     setBusyId(null);
+  }
+
+  // استلام الطلب: يعلّمه "قيد التجهيز" باسم الموظف ليراه الباقون
+  async function claimOrder(o) {
+    // إن كان مستلماً من موظف آخر، لا نسمح بالاستلام (إلا إن كان نفس الموظف)
+    if (o.prepStatus === 'claiming' && o.prepBy && o.prepBy !== currentUser.id) {
+      return; // محجوز من غيره
+    }
+    // إن كان مستلماً مني، ألغِ الاستلام (toggle)
+    const isMine = o.prepStatus === 'claiming' && o.prepBy === currentUser.id;
+    const patch = isMine
+      ? { prep_status: null, prep_by: null, prep_by_name: null, prep_at: null }
+      : { prep_status: 'claiming', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
+    // تحديث فوري بالواجهة
+    setOrders((prev) => prev.map((x) => x.id === o.id ? {
+      ...x,
+      prepStatus: patch.prep_status,
+      prepBy: patch.prep_by,
+      prepByName: patch.prep_by_name,
+    } : x));
+    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
   }
 
   async function confirmReject() {
@@ -5233,12 +6099,42 @@ function PrepWorkerView({ currentUser, onLogout }) {
               <div style={styles.emptyState}><CheckCircle2 size={34} color="#4DDB6B" /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
             )}
             <div style={styles.ordersGrid}>
-              {pending.map((o, i) => (
-                <div key={o.id} style={{ ...styles.orderCard, animationDelay: `${Math.min(i * 0.04, 0.4)}s` }} className="alfhd-order-card alfhd-card-enter">
-                  <div style={{ height: 3, background: '#F0A868', width: '100%' }} />
+              {pending.map((o, i) => {
+                const claimed = o.prepStatus === 'claiming';
+                const claimedByMe = claimed && o.prepBy === currentUser.id;
+                const claimedByOther = claimed && o.prepBy && o.prepBy !== currentUser.id;
+                // لون الشريط العلوي حسب الحالة
+                const topColor = claimedByMe ? '#2AABEE' : claimedByOther ? '#A78BFA' : '#F0A868';
+                return (
+                <div key={o.id} style={{
+                  ...styles.orderCard,
+                  animationDelay: `${Math.min(i * 0.04, 0.4)}s`,
+                  opacity: claimedByOther ? 0.72 : 1,
+                  border: claimedByMe ? '1.5px solid rgba(42,171,238,0.5)' : claimedByOther ? '1px solid rgba(167,139,250,0.3)' : undefined,
+                  background: claimedByMe ? 'rgba(42,171,238,0.04)' : claimedByOther ? 'rgba(167,139,250,0.03)' : undefined,
+                }} className="alfhd-order-card alfhd-card-enter">
+                  <div style={{ height: 3, background: topColor, width: '100%' }} />
                   <div style={{ padding: 14 }}>
-                    {/* رأس الطلب */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    {/* شارة قيد التجهيز من قبل موظف */}
+                    {claimed && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+                        padding: '7px 11px', borderRadius: 9,
+                        background: claimedByMe ? 'rgba(42,171,238,0.12)' : 'rgba(167,139,250,0.12)',
+                        border: `1px solid ${claimedByMe ? 'rgba(42,171,238,0.3)' : 'rgba(167,139,250,0.3)'}`,
+                      }}>
+                        <Package size={13} color={claimedByMe ? '#2AABEE' : '#A78BFA'} />
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: claimedByMe ? '#2AABEE' : '#A78BFA' }}>
+                          {claimedByMe ? '🔧 قيد التجهيز عندك' : `🔒 قيد التجهيز من قبل ${o.prepByName || 'موظف آخر'}`}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* رأس الطلب — الضغط عليه يستلم/يلغي الاستلام */}
+                    <div
+                      onClick={() => !claimedByOther && claimOrder(o)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: claimedByOther ? 'not-allowed' : 'pointer' }}
+                    >
                       <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <Package size={19} color="#2AABEE" />
                       </div>
@@ -5246,6 +6142,9 @@ function PrepWorkerView({ currentUser, onLogout }) {
                         <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11.5, color: '#5E6986' }}>#{o.orderNo}</span></div>
                         <div style={{ fontSize: 11.5, color: '#9FB0C3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
                       </div>
+                      {!claimed && (
+                        <div style={{ fontSize: 10, color: '#546880', fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>اضغط<br/>للاستلام</div>
+                      )}
                     </div>
 
                     {/* المنتجات (بدون سعر) */}
@@ -5267,20 +6166,21 @@ function PrepWorkerView({ currentUser, onLogout }) {
                       </div>
                     )}
 
-                    {/* أزرار تم / لم يتم */}
+                    {/* أزرار تم / لم يتم — معطّلة إن كان الطلب محجوزاً من موظف آخر */}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => markDone(o)} disabled={busyId === o.id}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: busyId === o.id ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <button onClick={() => markDone(o)} disabled={busyId === o.id || claimedByOther}
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: (busyId === o.id || claimedByOther) ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                         <CheckCircle2 size={16} /> تم التجهيز
                       </button>
-                      <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', color: '#F25050', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id || claimedByOther}
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', color: '#F25050', fontSize: 13.5, fontWeight: 800, cursor: claimedByOther ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                         <XCircle size={16} /> لم يتم
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </main>
@@ -5388,11 +6288,17 @@ export default function AlFhdApp() {
   const [warehouseProducts, setWarehouseProducts] = useState([]);
   // مرجع حيّ لمنتجات المخزن — يمنع stale closure عند الاستدعاء من refreshOrders
   const warehouseProductsRef = React.useRef([]);
+  const recordedSalesRef = React.useRef(null); // حماية ضد تسجيل بيعة المخزن مرتين
   useEffect(() => { warehouseProductsRef.current = warehouseProducts; }, [warehouseProducts]);
 
   // ── تسجيل بيعة في المخزن تلقائياً ──
   async function recordWarehouseSale(order) {
     try {
+      // حماية ضد التسجيل المزدوج: تحقق إن لم تُسجّل بيعة لهذا الطلب سابقاً
+      if (!recordedSalesRef.current) recordedSalesRef.current = new Set();
+      if (recordedSalesRef.current.has(order.id)) return;
+      recordedSalesRef.current.add(order.id);
+
       // ابحث عن أفضل منتج مطابق
       const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
       if (!match) {
@@ -5401,6 +6307,11 @@ export default function AlFhdApp() {
       }
 
       const { product, confidence } = match;
+      // لا نخصم من المخزن إذا كانت الثقة منخفضة (قد يكون منتج خطأ)
+      if (confidence === 'low') {
+        console.warn('⚠️ ثقة المطابقة منخفضة — لن يُخصم من المخزن:', order.orderNo);
+        return;
+      }
       console.log(`✅ مطابقة المخزن: ${product.car_name} (${PRODUCT_TYPE_LABELS[product.type]}) — ثقة: ${confidence}`);
 
       // تسجيل البيعة في المخزن
@@ -5455,7 +6366,7 @@ export default function AlFhdApp() {
   useEffect(() => {
     async function loadWarehouseProducts() {
       try {
-        const res = await sbSelect('wh_products', '&order=car_name.asc');
+        const res = await sbSelect('wh_products', wsFilter() + '&order=car_name.asc');
         if (res) setWarehouseProducts(res);
       } catch (e) { console.warn('warehouse load error:', e); }
     }
@@ -5488,7 +6399,7 @@ export default function AlFhdApp() {
     try {
       const dbConversations = await sbSelect(
         'alfhd_conversations',
-        '&order=last_message_time.desc'
+        wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc'
       );
       if (dbConversations) {
         const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
@@ -5543,7 +6454,7 @@ export default function AlFhdApp() {
 
   const refreshOrders = useCallback(async () => {
     try {
-      const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
+      const dbOrders = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc');
       if (!dbOrders) return;
       const mapped = dbOrders.map(mapOrderFromDb);
       // كشف طلب جديد مثبّت من المحادثات لتشغيل صوت الإشعار
@@ -5672,8 +6583,8 @@ export default function AlFhdApp() {
     (async () => {
       try {
         const [dbPages, dbOrders, dbUsers] = await Promise.all([
-          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at', '&order=created_at.asc'),
-          sbSelect('alfhd_orders', '&order=created_at.desc'),
+          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at,workspace_id', wsFilter() + '&order=created_at.asc'),
+          sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc'),
           sbSelect('alfhd_users', '&order=created_at.asc'),
         ]);
 
@@ -5728,6 +6639,7 @@ export default function AlFhdApp() {
       if (saved?.userId) {
         const found = users.find((u) => u.id === saved.userId && u.active);
         if (found) {
+          setCurrentWorkspace(found?.workspaceId || null);
           setAuthedUser(found);
           const store = localStorage.getItem('alfhd_session') ? localStorage : sessionStorage;
           store.setItem('alfhd_session', JSON.stringify({ userId: found.id, userData: found }));
@@ -5744,6 +6656,7 @@ export default function AlFhdApp() {
 
   const handleLogin = (user, rememberMe = true) => {
     ensureAudioReady();
+    setCurrentWorkspace(user?.workspaceId || null); // عزل بيانات المساحة المستقلة
     setAuthedUser(user);
     setAppLoading(false);
     try {
@@ -5813,8 +6726,8 @@ export default function AlFhdApp() {
     <ErrorBoundary>
     <>
       <GlobalStyles />
-      {/* ── جرس الإشعارات العائم ── */}
-      <div style={{ position: 'fixed', top: 12, left: 12, zIndex: 9999 }} className="alfhd-no-print">
+      {/* ── جرس الإشعارات العائم (أسفل يمين — فوق شريط التنقل، لا يعارض شيء) ── */}
+      <div style={{ position: 'fixed', bottom: 76, right: 14, zIndex: 90 }} className="alfhd-no-print">
         <button
           onClick={() => {
             setShowNotifications((v) => !v);
@@ -5842,7 +6755,7 @@ export default function AlFhdApp() {
 
         {showNotifications && (
           <div style={{
-            position: 'absolute', top: 50, left: 0, width: 320, maxHeight: 420, overflowY: 'auto',
+            position: 'absolute', bottom: 52, right: 0, width: 320, maxHeight: 420, overflowY: 'auto',
             background: '#17212B', border: '1px solid rgba(42,171,238,0.25)', borderRadius: 14,
             boxShadow: '0 12px 36px rgba(0,0,0,0.6)', padding: 8,
           }}>
@@ -6053,20 +6966,61 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
   const [modal,setModal]=useState(false);
   const [carModal,setCarModal]=useState(false);
   const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});
+  const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:'',image_url:''});
   const [carForm,setCarForm]=useState({name:''});
   const [saving,setSaving]=useState(false);
+  const [imgUploading,setImgUploading]=useState(false);
+  const [newCarMode,setNewCarMode]=useState(false);
+  const [whMenu,setWhMenu]=useState(false);
+  const [locSearchModal,setLocSearchModal]=useState(false);
+  const [locSearch,setLocSearch]=useState('');
+  const whImportRef=React.useRef(null);
+  const whMenuItem={display:'block',width:'100%',textAlign:'right',padding:'10px 12px',background:'transparent',border:'none',borderRadius:8,color:'#EAF0F7',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'};
   const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
-  function openNew(){setEditing(null);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});setModal(true);}
-  function openEdit(p){setEditing(p);setForm({...p});setModal(true);}
+  function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',branch:'',shelf:'',notes:'',image_url:''});setModal(true);}
+  function openEdit(p){
+    setEditing(p);setNewCarMode(false);
+    // فكّ الموقع المحفوظ "فرع X - رف Y" إلى حقلين
+    let branch='',shelf='';
+    const loc=p.location||'';
+    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
+    if(bm)branch=bm[1].trim();if(sm)shelf=sm[1].trim();
+    setForm({car_name:p.car_name||'',type:p.type||'mother_dosah',quantity:p.quantity||0,cost_iqd:p.cost_iqd||0,price_iqd:p.price_iqd||0,location:loc,branch,shelf,notes:p.notes||'',image_url:p.image_url||''});setModal(true);
+  }
+  // ضغط الصورة لـ base64 وتخزينها مع المنتج
+  function handlePickImage(e){
+    const file=e.target.files?.[0]; if(!file)return;
+    setImgUploading(true);
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new window.Image();
+      img.onload=()=>{
+        const canvas=document.createElement('canvas');
+        const max=600; let{width,height}=img;
+        if(width>height&&width>max){height=height*max/width;width=max;}
+        else if(height>max){width=width*max/height;height=max;}
+        canvas.width=width;canvas.height=height;
+        canvas.getContext('2d').drawImage(img,0,0,width,height);
+        setForm(f=>({...f,image_url:canvas.toDataURL('image/jpeg',0.7)}));
+        setImgUploading(false);
+      };
+      img.onerror=()=>{setImgUploading(false);alert('تعذّر قراءة الصورة');};
+      img.src=reader.result;
+    };
+    reader.onerror=()=>{setImgUploading(false);};
+    reader.readAsDataURL(file);
+  }
   async function save(){
     if(!form.car_name.trim()){alert('أدخل اسم السيارة');return;}
     setSaving(true);
+    // أرسل الحقول الصالحة فقط (بدون id/created_at لتجنّب أخطاء التحديث)
+    const locClean=(form.branch||form.shelf)?`فرع ${form.branch||''} - رف ${form.shelf||''}`.trim():'';
+    const clean={car_name:form.car_name.trim(),type:form.type,quantity:Number(form.quantity)||0,cost_iqd:Number(form.cost_iqd)||0,price_iqd:Number(form.price_iqd)||0,location:locClean,notes:form.notes||'',image_url:form.image_url||''};
     try{
-      if(editing){await sbU('wh_products',editing.id,form);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...form}:p));}
-      else{const r=await sbI('wh_products',{...form,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
+      if(editing){await sbU('wh_products',editing.id,clean);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...clean}:p));}
+      else{const r=await sbI('wh_products',{...clean,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
       setModal(false);
-    }catch(e){alert('فشل: '+e.message);}
+    }catch(e){alert('فشل الحفظ: '+e.message);}
     setSaving(false);
   }
   async function addCar(){
@@ -6081,18 +7035,72 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
     }catch(e){alert('فشل: '+e.message);}
     setSaving(false);
   }
-  async function del(id){if(!confirm('حذف هذا المنتج؟'))return;await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}
+  async function del(id){if(!confirm('حذف هذا المنتج؟'))return;try{await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}catch(e){alert('فشل الحذف: '+e.message+'\n\nقد تحتاج تفعيل صلاحية الحذف في قاعدة البيانات.');}}
+
+  // تصدير كل المنتجات كملف CSV
+  function exportProducts(){
+    if(products.length===0){alert('لا توجد منتجات للتصدير');return;}
+    const cols=['car_name','type','quantity','cost_iqd','price_iqd','location','notes'];
+    const header=['اسم السيارة','النوع','الكمية','التكلفة','السعر','الموقع','ملاحظات'];
+    const esc=(v)=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+    const rows=products.map(p=>cols.map(c=>esc(p[c])).join(','));
+    const csv='\uFEFF'+[header.join(','),...rows].join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`منتجات-المخزن-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  // استيراد منتجات من ملف CSV
+  async function importProducts(e){
+    const file=e.target.files?.[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=async()=>{
+      try{
+        const text=String(reader.result).replace(/^\uFEFF/,'');
+        const lines=text.split(/\r?\n/).filter(l=>l.trim());
+        if(lines.length<2){alert('الملف فارغ أو لا يحتوي بيانات');return;}
+        // تجاهل صف العناوين، استورد الباقي
+        const parseLine=(line)=>{const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===','&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out;};
+        const typeIds=WH_PRODUCT_TYPES.map(t=>t.id);
+        let added=0;
+        for(let i=1;i<lines.length;i++){
+          const c=parseLine(lines[i]);
+          if(!c[0]?.trim())continue;
+          const rec={car_name:c[0].trim(),type:typeIds.includes(c[1]?.trim())?c[1].trim():'mother_dosah',quantity:Number(c[2])||0,cost_iqd:Number(c[3])||0,price_iqd:Number(c[4])||0,location:c[5]||'',notes:c[6]||'',created_at:new Date().toISOString()};
+          const r=await sbI('wh_products',rec);
+          if(r?.[0]){setProducts(prev=>[r[0],...prev]);added++;}
+        }
+        alert(`✅ تم استيراد ${added} منتج بنجاح`);
+      }catch(err){alert('فشل الاستيراد: '+err.message);}
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  }
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
         <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المنتجات والمخزون</h3>
         <div style={{display:'flex',gap:7}}>
-          <button onClick={()=>setCarModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(167,139,250,0.1)',border:'1px solid rgba(167,139,250,0.3)',borderRadius:9,color:'#A78BFA',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            <Plus size={13}/> إضافة سيارة
-          </button>
           <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
             <Plus size={13}/> منتج جديد
           </button>
+          {/* قائمة 3 نقاط: تصدير / استيراد / بحث عن موقع */}
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setWhMenu(v=>!v)} style={{display:'flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontSize:18,fontWeight:900,lineHeight:1}}>⋮</button>
+            {whMenu&&(
+              <>
+                <div onClick={()=>setWhMenu(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
+                <div style={{position:'absolute',top:42,left:0,zIndex:41,background:'#1A2234',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,minWidth:170,boxShadow:'0 12px 32px rgba(0,0,0,0.5)'}}>
+                  <button onClick={()=>{setWhMenu(false);setLocSearchModal(true);}} style={whMenuItem}>🔍 بحث عن موقع منتج</button>
+                  <button onClick={()=>{setWhMenu(false);exportProducts();}} style={whMenuItem}>📥 تصدير المنتجات</button>
+                  <button onClick={()=>{setWhMenu(false);whImportRef.current?.click();}} style={whMenuItem}>📤 استيراد المنتجات</button>
+                </div>
+              </>
+            )}
+          </div>
+          <input type="file" accept=".csv" ref={whImportRef} onChange={importProducts} style={{display:'none'}} />
         </div>
       </div>
       <div style={{display:'flex',gap:7,marginBottom:12,flexWrap:'wrap'}}>
@@ -6113,13 +7121,17 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           const isLow=p.quantity<=LOW_STOCK;
           return(
             <div key={p.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
-              <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>
+              {p.image_url
+                ? <img src={p.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:42,height:42,borderRadius:10,objectFit:'cover',flexShrink:0,border:'1px solid rgba(255,255,255,0.08)'}}/>
+                : <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{p.car_name}</div>
                 <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
                   <span style={{fontSize:11,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding:'2px 7px',borderRadius:18}}>{t?.label}</span>
                   {p.location&&<span style={{fontSize:11,color:'#546880'}}>📍 {p.location}</span>}
-                  {p.price_iqd>0&&<span style={{fontSize:11,color:'#546880'}}>{whFmt(p.price_iqd)}</span>}
+                  {p.price_iqd>0
+                    ? <span style={{fontSize:11,color:'#546880'}}>~{whFmt(p.price_iqd)}</span>
+                    : <span style={{fontSize:11,color:'#546880'}}>السعر حسب الطلب</span>}
                 </div>
               </div>
               <div style={{textAlign:'center',minWidth:46}}>
@@ -6135,15 +7147,50 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           );
         })}
       </div>
+      {locSearchModal&&(
+        <WhModal title="بحث عن موقع منتج" onClose={()=>{setLocSearchModal(false);setLocSearch('');}}>
+          <WhField label="اسم المنتج">
+            <input value={locSearch} onChange={e=>setLocSearch(e.target.value)} placeholder="اكتب اسم المنتج..." style={whInp} autoFocus/>
+          </WhField>
+          <div style={{marginTop:10,maxHeight:320,overflowY:'auto',display:'flex',flexDirection:'column',gap:8}}>
+            {locSearch.trim().length<1
+              ? <div style={{textAlign:'center',color:'#546880',fontSize:12,padding:'20px 0'}}>اكتب اسم المنتج لعرض موقعه</div>
+              : (()=>{
+                  const res=products.filter(p=>p.car_name?.includes(locSearch.trim()));
+                  if(res.length===0)return <div style={{textAlign:'center',color:'#546880',fontSize:12,padding:'20px 0'}}>لا توجد نتائج</div>;
+                  return res.map(p=>{
+                    const loc=p.location||'';
+                    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
+                    const branch=bm?bm[1].trim():'—';const shelf=sm?sm[1].trim():'—';
+                    return(
+                      <div key={p.id} style={{padding:'11px 13px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:11}}>
+                        <div style={{fontSize:13.5,fontWeight:700,color:'#F5F5F5',marginBottom:6}}>{p.car_name}</div>
+                        <div style={{display:'flex',gap:8}}>
+                          <div style={{flex:1,background:'rgba(42,171,238,0.08)',borderRadius:8,padding:'7px 10px'}}>
+                            <div style={{fontSize:10,color:'#546880'}}>الفرع</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#2AABEE'}}>{branch}</div>
+                          </div>
+                          <div style={{flex:1,background:'rgba(240,168,104,0.08)',borderRadius:8,padding:'7px 10px'}}>
+                            <div style={{fontSize:10,color:'#546880'}}>الرف</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#F0A868'}}>{shelf}</div>
+                          </div>
+                          <div style={{textAlign:'center',padding:'7px 10px'}}>
+                            <div style={{fontSize:10,color:'#546880'}}>الكمية</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{p.quantity}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+          </div>
+          <button onClick={()=>{setLocSearchModal(false);setLocSearch('');}} style={{width:'100%',marginTop:12,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إغلاق</button>
+        </WhModal>
+      )}
       {modal&&(
         <WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
-          <WhField label="اسم السيارة" required>
-            <select value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={whInp}>
-              <option value="">اختر سيارة...</option>
-              {cars.map(c=><option key={c} value={c}>{c}</option>)}
-              <option value="__new__">+ اكتب اسم جديد</option>
-            </select>
-            {form.car_name==='__new__'&&<input placeholder="اسم السيارة الجديدة" onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={{...whInp,marginTop:6}}/>}
+          <WhField label="اسم المنتج" required>
+            <input value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} placeholder="اكتب اسم المنتج" style={whInp}/>
           </WhField>
           <WhField label="نوع المنتج" required>
             <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
@@ -6151,12 +7198,35 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
             </select>
           </WhField>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الكمية"><input type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd} onChange={e=>setForm(f=>({...f,cost_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="سعر البيع (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="موقع المخزن (A-350)"><input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="فرع A، رف 350" style={whInp}/></WhField>
+            <WhField label="الكمية"><input type="number" value={form.quantity||''} placeholder="0" onChange={e=>setForm(f=>({...f,quantity:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd||''} placeholder="0" onChange={e=>setForm(f=>({...f,cost_iqd:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="سعر البيع التقديري (اختياري)"><input type="number" value={form.price_iqd||''} placeholder="يُحدَّد من الطلب" onChange={e=>setForm(f=>({...f,price_iqd:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="موقع المخزن">
+              <div style={{display:'flex',gap:7}}>
+                <input value={form.branch||''} onChange={e=>setForm(f=>({...f,branch:e.target.value,location:`فرع ${e.target.value||''} - رف ${f.shelf||''}`.trim()}))} placeholder="الفرع: A" style={{...whInp,flex:1}}/>
+                <input value={form.shelf||''} onChange={e=>setForm(f=>({...f,shelf:e.target.value,location:`فرع ${f.branch||''} - رف ${e.target.value||''}`.trim()}))} placeholder="الرف: 350" style={{...whInp,flex:1}}/>
+              </div>
+            </WhField>
           </div>
           <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
+          <WhField label="صورة المنتج">
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              {form.image_url?(
+                <div style={{position:'relative'}}>
+                  <img src={form.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:60,height:60,borderRadius:10,objectFit:'cover',border:'1px solid rgba(255,255,255,0.1)'}}/>
+                  <button onClick={()=>setForm(f=>({...f,image_url:''}))} style={{position:'absolute',top:-6,left:-6,width:20,height:20,borderRadius:'50%',background:'#F25050',border:'none',color:'#fff',fontSize:12,cursor:'pointer',lineHeight:1}}>×</button>
+                </div>
+              ):(
+                <div style={{width:60,height:60,borderRadius:10,background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <Image size={20} color="#546880"/>
+                </div>
+              )}
+              <label style={{padding:'8px 14px',background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.3)',borderRadius:9,color:'#2AABEE',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                {imgUploading?'جارٍ المعالجة...':(form.image_url?'تغيير الصورة':'اختر صورة')}
+                <input type="file" accept="image/*" onChange={handlePickImage} style={{display:'none'}}/>
+              </label>
+            </div>
+          </WhField>
           <div style={{display:'flex',gap:9,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
             <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
@@ -6248,8 +7318,8 @@ function WhSales({ sales, setSales, products, sbI }) {
             </select>
           </WhField>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)||0}))} style={whInp}/></WhField>
+            <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
           </div>
           <div style={{background:'rgba(77,219,107,0.07)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,padding:'10px 13px',marginBottom:12,fontSize:16,fontWeight:800,color:'#4DDB6B'}}>{whFmt(form.price_iqd*form.quantity)}</div>
           <WhField label="اسم الزبون"><input value={form.customer_name} onChange={e=>setForm(f=>({...f,customer_name:e.target.value}))} placeholder="اختياري" style={whInp}/></WhField>
@@ -6318,7 +7388,7 @@ function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
       {modal&&(
         <WhModal title={editing?'تعديل موزع':'إضافة موزع جديد'} onClose={()=>setModal(false)}>
           <WhField label="اسم الموزع" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
-          <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="07XXXXXXXXX" style={whInp}/></WhField>
+          <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} placeholder="07XXXXXXXXX" style={whInp}/></WhField>
           <WhField label="العنوان"><input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={whInp}/></WhField>
           <WhField label="المنتجات المتوفرة عنده"><textarea value={form.available_products} onChange={e=>setForm(f=>({...f,available_products:e.target.value}))} placeholder="كامري 2020 جلد، لاندكروزر ربل..." style={{...whInp,minHeight:65,resize:'vertical'}}/></WhField>
           <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
@@ -6412,7 +7482,7 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
             </select>
           </WhField>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)}))} style={whInp}/></WhField>
+            <WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
             <WhField label="تاريخ الاستحقاق"><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} style={whInp}/></WhField>
           </div>
           <WhField label="الحالة">
@@ -6500,8 +7570,8 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
             <WhField label="الاسم" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
             <WhField label="المسمى الوظيفي"><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="موظف، محاسب..." style={whInp}/></WhField>
-            <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} style={whInp}/></WhField>
+            <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)||0}))} style={whInp}/></WhField>
+            <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} style={whInp}/></WhField>
           </div>
           <div style={{display:'flex',gap:9,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
@@ -6511,7 +7581,7 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
       )}
       {payModal&&(
         <WhModal title={`صرف راتب — ${payModal.name}`} onClose={()=>setPayModal(null)}>
-          <WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)}))} style={whInp}/></WhField>
+          <WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)||0}))} style={whInp}/></WhField>
           <WhField label="التاريخ"><input type="date" value={payForm.date} onChange={e=>setPayForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
           <WhField label="ملاحظات"><input value={payForm.notes} onChange={e=>setPayForm(f=>({...f,notes:e.target.value}))} placeholder="راتب شهر..." style={whInp}/></WhField>
           <div style={{display:'flex',gap:9,marginTop:8}}>
@@ -6623,14 +7693,14 @@ function WarehouseView() {
   // helpers مختصرة
   const sbI = (t,d)    => sbInsert(t,d);
   const sbU = (t,id,d) => sbUpdate(t,id,d);
-  const sbD = async (t,id) => { const url=`${SUPABASE_URL}/rest/v1/${t}?id=eq.${id}`; await fetch(url,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}}); };
+  const sbD = async (t,id) => { return await sbDelete(t,id); };
 
   useEffect(()=>{
     async function load(){
       setLoading(true);
       try{
         const [p,s,sup,d,e]=await Promise.all([
-          sbSelect('wh_products','&order=car_name.asc'),
+          sbSelect('wh_products', wsFilter() + '&order=car_name.asc'),
           sbSelect('wh_sales','&order=date.desc&limit=300'),
           sbSelect('wh_suppliers','&order=name.asc'),
           sbSelect('wh_debts','&order=due_date.asc'),
@@ -7593,8 +8663,8 @@ const styles = {
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
-  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1 },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: 20, overflowY: 'auto' },
+  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginBottom: 20 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
   modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
