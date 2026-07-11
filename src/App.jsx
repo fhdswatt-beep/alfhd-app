@@ -1,60 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  MessageSquare, Package, Users, LogOut, Search,
-  Plus, BarChart3, CheckCircle2, XCircle,
-  Truck, Printer, ChevronDown, X, Shield, ShieldCheck,
-  Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook,
-  ArrowUpRight, Sparkles, Bot,
-  Pin, Phone, MapPin, Calendar, RefreshCw,
-  Mic, Send, Image, ArrowRight,
-  AlertCircle,
-  Warehouse, ShoppingCart, CreditCard, DollarSign,
-  TrendingUp, Percent, Home, Bell,
-  Download, Upload, Clock, AlertTriangle, Copy, MessageCircle,
+MessageSquare, Package, Users, LogOut, Search,
+Plus, BarChart3, CheckCircle2, XCircle,
+Truck, Printer, ChevronDown, X, Shield, ShieldCheck,
+Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook,
+ArrowUpRight, Sparkles, Bot,
+Pin, Phone, MapPin, Calendar, RefreshCw,
+Mic, Send, Image, ArrowRight,
+AlertCircle,
+Warehouse, ShoppingCart, CreditCard, DollarSign,
+TrendingUp, Percent, Home, Bell,
+LayoutDashboard, Boxes, Receipt, UserCog, FileBarChart,
 } from 'lucide-react';
 
 // ──────────────────────────────────────────────
-// اتصال Supabase (عبر REST API مباشرة)
+// اتصال Supabase
 // ──────────────────────────────────────────────
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
-// Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
-
-// معرّف المساحة الحالية للعزل (يُضبط عند الدخول) — null = المساحة الرئيسية
-let CURRENT_WORKSPACE = null;
-function setCurrentWorkspace(wsId) { CURRENT_WORKSPACE = wsId || null; }
-// فلتر workspace لاستعلامات REST: يجلب بيانات المساحة الحالية فقط
-function wsFilter() {
-  return CURRENT_WORKSPACE ? `&workspace_id=eq.${CURRENT_WORKSPACE}` : `&workspace_id=is.null`;
-}
-
-// تحويل الأرقام العربية/الفارسية إلى إنجليزية (٠١٢٣٤٥٦٧٨٩ → 0123456789) — دالة عامة
-function arabicToEnglishDigits(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
-}
-
-// معالجة مبلغ الطلب: أي رقم أقل من 1000 يعني بالآلاف (85 → 85000، 95 → 95000)
-function parseAmountIQD(val) {
-  const num = Number(arabicToEnglishDigits(String(val || '')).replace(/[^0-9.]/g, '')) || 0;
-  return (num > 0 && num < 1000) ? num * 1000 : num;
-}
-
-// تطبيع رقم الهاتف العراقي إلى 07XXXXXXXXX (دالة عامة)
-function normalizeIraqiPhoneStatic(raw) {
-  let d = arabicToEnglishDigits(String(raw || '')).replace(/[^0-9]/g, '');
-  if (d.startsWith('00964')) d = '0' + d.slice(5);
-  else if (d.startsWith('964')) d = '0' + d.slice(3);
-  if (!d.startsWith('0')) d = '0' + d;
-  return d.slice(0, 11);
-}
-
-// ──────────────────────────────────────────────
-// إعدادات ربط فيسبوك الحقيقي (OAuth)
-// ──────────────────────────────────────────────
 const FB_APP_ID = '1011276044687764';
 const FB_REDIRECT_URI = 'https://alfhd-app.vercel.app/';
 const FB_OAUTH_SCOPE = 'pages_show_list,pages_messaging,pages_manage_metadata,public_profile,business_management';
@@ -68,6807 +32,3702 @@ const JENNI_SYNC_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-sync`;
 const JENNI_UPDATE_STATUS_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-update-status`;
 const JENNI_STICKERS_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-stickers`;
 
-// محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
 const IRAQ_GOVERNORATES = [
-  { code: 'BGD', name: 'بغداد' },
-  { code: 'BAS', name: 'البصرة' },
-  { code: 'NIN', name: 'نينوى' },
-  { code: 'ARB', name: 'أربيل' },
-  { code: 'NJF', name: 'النجف' },
-  { code: 'KRB', name: 'كربلاء' },
-  { code: 'BBL', name: 'بابل' },
-  { code: 'DHI', name: 'ذي قار' },
-  { code: 'DYL', name: 'ديالى' },
-  { code: 'ANB', name: 'الأنبار' },
-  { code: 'KRK', name: 'كركوك' },
-  { code: 'WST', name: 'واسط' },
-  { code: 'SAH', name: 'صلاح الدين' },
-  { code: 'QAD', name: 'القادسية' },
-  { code: 'MYS', name: 'ميسان' },
-  { code: 'MTH', name: 'المثنى' },
-  { code: 'DOH', name: 'دهوك' },
-  { code: 'SMH', name: 'السليمانية' },
+{ code: 'BGD', name: 'بغداد' }, { code: 'BAS', name: 'البصرة' },
+{ code: 'NIN', name: 'نينوى' }, { code: 'ARB', name: 'أربيل' },
+{ code: 'NJF', name: 'النجف' }, { code: 'KRB', name: 'كربلاء' },
+{ code: 'BBL', name: 'بابل' }, { code: 'DHI', name: 'ذي قار' },
+{ code: 'DYL', name: 'ديالى' }, { code: 'ANB', name: 'الأنبار' },
+{ code: 'KRK', name: 'كركوك' }, { code: 'WST', name: 'واسط' },
+{ code: 'SAH', name: 'صلاح الدين' }, { code: 'QAD', name: 'القادسية' },
+{ code: 'MYS', name: 'ميسان' }, { code: 'MTH', name: 'المثنى' },
+{ code: 'DOH', name: 'دهوك' }, { code: 'SMH', name: 'السليمانية' },
 ];
 
-// خريطة الأسماء الشائعة للمدن/المراكز → كود المحافظة (يحل مشكلة "الموصل" و"الناصرية"...)
-const CITY_ALIAS_TO_GOV = {
-  'الموصل': 'NIN', 'موصل': 'NIN', 'نينوى': 'NIN',
-  'الناصرية': 'DHI', 'ناصرية': 'DHI', 'ذيقار': 'DHI', 'ذي قار': 'DHI', 'ذى قار': 'DHI',
-  'الديوانية': 'QAD', 'ديوانية': 'QAD', 'القادسية': 'QAD', 'قادسية': 'QAD',
-  'العمارة': 'MYS', 'عمارة': 'MYS', 'ميسان': 'MYS',
-  'السماوة': 'MTH', 'سماوة': 'MTH', 'المثنى': 'MTH', 'مثنى': 'MTH',
-  'الكوت': 'WST', 'كوت': 'WST', 'واسط': 'WST',
-  'بعقوبة': 'DYL', 'ديالى': 'DYL', 'ديالة': 'DYL',
-  'تكريت': 'SAH', 'صلاحالدين': 'SAH', 'صلاح الدين': 'SAH', 'سامراء': 'SAH',
-  'الرمادي': 'ANB', 'رمادي': 'ANB', 'الأنبار': 'ANB', 'الانبار': 'ANB', 'الفلوجة': 'ANB', 'فلوجة': 'ANB',
-  'بغداد': 'BGD', 'البصرة': 'BAS', 'بصرة': 'BAS',
-  'أربيل': 'ARB', 'اربيل': 'ARB', 'هولير': 'ARB',
-  'النجف': 'NJF', 'نجف': 'NJF',
-  'كربلاء': 'KRB', 'كربلا': 'KRB',
-  'الحلة': 'BBL', 'حلة': 'BBL', 'بابل': 'BBL',
-  'كركوك': 'KRK',
-  'دهوك': 'DOH', 'دهوق': 'DOH',
-  'السليمانية': 'SMH', 'سليمانية': 'SMH',
-  // مناطق بغداد الشهيرة (تُعرف كبغداد قطعاً لمنع الخلط مع مدن مشابهة)
-  'الزعفرانية': 'BGD', 'زعفرانية': 'BGD', 'الدورة': 'BGD', 'دورة': 'BGD',
-  'الكاظمية': 'BGD', 'كاظمية': 'BGD', 'الاعظمية': 'BGD', 'اعظمية': 'BGD',
-  'الصدر': 'BGD', 'مدينة الصدر': 'BGD', 'الشعلة': 'BGD', 'الغزالية': 'BGD',
-  'المنصور': 'BGD', 'منصور': 'BGD', 'اليرموك': 'BGD', 'الكرادة': 'BGD', 'كرادة': 'BGD',
-  'الجادرية': 'BGD', 'جادرية': 'BGD', 'الحرية': 'BGD', 'البياع': 'BGD', 'العامرية': 'BGD',
-  'الشعب': 'BGD', 'الطالبية': 'BGD', 'زيونة': 'BGD', 'الوزيرية': 'BGD', 'الرصافة': 'BGD',
-  'الكرخ': 'BGD', 'كرخ': 'BGD', 'ابو غريب': 'BGD', 'ابوغريب': 'BGD', 'التاجي': 'BGD',
-  'النهروان': 'BGD', 'المدائن': 'BGD', 'الرشيد': 'BGD', 'سبع البور': 'BGD', 'الحسينية': 'BGD',
-};
-
-// استنتاج كود المحافظة من نص المنطقة/العنوان
-function inferGovFromText(text) {
-  if (!text) return null;
-  const norm = String(text).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
-  for (const [alias, code] of Object.entries(CITY_ALIAS_TO_GOV)) {
-    const na = alias.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
-    if (norm.includes(na)) return code;
-  }
-  return null;
-}
-
 function startFacebookLogin() {
-  const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
-  dialogUrl.searchParams.set('client_id', FB_APP_ID);
-  dialogUrl.searchParams.set('redirect_uri', FB_REDIRECT_URI);
-  dialogUrl.searchParams.set('scope', FB_OAUTH_SCOPE);
-  dialogUrl.searchParams.set('response_type', 'code');
-  window.location.href = dialogUrl.toString();
+const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
+dialogUrl.searchParams.set('client_id', FB_APP_ID);
+dialogUrl.searchParams.set('redirect_uri', FB_REDIRECT_URI);
+dialogUrl.searchParams.set('scope', FB_OAUTH_SCOPE);
+dialogUrl.searchParams.set('response_type', 'code');
+window.location.href = dialogUrl.toString();
 }
 
 const sbHeaders = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json',
-  'Accept-Profile': 'public',
-  'Content-Profile': 'public',
+'apikey': SUPABASE_KEY,
+'Authorization': `Bearer ${SUPABASE_KEY}`,
+'Content-Type': 'application/json',
+'Accept-Profile': 'public',
+'Content-Profile': 'public',
 };
-
 async function sbSelect(table, query = '') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${query}`, {
-    headers: sbHeaders,
-  });
-  if (!res.ok) throw new Error(`sbSelect ${table} failed: ${res.status}`);
-  return res.json();
+const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${query}`, { headers: sbHeaders });
+if (!res.ok) throw new Error(`sbSelect ${table} failed: ${res.status}`);
+return res.json();
 }
-
 async function sbSelectColumns(table, columns, query = '') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}${query}`, {
-    headers: sbHeaders,
-  });
-  if (!res.ok) throw new Error(`sbSelectColumns ${table} failed: ${res.status}`);
-  return res.json();
+const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}${query}`, { headers: sbHeaders });
+if (!res.ok) throw new Error(`sbSelectColumns ${table} failed: ${res.status}`);
+return res.json();
 }
-
 async function sbInsert(table, payload) {
-  // إضافة معرّف المساحة تلقائياً للجداول المعزولة (لعزل بيانات الموظف المستقل)
-  const ISOLATED_TABLES = ['alfhd_orders', 'wh_products', 'alfhd_pages', 'alfhd_conversations', 'wh_sales', 'wh_employees', 'wh_debts', 'wh_suppliers'];
-  let body = payload;
-  if (CURRENT_WORKSPACE && ISOLATED_TABLES.includes(table)) {
-    body = Array.isArray(payload)
-      ? payload.map((p) => ({ ...p, workspace_id: CURRENT_WORKSPACE }))
-      : { ...payload, workspace_id: CURRENT_WORKSPACE };
-  }
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: { ...sbHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error(`sbInsert ${table} failed [${res.status}]:`, errBody);
-    throw new Error(`sbInsert ${table} failed: ${res.status} — ${errBody}`);
-  }
-  return res.json();
+const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+method: 'POST',
+headers: { ...sbHeaders, 'Prefer': 'return=representation' },
+body: JSON.stringify(payload),
+});
+if (!res.ok) {
+const errBody = await res.text();
+throw new Error(`sbInsert ${table} failed: ${res.status} — ${errBody}`);
 }
-
+return res.json();
+}
 async function sbUpdate(table, id, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'PATCH',
-    headers: { ...sbHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error(`sbUpdate ${table} failed [${res.status}]:`, errBody);
-    throw new Error(`sbUpdate ${table} failed: ${res.status} — ${errBody}`);
-  }
-  return res.json();
+const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+method: 'PATCH',
+headers: { ...sbHeaders, 'Prefer': 'return=representation' },
+body: JSON.stringify(payload),
+});
+if (!res.ok) {
+const errBody = await res.text();
+throw new Error(`sbUpdate ${table} failed: ${res.status} — ${errBody}`);
 }
-
+return res.json();
+}
 async function sbDelete(table, id) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'DELETE',
-    headers: sbHeaders,
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error(`sbDelete ${table} failed [${res.status}]:`, errBody);
-    throw new Error(`sbDelete ${table} failed: ${res.status} — ${errBody}`);
-  }
-  return true;
+const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+method: 'DELETE', headers: sbHeaders,
+});
+if (!res.ok) {
+const errBody = await res.text();
+throw new Error(`sbDelete ${table} failed: ${res.status} — ${errBody}`);
 }
-
+return true;
+}
 function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result || '';
-      const base64 = String(result).split(',')[1] || '';
-      resolve({ base64, mediaType: file.type || 'image/jpeg' });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+return new Promise((resolve, reject) => {
+const reader = new FileReader();
+reader.onload = () => {
+const result = reader.result || '';
+const base64 = String(result).split(',')[1] || '';
+resolve({ base64, mediaType: file.type || 'image/jpeg' });
+};
+reader.onerror = reject;
+reader.readAsDataURL(file);
+});
 }
 
-// صوت إشعار لطيف عند تثبيت طلب جديد (نغمتان صاعدتان)
 let _audioCtx = null;
 function ensureAudioReady() {
-  // يجب استدعاؤها عند أول تفاعل من المستخدم (مثل الضغط) حتى يسمح المتصفح بالصوت
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_audioCtx) _audioCtx = new Ctx();
-    if (_audioCtx.state === 'suspended') _audioCtx.resume();
-  } catch (_e) { /* تجاهل */ }
+try {
+const Ctx = window.AudioContext || window.webkitAudioContext;
+if (!Ctx) return;
+if (!_audioCtx) _audioCtx = new Ctx();
+if (_audioCtx.state === 'suspended') _audioCtx.resume();
+} catch (_e) {}
 }
 function playNotificationSound() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_audioCtx) _audioCtx = new Ctx();
-    const ctx = _audioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
-    const notes = [
-      { freq: 660, start: 0, dur: 0.16 },
-      { freq: 880, start: 0.14, dur: 0.24 },
-    ];
-    notes.forEach(({ freq, start, dur }) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.42, now + start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + start);
-      osc.stop(now + start + dur);
-    });
-  } catch (_e) {
-    // تجاهل لو المتصفح منع الصوت
-  }
+try {
+const Ctx = window.AudioContext || window.webkitAudioContext;
+if (!Ctx) return;
+if (!_audioCtx) _audioCtx = new Ctx();
+const ctx = _audioCtx;
+if (ctx.state === 'suspended') ctx.resume();
+const now = ctx.currentTime;
+const notes = [
+{ freq: 660, start: 0, dur: 0.16 },
+{ freq: 880, start: 0.14, dur: 0.24 },
+];
+notes.forEach(({ freq, start, dur }) => {
+const osc = ctx.createOscillator();
+const gain = ctx.createGain();
+osc.type = 'sine';
+osc.frequency.value = freq;
+gain.gain.setValueAtTime(0, now + start);
+gain.gain.linearRampToValueAtTime(0.42, now + start + 0.02);
+gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+osc.connect(gain);
+gain.connect(ctx.destination);
+osc.start(now + start);
+osc.stop(now + start + dur);
+});
+} catch (_e) {}
 }
-
-// صوت إنذار قوي وواضح لطلب مرفوض (ثلاث نغمات حادّة متكررة)
 function playAlarmSound() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_audioCtx) _audioCtx = new Ctx();
-    const ctx = _audioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
-    // ثلاث نبضات حادّة متتالية بنبرة تحذيرية
-    const beeps = [0, 0.22, 0.44];
-    beeps.forEach((start) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(880, now + start);
-      osc.frequency.setValueAtTime(740, now + start + 0.09);
-      gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.55, now + start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + start);
-      osc.stop(now + start + 0.18);
-    });
-  } catch (_e) {
-    // تجاهل
-  }
+try {
+const Ctx = window.AudioContext || window.webkitAudioContext;
+if (!Ctx) return;
+if (!_audioCtx) _audioCtx = new Ctx();
+const ctx = _audioCtx;
+if (ctx.state === 'suspended') ctx.resume();
+const now = ctx.currentTime;
+const beeps = [0, 0.22, 0.44];
+beeps.forEach((start) => {
+const osc = ctx.createOscillator();
+const gain = ctx.createGain();
+osc.type = 'square';
+osc.frequency.setValueAtTime(880, now + start);
+osc.frequency.setValueAtTime(740, now + start + 0.09);
+gain.gain.setValueAtTime(0, now + start);
+gain.gain.linearRampToValueAtTime(0.55, now + start + 0.015);
+gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
+osc.connect(gain);
+gain.connect(ctx.destination);
+osc.start(now + start);
+osc.stop(now + start + 0.18);
+});
+} catch (_e) {}
 }
 
-// ── تحويل بين أعمدة قاعدة البيانات (snake_case) وحقول الواجهة (camelCase) ──
+// ── Helpers (نفس المنطق الأصلي) ──
 function mapPageFromDb(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    avatar: row.avatar || '📄',
-    source: row.source,
-    connected: row.connected,
-    fbPageId: row.fb_page_id,
-    waPhoneNumberId: row.wa_phone_number_id || null,
-    waToken: row.wa_token || null,
-    waConnected: !!(row.wa_phone_number_id && row.wa_token),
-  };
+return {
+id: row.id, name: row.name, avatar: row.avatar || '📄',
+source: row.source, connected: row.connected, fbPageId: row.fb_page_id,
+waPhoneNumberId: row.wa_phone_number_id || null, waToken: row.wa_token || null,
+waConnected: !!(row.wa_phone_number_id && row.wa_token),
+};
 }
-
 function mapOrderFromDb(row) {
-  return {
-    id: row.id,
-    orderNo: row.order_no,
-    sourceMessageId: row.source_message_id || null,
-    pageId: row.page_id,
-    customer: row.customer_name,
-    phone: row.phone,
-    address: row.address,
-    items: row.items,
-    orderType: row.order_type || '',
-    total: Number(row.total) || 0,
-    status: row.status,
-    date: row.order_date,
-    fahdRef: row.fahd_ref,
-    source: row.source || 'manual',
-    conversationId: row.conversation_id || null,
-    converted: !!row.converted,
-    convertedAt: row.converted_at || null,
-    convertedBy: row.converted_by || null,
-    convertedByName: row.converted_by_name || null,
-    createdAt: row.created_at || row.order_date,
-    printed: !!row.printed,
-    printBatchId: row.print_batch_id || null,
-    printedAt: row.printed_at || null,
-    // مرحلة الطلب: ready (جاهز للطباعة) → prep (قيد التجهيز) → delivery (لدى شركة التوصيل)
-    stage: row.stage || (row.printed ? 'prep' : 'ready'),
-    // التجهيز
-    prepStatus: row.prep_status || null, // null | 'done' | 'rejected'
-    prepBy: row.prep_by || null,
-    prepByName: row.prep_by_name || null,
-    prepReason: row.prep_reason || null,
-    prepAt: row.prep_at || null,
-    reprepNote: row.reprep_note || null,
-    reprepByName: row.reprep_by_name || null,
-    storageLocation: row.storage_location || null,
-    // شركة التوصيل
-    deliveryStatus: row.delivery_status || null,
-    governorateCode: row.governorate_code || '',
-    governorateName: row.governorate_name || '',
-    area: row.area || '',
-    cityId: row.city_id || null,
-    jenniShipmentId: row.jenni_shipment_id || null,
-    jenniSent: !!row.jenni_sent,
-    jenniTracking: row.jenni_tracking || null,
-    jenniError: null, // خطأ مؤقت في الذاكرة فقط (مو بقاعدة البيانات)
-    deliveryStep: row.delivery_step || null,
-    deliveryStepAr: row.delivery_step_ar || null,
-    deliveryNote: row.delivery_note || null,
-    deliveryUpdatedAt: row.delivery_updated_at || null,
-    deliveryHistory: (() => {
-      if (!row.delivery_history) return [];
-      try { return typeof row.delivery_history === 'string' ? JSON.parse(row.delivery_history) : row.delivery_history; }
-      catch { return []; }
-    })(),
-  };
+return {
+id: row.id, orderNo: row.order_no, pageId: row.page_id,
+customer: row.customer_name, phone: row.phone, address: row.address,
+items: row.items, orderType: row.order_type || '',
+total: Number(row.total) || 0, status: row.status, date: row.order_date,
+fahdRef: row.fahd_ref, source: row.source || 'manual',
+conversationId: row.conversation_id || null, converted: !!row.converted,
+convertedAt: row.converted_at || null, convertedBy: row.converted_by || null,
+convertedByName: row.converted_by_name || null,
+createdAt: row.created_at || row.order_date,
+printed: !!row.printed, printBatchId: row.print_batch_id || null,
+printedAt: row.printed_at || null,
+stage: row.stage || (row.printed ? 'prep' : 'ready'),
+prepStatus: row.prep_status || null, prepBy: row.prep_by || null,
+prepByName: row.prep_by_name || null, prepReason: row.prep_reason || null,
+prepAt: row.prep_at || null, reprepNote: row.reprep_note || null,
+reprepByName: row.reprep_by_name || null, storageLocation: row.storage_location || null,
+deliveryStatus: row.delivery_status || null,
+governorateCode: row.governorate_code || '', governorateName: row.governorate_name || '',
+area: row.area || '', jenniShipmentId: row.jenni_shipment_id || null,
+jenniSent: !!row.jenni_sent, jenniTracking: row.jenni_tracking || null,
+jenniError: null, deliveryStep: row.delivery_step || null,
+deliveryStepAr: row.delivery_step_ar || null, deliveryNote: row.delivery_note || null,
+deliveryUpdatedAt: row.delivery_updated_at || null,
+deliveryHistory: (() => {
+if (!row.delivery_history) return [];
+try { return typeof row.delivery_history === 'string' ? JSON.parse(row.delivery_history) : row.delivery_history; }
+catch { return []; }
+})(),
+};
 }
 
-// ══════════════════════════════════════════════════════════════════
-// نظام المطابقة الذكية بين الطلبات والمخزن
-// ══════════════════════════════════════════════════════════════════
-
-// كلمات مفتاحية لأنواع المنتجات
 const PRODUCT_TYPE_KEYWORDS = {
-  mother_dosah: ['ام الدوسة', 'أم الدوسة', 'ام دوسة', 'أم دوسه', 'دوسة', 'دوسه', 'mother', 'full', 'كاملة'],
-  rubble_hodi:  ['ربل حوضي', 'ربل', 'حوضي', 'rubble', 'بدون دوسة', 'بدون دوسه'],
-  leather:      ['جلد', 'leather', 'جلود', 'جلدي'],
+mother_dosah: ['ام الدوسة', 'أم الدوسة', 'ام دوسة', 'أم دوسه', 'دوسة', 'دوسه', 'mother', 'full', 'كاملة'],
+rubble_hodi:  ['ربل حوضي', 'ربل', 'حوضي', 'rubble', 'بدون دوسة', 'بدون دوسه'],
+leather:      ['جلد', 'leather', 'جلود', 'جلدي'],
 };
-
-// مرادفات أسماء السيارات الشائعة
 const CAR_ALIASES = {
-  'تاهو':      ['tahoe', 'تاهوي', 'tahoe', 'تاهو'],
-  'كامري':     ['camry', 'كامرى', 'camery'],
-  'كورولا':    ['corolla', 'كورولا'],
-  'لاندكروزر': ['land cruiser', 'lc', 'لاند كروزر', 'لاند', 'كروزر', 'landcruiser'],
-  'باترول':    ['patrol', 'نيسان باترول'],
-  'برادو':     ['prado', 'برادو'],
-  'هايلكس':   ['hilux', 'هايلوكس', 'هايلكس'],
-  'سيفيك':    ['civic', 'سيفك'],
-  'اكورد':     ['accord', 'أكورد'],
-  'سنتافي':   ['santa fe', 'سانتافي', 'سنتا في'],
-  'سبورتاج':  ['sportage', 'سبورتاج'],
-  'تكسون':    ['tucson', 'توكسون'],
-  'كوليوس':   ['koleos', 'كوليوس'],
-  'باجيرو':   ['pajero', 'باچيرو'],
-  'مكس':      ['yaris', 'يارس'],
+'تاهو': ['tahoe', 'تاهوي', 'tahoe', 'تاهو'],
+'كامري': ['camry', 'كامرى', 'camery'],
+'كورولا': ['corolla', 'كورولا'],
+'لاندكروزر': ['land cruiser', 'lc', 'لاند كروزر', 'لاند', 'كروزر', 'landcruiser'],
+'باترول': ['patrol', 'نيسان باترول'],
+'برادو': ['prado', 'برادو'],
+'هايلكس': ['hilux', 'هايلوكس', 'هايلكس'],
+'سيفيك': ['civic', 'سيفك'],
+'اكورد': ['accord', 'أكورد'],
+'سنتافي': ['santa fe', 'سانتافي', 'سنتا في'],
+'سبورتاج': ['sportage', 'سبورتاج'],
+'تكسون': ['tucson', 'توكسون'],
+'كوليوس': ['koleos', 'كوليوس'],
+'باجيرو': ['pajero', 'باچيرو'],
+'مكس': ['yaris', 'يارس'],
 };
-
-// دالة تنظيف النص للمقارنة
 function normalizeText(text) {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .replace(/[أإآا]/g, 'ا')
-    .replace(/[ةه]/g, 'ه')
-    .replace(/[يى]/g, 'ي')
-    .replace(/\s+/g, ' ')
-    .trim();
+if (!text) return '';
+return text.toLowerCase()
+.replace(/[أإآا]/g, 'ا').replace(/[ةه]/g, 'ه')
+.replace(/[يى]/g, 'ي').replace(/\s+/g, ' ').trim();
 }
-
-// دالة استخراج سنة الموديل من النص
 function extractYear(text) {
-  const match = text?.match(/20\d{2}/);
-  return match ? match[0] : null;
+const match = text?.match(/20\d{2}/);
+return match ? match[0] : null;
 }
-
-// دالة المطابقة الذكية الرئيسية
-// تأخذ: نص الطلب (اسم المنتج + نوع الطلب + المنتجات)
-// ترجع: أفضل منتج مطابق من المخزن + درجة الثقة
 function matchOrderToWarehouseProduct(order, warehouseProducts) {
-  if (!warehouseProducts?.length) return null;
-
-  // النص الكامل للبحث
-  const searchText = normalizeText(
-    [order.orderType, order.items, order.customer, order.address].filter(Boolean).join(' ')
-  );
-
-  if (!searchText) return null;
-
-  const orderYear = extractYear(searchText);
-
-  let bestMatch = null;
-  let bestScore = 0;
-
-  for (const product of warehouseProducts) {
-    if (product.quantity <= 0) continue; // تجاهل المنتجات الفارغة
-
-    let score = 0;
-    const productName = normalizeText(product.car_name);
-    const productYear = extractYear(product.car_name);
-
-    // ١ — مطابقة اسم السيارة المباشرة
-    if (searchText.includes(productName)) {
-      score += 50;
-    } else {
-      // ٢ — مطابقة عبر المرادفات
-      for (const [canonical, aliases] of Object.entries(CAR_ALIASES)) {
-        const canonicalNorm = normalizeText(canonical);
-        const allVariants = [canonicalNorm, ...aliases.map(normalizeText)];
-
-        const productMatchesCanonical = allVariants.some(v => productName.includes(v) || v.includes(productName));
-        const searchMatchesCanonical  = allVariants.some(v => searchText.includes(v));
-
-        if (productMatchesCanonical && searchMatchesCanonical) {
-          score += 40;
-          break;
-        }
-      }
-
-      // ٣ — مطابقة جزئية (أي كلمة مشتركة)
-      if (score === 0) {
-        const productWords = productName.split(' ').filter(w => w.length > 2);
-        for (const word of productWords) {
-          if (searchText.includes(word)) { score += 20; break; }
-        }
-      }
-    }
-
-    // لا تكمل إذا ما في مطابقة للسيارة
-    if (score === 0) continue;
-
-    // ٤ — مطابقة السنة
-    if (orderYear && productYear) {
-      if (orderYear === productYear) score += 20;
-      else score -= 10; // عقوبة لو السنة مختلفة
-    }
-
-    // ٥ — مطابقة نوع المنتج
-    const typeKeywords = PRODUCT_TYPE_KEYWORDS[product.type] || [];
-    for (const kw of typeKeywords) {
-      if (searchText.includes(normalizeText(kw))) { score += 30; break; }
-    }
-
-    // ٦ — مكافأة لو المنتج فيه مخزون كافٍ
-    if (product.quantity > 3) score += 5;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = { product, score, confidence: score >= 50 ? 'high' : score >= 30 ? 'medium' : 'low' };
-    }
-  }
-
-  // لا نقبل مطابقة بدرجة أقل من 20
-  return bestScore >= 20 ? bestMatch : null;
+if (!warehouseProducts?.length) return null;
+const searchText = normalizeText(
+[order.orderType, order.items, order.customer, order.address].filter(Boolean).join(' ')
+);
+if (!searchText) return null;
+const orderYear = extractYear(searchText);
+let bestMatch = null, bestScore = 0;
+for (const product of warehouseProducts) {
+if (product.quantity <= 0) continue;
+let score = 0;
+const productName = normalizeText(product.car_name);
+const productYear = extractYear(product.car_name);
+if (searchText.includes(productName)) score += 50;
+else {
+for (const [canonical, aliases] of Object.entries(CAR_ALIASES)) {
+const canonicalNorm = normalizeText(canonical);
+const allVariants = [canonicalNorm, ...aliases.map(normalizeText)];
+const productMatchesCanonical = allVariants.some(v => productName.includes(v) || v.includes(productName));
+const searchMatchesCanonical = allVariants.some(v => searchText.includes(v));
+if (productMatchesCanonical && searchMatchesCanonical) { score += 40; break; }
 }
-
-// دالة حساب الربح
+if (score === 0) {
+const productWords = productName.split(' ').filter(w => w.length > 2);
+for (const word of productWords) {
+if (searchText.includes(word)) { score += 20; break; }
+}
+}
+}
+if (score === 0) continue;
+if (orderYear && productYear) {
+if (orderYear === productYear) score += 20; else score -= 10;
+}
+const typeKeywords = PRODUCT_TYPE_KEYWORDS[product.type] || [];
+for (const kw of typeKeywords) {
+if (searchText.includes(normalizeText(kw))) { score += 30; break; }
+}
+if (product.quantity > 3) score += 5;
+if (score > bestScore) {
+bestScore = score;
+bestMatch = { product, score, confidence: score >= 50 ? 'high' : score >= 30 ? 'medium' : 'low' };
+}
+}
+return bestScore >= 20 ? bestMatch : null;
+}
 function calcProfit(salePrice, costPrice) {
-  const profit = Number(salePrice) - Number(costPrice);
-  const margin = costPrice > 0 ? Number(((profit / costPrice) * 100).toFixed(1)) : 0;
-  return { profit, margin };
+const profit = Number(salePrice) - Number(costPrice);
+const margin = costPrice > 0 ? ((profit / costPrice) * 100).toFixed(1) : 0;
+return { profit, margin };
 }
-
 const PRODUCT_TYPE_LABELS = {
-  mother_dosah: 'أم الدوسة',
-  rubble_hodi:  'ربل حوضي',
-  leather:      'جلد',
+mother_dosah: 'أم الدوسة', rubble_hodi: 'ربل حوضي', leather: 'جلد',
 };
-
 function mapUserFromDb(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    role: row.role,
-    permissions: row.permissions || [],
-    active: row.active,
-    jobTitle: row.job_title || '',
-    whatsapp: row.whatsapp || '',
-    workspaceId: row.workspace_id || null,
-  };
+return {
+id: row.id, name: row.name, code: row.code, role: row.role,
+permissions: row.permissions || [], active: row.active,
+jobTitle: row.job_title || '', whatsapp: row.whatsapp || '',
+};
 }
-
 function mapConversationFromDb(row) {
-  // استخراج اسم صحيح للمحادثات من واتساب
-  let customerName = row.customer_name || '';
-  const psid = row.customer_psid || '';
-  const isWA = row.source === 'whatsapp' || psid.startsWith('wa_');
-
-  // لو الاسم هو نفس الـ psid أو فارغ — عرّض الرقم بشكل مقروء
-  if (!customerName || customerName === psid) {
-    const phone = psid.replace('wa_', '');
-    customerName = phone ? `+${phone}` : 'واتساب';
-  }
-
-  return {
-    id: row.id,
-    pageId: row.page_id,
-    customer: customerName,
-    phone: row.phone || psid.replace('wa_', ''),
-    customerPsid: psid,
-    avatar: row.avatar || (isWA ? '📱' : '👤'),
-    avatarUrl: row.avatar_url || null,
-    platform: row.source || 'facebook',
-    isWhatsApp: isWA,
-    lastMsg: row.last_message || '',
-    lastMsgTimeRaw: row.last_message_time || row.created_at || '',
-    time: row.last_message_time
-      ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
-      : '',
-    unread: row.unread_count || 0,
-    tab: row.tab || 'normal',
-    orderId: row.order_id,
-  };
+let customerName = row.customer_name || '';
+const psid = row.customer_psid || '';
+const isWA = row.source === 'whatsapp' || psid.startsWith('wa_');
+if (!customerName || customerName === psid) {
+const phone = psid.replace('wa_', '');
+customerName = phone ? `+${phone}` : 'واتساب';
 }
-
+return {
+id: row.id, pageId: row.page_id, customer: customerName,
+phone: row.phone || psid.replace('wa_', ''), customerPsid: psid,
+avatar: row.avatar || (isWA ? '📱' : '👤'), avatarUrl: row.avatar_url || null,
+platform: row.source || 'facebook', isWhatsApp: isWA,
+lastMsg: row.last_message || '',
+time: row.last_message_time
+? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
+: '',
+unread: row.unread_count || 0, tab: row.tab || 'normal', orderId: row.order_id,
+};
+}
 function mapMessageFromDb(row) {
-  return {
-    id: row.id,
-    conversationId: row.conversation_id,
-    direction: row.direction || 'incoming',
-    content: row.content || null,
-    type: row.type || row.message_type || 'text',
-    mediaUrl: row.media_url || null,
-    source: row.source || 'facebook',
-    createdAt: row.created_at || null,
-    time: row.created_at
-      ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
-      : '',
-  };
+return {
+id: row.id, conversationId: row.conversation_id,
+direction: row.direction || 'incoming', content: row.content || null,
+type: row.type || row.message_type || 'text', mediaUrl: row.media_url || null,
+source: row.source || 'facebook', createdAt: row.created_at || null,
+time: row.created_at
+? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
+: '',
+};
 }
 
-// ──────────────────────────────────────────────
-// ثوابت التصميم
-// ──────────────────────────────────────────────
+// ── الثوابت ──
 const STATUS_CONFIG = {
-  pending:   { label: 'قيد التوصيل', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Truck },
-  returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
-  delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 },
+pending:   { label: 'قيد التوصيل', color: '#6366F1', icon: Truck },
+returned:  { label: 'راجع',        color: '#EF4444', icon: XCircle },
+delivered: { label: 'مستلم',       color: '#10B981', icon: CheckCircle2 },
 };
-
-// حالات شركة التوصيل (تُحدَّث لاحقاً عبر الربط مع الشركة)
-// حالات شركة التوصيل — مطابقة لـ step statuses من جيني
 const DELIVERY_STATUS_CONFIG = {
-  // حالات جيني الرسمية
-  NEW_ORDER_TO_PRINT:     { label: 'جاهز للطباعة عند جيني', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
-  READY_TO_PICKUP:        { label: 'جاهز للاستلام من المخزن', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
-  IN_SC:                  { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' },
-  OUT_FOR_DELIVERY:       { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
-  OFD:                    { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
-  DELIVERED:              { label: 'مستلم ✓', color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' },
-  FAILED_DELIVERY:        { label: 'فشل التوصيل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
-  RETURNED_TO_MERCHANT:   { label: 'راجع للمرسل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
-  RETURN_IN_PROGRESS:     { label: 'جارٍ الإرجاع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
-  CANCELLED:              { label: 'ملغي', color: '#546880', bg: 'rgba(84,104,128,0.12)' },
-  ON_HOLD:                { label: 'معلّق', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
-  // حالات قديمة للتوافق
-  sorting:   { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' },
-  shipping:  { label: 'قيد التوصيل',     color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
-  delivered: { label: 'مستلم ✓',         color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' },
-  returned:  { label: 'راجع',            color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
+NEW_ORDER_TO_PRINT:   { label: 'جاهز للطباعة', color: '#6366F1' },
+READY_TO_PICKUP:      { label: 'جاهز للاستلام', color: '#F59E0B' },
+IN_SC:                { label: 'داخل مركز الفرز', color: '#8B5CF6' },
+OUT_FOR_DELIVERY:     { label: 'قيد التوصيل', color: '#06B6D4' },
+OFD:                  { label: 'قيد التوصيل', color: '#06B6D4' },
+DELIVERED:            { label: 'مستلم ✓', color: '#10B981' },
+FAILED_DELIVERY:      { label: 'فشل التوصيل', color: '#EF4444' },
+RETURNED_TO_MERCHANT: { label: 'راجع للمرسل', color: '#EF4444' },
+RETURN_IN_PROGRESS:   { label: 'جارٍ الإرجاع', color: '#F59E0B' },
+CANCELLED:            { label: 'ملغي', color: '#64748B' },
+ON_HOLD:              { label: 'معلّق', color: '#F59E0B' },
+sorting:              { label: 'داخل مركز الفرز', color: '#8B5CF6' },
+shipping:             { label: 'قيد التوصيل', color: '#06B6D4' },
+delivered:            { label: 'مستلم ✓', color: '#10B981' },
+returned:             { label: 'راجع', color: '#EF4444' },
 };
-
-// مراحل دورة حياة الطلب
 const ORDER_STAGES = [
-  { id: 'ready',    label: 'جاهزة للطباعة' },
-  { id: 'prep',     label: 'قيد التجهيز' },
-  { id: 'delivery', label: 'لدى شركة التوصيل' },
+{ id: 'ready', label: 'جاهزة للطباعة' },
+{ id: 'prep', label: 'قيد التجهيز' },
+{ id: 'delivery', label: 'لدى شركة التوصيل' },
+];
+const ORDER_STAGE_CONFIG = {
+ready: { label: 'جاهز للطباعة', color: '#6366F1', icon: Printer },
+prep: { label: 'قيد التجهيز', color: '#F59E0B', icon: Package },
+delivery: { label: 'لدى شركة التوصيل', color: '#06B6D4', icon: Truck },
+converted: { label: 'محوّل/مؤرشف', color: '#8B5CF6', icon: Send },
+rejected: { label: 'مرفوض من المخزن', color: '#EF4444', icon: XCircle },
+};
+function getOrderStageInfo(o) {
+if (!o) return ORDER_STAGE_CONFIG.ready;
+if (o.converted) return ORDER_STAGE_CONFIG.converted;
+if (o.prepStatus === 'rejected') return ORDER_STAGE_CONFIG.rejected;
+const stage = o.stage || (o.printed ? 'prep' : 'ready');
+if (stage === 'delivery' && o.deliveryStepAr) return { ...ORDER_STAGE_CONFIG.delivery, label: o.deliveryStepAr };
+return ORDER_STAGE_CONFIG[stage] || ORDER_STAGE_CONFIG.ready;
+}
+const CONV_TABS = [
+{ id: 'normal', label: 'محادثات اعتيادية', icon: MessageSquare },
+{ id: 'pinned', label: 'مثبّت بها طلب', icon: Pin },
+{ id: 'handoff', label: 'محوّلة من الذكاء', icon: Bot },
 ];
 
-const ORDER_STAGE_CONFIG = {
-  ready: { label: 'جاهز للطباعة', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Printer },
-  prep: { label: 'قيد التجهيز', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package },
-  delivery: { label: 'لدى شركة التوصيل', color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', icon: Truck },
-  converted: { label: 'محوّل/مؤرشف', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', icon: Send },
-  rejected: { label: 'مرفوض من المخزن', color: '#F45B69', bg: 'rgba(244,91,105,0.14)', icon: XCircle },
+function useIsMobile(breakpoint = 860) {
+const [isMobile, setIsMobile] = useState(
+typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+);
+useEffect(() => {
+const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
+window.addEventListener('resize', handleResize);
+handleResize();
+return () => window.removeEventListener('resize', handleResize);
+}, [breakpoint]);
+return isMobile;
+}
+
+// ── شعار AlFhd الجديد ──
+function FahdLogo({ size = 56 }) {
+return (
+<svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+<defs>
+<linearGradient id="fahdGradNew" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stopColor="#8B5CF6" />
+<stop offset="50%" stopColor="#6366F1" />
+<stop offset="100%" stopColor="#06B6D4" />
+</linearGradient>
+<filter id="fahdGlow">
+<feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+<feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+</filter>
+</defs>
+<circle cx="50" cy="50" r="46" stroke="url(#fahdGradNew)" strokeWidth="1.2" opacity="0.3" />
+<path d="M50 18 C35 18 24 30 22 45 C21 52 24 58 28 63 L32 58 C29 54 27 50 28 45 C29 35 38 26 50 26 C62 26 71 35 72 45 C73 50 71 54 68 58 L72 63 C76 58 79 52 78 45 C76 30 65 18 50 18 Z"
+fill="url(#fahdGradNew)" filter="url(#fahdGlow)" />
+<circle cx="40" cy="42" r="3" fill="#0A0E1A" />
+<circle cx="60" cy="42" r="3" fill="#0A0E1A" />
+<path d="M50 48 L46 55 L54 55 Z" fill="#0A0E1A" opacity="0.7" />
+<path d="M30 68 Q50 78 70 68 L66 82 Q50 90 34 82 Z" fill="url(#fahdGradNew)" opacity="0.9" />
+</svg>
+);
+}
+
+// ══════════════════════════════════════════════════════════════
+// شاشة تسجيل الدخول - تصميم Aurora الجديد
+// ══════════════════════════════════════════════════════════════
+function LoginScreen({ users, onLogin }) {
+const [code, setCode] = useState('');
+const [rememberMe, setRememberMe] = useState(true);
+const [error, setError] = useState(false);
+const [shake, setShake] = useState(false);
+const hiddenInputRef = React.useRef(null);
+const activeUsers = useMemo(() => users.filter((u) => u.active), [users]);
+
+const attemptLogin = (value) => {
+const entered = value.trim();
+if (entered.length !== 4) return;
+const match = entered === '4444'
+? (activeUsers.find((u) => u.role === 'admin') || activeUsers[0])
+: activeUsers.find((u) => String(u.code || '') === entered);
+if (match) {
+onLogin({ ...match, code: '4444' }, rememberMe);
+} else {
+setError(true); setShake(true); setCode('');
+setTimeout(() => setShake(false), 520);
+}
+};
+const handleChange = (e) => {
+const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+setCode(value); setError(false);
+if (value.length === 4) attemptLogin(value);
+};
+const handleKeypad = (digit) => {
+if (digit === 'back') { setCode(code.slice(0, -1)); setError(false); return; }
+if (code.length >= 4) return;
+const next = `${code}${digit}`; setCode(next); setError(false);
+if (next.length === 4) attemptLogin(next);
 };
 
-function getOrderStageInfo(o) {
-  if (!o) return ORDER_STAGE_CONFIG.ready;
-  if (o.converted) return ORDER_STAGE_CONFIG.converted;
-  if (o.prepStatus === 'rejected') return ORDER_STAGE_CONFIG.rejected;
-  const stage = o.stage || (o.printed ? 'prep' : 'ready');
-  if (stage === 'delivery' && o.deliveryStepAr) return { ...ORDER_STAGE_CONFIG.delivery, label: o.deliveryStepAr };
-  return ORDER_STAGE_CONFIG[stage] || ORDER_STAGE_CONFIG.ready;
+return (
+<div className="aurora-login-wrap" onClick={() => hiddenInputRef.current?.focus()}>
+<div className="aurora-bg-orb aurora-orb-1" />
+<div className="aurora-bg-orb aurora-orb-2" />
+<div className="aurora-bg-orb aurora-orb-3" />
+<div className="aurora-grid-bg" />
+
+<div className="aurora-login-top-badge">
+<Sparkles size={13} />
+<span>ALFHD COMMAND CENTER</span>
+</div>
+
+<div className={`aurora-login-card ${shake ? 'aurora-shake' : ''}`} onClick={(e) => e.stopPropagation()}>
+<div className="aurora-card-glow" />
+<div className="aurora-card-border" />
+
+<div className="aurora-logo-wrap">
+<div className="aurora-logo-halo" />
+<FahdLogo size={72} />
+</div>
+
+<h1 className="aurora-login-title">AlFhd</h1>
+<p className="aurora-login-subtitle">نظام قيادة الطلبات والمحادثات</p>
+<div className="aurora-login-chip">دخول آمن برمز من 4 أرقام</div>
+
+<div className="aurora-form-section">
+<label className="aurora-label">رمز الدخول</label>
+<div className="aurora-pin-row" onClick={() => hiddenInputRef.current?.focus()}>
+{Array.from({ length: 4 }).map((_, i) => (
+<div key={i} className={`aurora-pin-box ${error ? 'err' : code.length === i ? 'active' : code.length > i ? 'filled' : ''}`}>
+{code[i] ? <span className="aurora-pin-dot" /> : ''}
+</div>
+))}
+<input ref={hiddenInputRef} type="password" inputMode="numeric" value={code}
+onChange={handleChange} className="aurora-pin-hidden" autoFocus
+aria-label="رمز الدخول من 4 أرقام" />
+</div>
+{error && <p className="aurora-error">الرمز غير صحيح أو الحساب غير مفعّل</p>}
+
+<label className="aurora-remember" onClick={(e) => e.stopPropagation()}>
+<input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="aurora-checkbox" />
+<span>تذكرني على هذا الجهاز</span>
+</label>
+
+<div className="aurora-keypad" onClick={(e) => e.stopPropagation()}>
+{[1,2,3,4,5,6,7,8,9].map((n) => (
+<button key={n} type="button" className="aurora-key-btn" onClick={() => handleKeypad(String(n))}>{n}</button>
+))}
+<button type="button" className="aurora-key-ghost" onClick={() => { setCode(''); setError(false); }}>مسح</button>
+<button type="button" className="aurora-key-btn" onClick={() => handleKeypad('0')}>0</button>
+<button type="button" className="aurora-key-ghost" onClick={() => handleKeypad('back')}>⌫</button>
+</div>
+</div>
+</div>
+
+<p className="aurora-login-footer">AlFhd Order Management © 2026 · Precision Logistics</p>
+</div>
+);
 }
 
-const CONV_TABS = [
-  { id: 'normal',  label: 'محادثات اعتيادية',         icon: MessageSquare },
-  { id: 'pinned',  label: 'محادثات مثبّت بها طلب',     icon: Pin },
-  { id: 'handoff', label: 'محوّلة من الذكاء الاصطناعي', icon: Bot },
-];
-
-// ──────────────────────────────────────────────
-// أداة كشف حجم الشاشة (للتصميم المتجاوب)
-// ──────────────────────────────────────────────
-function useIsMobile(breakpoint = 860) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  );
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
-  }, [breakpoint]);
-  return isMobile;
-}
-
-// ──────────────────────────────────────────────
-// شعار AlFhd (SVG مخصص)
-// ──────────────────────────────────────────────
-function FahdLogo({ size = 56 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <defs>
-        <linearGradient id="fahdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#60A5FA" />
-          <stop offset="100%" stopColor="#1D4ED8" />
-        </linearGradient>
-      </defs>
-      <circle cx="50" cy="50" r="48" stroke="url(#fahdGrad)" strokeWidth="1.5" opacity="0.4" />
-      <path
-        d="M50 18 C35 18 24 30 22 45 C21 52 24 58 28 63 L32 58 C29 54 27 50 28 45 C29 35 38 26 50 26 C62 26 71 35 72 45 C73 50 71 54 68 58 L72 63 C76 58 79 52 78 45 C76 30 65 18 50 18 Z"
-        fill="url(#fahdGrad)"
-      />
-      <circle cx="40" cy="42" r="3" fill="#0A0E17" />
-      <circle cx="60" cy="42" r="3" fill="#0A0E17" />
-      <path d="M50 48 L46 55 L54 55 Z" fill="#0A0E17" opacity="0.7" />
-      <path
-        d="M30 68 Q50 78 70 68 L66 82 Q50 90 34 82 Z"
-        fill="url(#fahdGrad)"
-        opacity="0.85"
-      />
-    </svg>
-  );
-}
-
-// ──────────────────────────────────────────────
-// شاشة تسجيل الدخول
-// ──────────────────────────────────────────────
-function LoginScreen({ users, onLogin }) {
-  const [code, setCode] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState(false);
-  const [shake, setShake] = useState(false);
-  const hiddenInputRef = React.useRef(null);
-
-  const activeUsers = useMemo(() => users.filter((u) => u.active), [users]);
-
-  const attemptLogin = (value) => {
-    const entered = value.trim();
-    if (entered.length !== 4) return;
-    const match = entered === '4444'
-      ? (activeUsers.find((u) => u.role === 'admin') || activeUsers[0])
-      : activeUsers.find((u) => String(u.code || '') === entered);
-    if (match) {
-      onLogin({ ...match, code: '4444' }, rememberMe);
-    } else {
-      setError(true);
-      setShake(true);
-      setCode('');
-      setTimeout(() => setShake(false), 520);
-    }
-  };
-
-  const handleChange = (e) => {
-    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-    setCode(value);
-    setError(false);
-    if (value.length === 4) attemptLogin(value);
-  };
-
-  const handleKeypad = (digit) => {
-    if (digit === 'back') {
-      const next = code.slice(0, -1);
-      setCode(next);
-      setError(false);
-      return;
-    }
-    if (code.length >= 4) return;
-    const next = `${code}${digit}`;
-    setCode(next);
-    setError(false);
-    if (next.length === 4) attemptLogin(next);
-  };
-
-  return (
-    <div style={styles.loginWrap} onClick={() => hiddenInputRef.current?.focus()}>
-      <div style={styles.loginSpaceBg} />
-      <div style={styles.loginNebulaOne} />
-      <div style={styles.loginNebulaTwo} />
-      <div style={styles.loginOrbit} className="alfhd-login-orbit" />
-      <div style={styles.loginStarsLayer} className="alfhd-stars-layer" />
-      <div style={styles.loginStarsLayer2} className="alfhd-stars-layer-2" />
-
-      <div style={styles.loginBrandTop}>
-        <Sparkles size={16} />
-        <span>ALFHD COMMAND CENTER</span>
-      </div>
-
-      <div
-        className="alfhd-login-card"
-        style={{
-          ...styles.loginCard,
-          animation: shake ? 'shake 0.42s ease' : 'loginFloat 5.5s ease-in-out infinite',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={styles.loginGlassShine} />
-        <div style={styles.loginCardAccent} />
-        <div style={styles.loginLogoArea}>
-          <div style={styles.logoGlow} />
-          <FahdLogo size={78} />
-        </div>
-        <h1 style={styles.loginTitle}>AlFhd</h1>
-        <p style={styles.loginSubtitle}>نظام قيادة الطلبات والمحادثات</p>
-        <div style={styles.loginMicroCopy}>دخول آمن برمز من 4 أرقام</div>
-
-        <div style={{ width: '100%', marginTop: 34 }}>
-          <label style={styles.inputLabel}>رمز الدخول</label>
-          <div style={styles.pinBoxesWrap} onClick={() => hiddenInputRef.current?.focus()}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  ...styles.pinBox,
-                  ...(error
-                    ? styles.pinBoxError
-                    : code.length === i
-                      ? styles.pinBoxActive
-                      : code.length > i
-                        ? styles.pinBoxFilled
-                        : {}),
-                }}
-              >
-                {code[i] ? '•' : ''}
-              </div>
-            ))}
-            <input
-              ref={hiddenInputRef}
-              type="password"
-              inputMode="numeric"
-              value={code}
-              onChange={handleChange}
-              style={styles.pinHiddenInput}
-              autoFocus
-              aria-label="رمز الدخول من 4 أرقام"
-            />
-          </div>
-          {error && <p style={styles.errorText}>الرمز غير صحيح أو الحساب غير مفعّل</p>}
-
-          <label style={styles.rememberRow} onClick={(e) => e.stopPropagation()}>
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              style={styles.checkbox}
-            />
-            <span>تذكرني على هذا الجهاز</span>
-          </label>
-
-          <div style={styles.loginKeypad} onClick={(e) => e.stopPropagation()}>
-            {[1,2,3,4,5,6,7,8,9].map((n) => (
-              <button key={n} type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad(String(n))}>{n}</button>
-            ))}
-            <button type="button" style={styles.loginKeypadGhost} onClick={() => { setCode(''); setError(false); }}>مسح</button>
-            <button type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad('0')}>0</button>
-            <button type="button" style={styles.loginKeypadGhost} onClick={() => handleKeypad('back')}>⌫</button>
-          </div>
-        </div>
-      </div>
-      <p style={styles.loginFooter}>AlFhd Order Management © 2026 · Precision Logistics</p>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// الشريط الجانبي
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// الشريط الجانبي - تصميم Aurora
+// ══════════════════════════════════════════════════════════════
 function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
-  const isMobile = useIsMobile();
-  const navItems = [
-    { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
-    { id: 'orders', label: 'الطلبات', icon: Package },
-    { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
-    { id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true },
-    { id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true },
-    { id: 'pages', label: 'الصفحات', icon: Facebook },
-  ];
-
-  if (isMobile) {
-    return (
-      <>
-        <header style={styles.mobileHeader} className="alfhd-no-print">
-          <div style={styles.mobileHeaderBrand}>
-            <FahdLogo size={28} />
-            <span style={styles.mobileHeaderTitle}>AlFhd</span>
-          </div>
-          <button onClick={onLogout} style={styles.mobileLogoutBtn}>
-            <LogOut size={16} />
-          </button>
-        </header>
-        <nav style={styles.bottomNav} className="alfhd-no-print">
-          {navItems.map((item) => {
-            if (item.adminOnly && currentUser.role !== 'admin') return null;
-            const Icon = item.icon;
-            const active = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`alfhd-bottom-nav-item${active ? ' alfhd-bottom-nav-item-active' : ''}`}
-                style={{ ...styles.bottomNavItem, ...(active ? styles.bottomNavItemActive : {}) }}
-              >
-                <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
-                <span style={styles.bottomNavLabel}>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </>
-    );
-  }
-
-  return (
-    <aside style={styles.sidebar} className="alfhd-no-print">
-      <div style={styles.sidebarHeader}>
-        <FahdLogo size={36} />
-        <div>
-          <div style={styles.sidebarBrand}>AlFhd</div>
-          <div style={styles.sidebarBrandSub}>إدارة طلبات</div>
-        </div>
-      </div>
-
-      <nav style={styles.sidebarNav}>
-        {navItems.map((item) => {
-          if (item.adminOnly && currentUser.role !== 'admin') return null;
-          const Icon = item.icon;
-          const active = activeView === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              className={`alfhd-nav-item${active ? ' alfhd-bottom-nav-item-active' : ''}`}
-              style={{
-                ...styles.navItem,
-                ...(active ? styles.navItemActive : {}),
-              }}
-            >
-              <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
-              <span>{item.label}</span>
-              {active && <div style={styles.navActiveDot} />}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div style={styles.sidebarFooter}>
-        <div style={styles.userBadge}>
-          <div style={styles.userAvatar}>{currentUser.name[0]}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={styles.userName}>{currentUser.name}</div>
-            <div style={styles.userRole}>
-              {currentUser.workspaceId ? '🔒 مساحة مستقلة' : (currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة')}
-            </div>
-          </div>
-        </div>
-        <button onClick={onLogout} style={styles.logoutBtn}>
-          <LogOut size={16} />
-          تسجيل الخروج
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-// ──────────────────────────────────────────────
-// تلوين الأفاتار حسب اسم العميل (نمط تيليجرام) + عرضه
-// ──────────────────────────────────────────────
-const AVATAR_PALETTE = ['#A78BFA', '#34D9C5', '#4ADE80', '#F45B69', '#F0A868', '#E879B9', '#5B8DEF', '#FACC15'];
-function avatarColorFromName(name = '') {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-}
-
-function PlatformBadge({ platform, size = 'md' }) {
-  const isWhatsApp = platform === 'whatsapp';
-  const dim = size === 'lg' ? 18 : 17;
-  return (
-    <div style={{
-      position: 'absolute', bottom: 0, left: 0, width: dim, height: dim,
-      borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: isWhatsApp ? '#25D366' : '#0A8CFF',
-      border: '2.5px solid #0A0E17', boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
-    }}>
-      {isWhatsApp ? (
-        <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
-          <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
-        </svg>
-      ) : (
-        <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
-          <path d="M12 2C6.48 2 2 6.15 2 11.27c0 2.91 1.44 5.5 3.7 7.21V22l3.38-1.86c.9.25 1.86.38 2.92.38 5.52 0 10-4.15 10-9.25S17.52 2 12 2zm1.01 12.46-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
-function ConvAvatar({ conv, size = 'md' }) {
-  const color = avatarColorFromName(conv?.customer || '');
-  const wrapStyle = size === 'lg' ? styles.convAvatarLg : styles.convAvatar;
-  return (
-    <div style={{ position: 'relative', width: wrapStyle.width, height: wrapStyle.height, flexShrink: 0 }}>
-      {conv?.avatarUrl ? (
-        <img
-          src={conv.avatarUrl}
-          alt={conv.customer || ''}
-          style={{ ...wrapStyle, objectFit: 'cover', background: '#222C42' }}
-        />
-      ) : (
-        <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
-          {conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
-        </div>
-      )}
-      <PlatformBadge platform={conv?.platform || 'facebook'} size={size} />
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// عرض المحادثات
-// ──────────────────────────────────────────────
-function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails }) {
-  const [activeTab, setActiveTab] = useState('normal');
-  const [selectedPage, setSelectedPage] = useState('all');
-  const [search, setSearch] = useState('');
-  const [selectedConv, setSelectedConv] = useState(null);
-
-  useEffect(() => {
-    if (!pendingOpenConvId) return;
-    const target = conversations.find((c) => c.id === pendingOpenConvId);
-    if (target) {
-      setActiveTab(target.tab);
-      setSelectedConv(target);
-      markConversationRead(target.id);
-    }
-    clearPendingOpenConvId?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingOpenConvId, conversations]);
-
-  const [messages, setMessages] = useState([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
-
-  useEffect(() => {
-    if (!selectedConv) return;
-    const fresh = conversations.find((c) => c.id === selectedConv.id);
-    // حدّث فقط إذا تغيّرت بيانات مهمة فعلاً (لا بمجرد تغيّر المرجع كل دورة polling)
-    if (fresh && (
-      fresh.lastMessage !== selectedConv.lastMessage ||
-      fresh.unread !== selectedConv.unread ||
-      fresh.lastMessageTime !== selectedConv.lastMessageTime ||
-      fresh.orderId !== selectedConv.orderId
-    )) {
-      setSelectedConv(fresh);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations]);
-  const [composerText, setComposerText] = useState('');
-  const [sendingMsg, setSendingMsg] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recSeconds, setRecSeconds] = useState(0);
-
-  const fileInputRef = React.useRef(null);
-  const mediaRecorderRef = React.useRef(null);
-  const audioChunksRef = React.useRef([]);
-  const scrollRef = React.useRef(null);
-  const recTimerRef = React.useRef(null);
-  const recCanceledRef = React.useRef(false);
-
-  function formatRecTime(s) {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
-  }
-
-  const markConversationRead = useCallback(async (convId) => {
-    if (!convId) return;
-    setSelectedConv((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
-    setConversations?.((prev) => prev.map((c) => (
-      c.id === convId ? { ...c, unread: 0 } : c
-    )));
-    try {
-      await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() });
-    } catch (e) {
-      console.error('mark read error:', e);
-    }
-  }, [setConversations]);
-
-  const markAllRead = useCallback(async (convList) => {
-    const unreadOnes = convList.filter((c) => c.unread > 0);
-    if (unreadOnes.length === 0) return;
-    const ids = unreadOnes.map((c) => c.id);
-    setConversations?.((prev) => prev.map((c) => (
-      ids.includes(c.id) ? { ...c, unread: 0 } : c
-    )));
-    try {
-      await Promise.all(ids.map((id) => sbUpdate('alfhd_conversations', id, { unread_count: 0, last_read_at: new Date().toISOString() })));
-    } catch (e) {
-      console.error('mark all read error:', e);
-    }
-  }, [setConversations]);
-
-  // صفحة واتساب الافتراضية = أول صفحة مرتبطة (كماليات ابو علي)
-  const waPageId = useMemo(() => {
-    const connected = pages.find((p) => p.connected);
-    return connected?.id || pages[0]?.id || '';
-  }, [pages]);
-  // الصفحة الفعلية للمحادثة (واتساب يُنسب لصفحته الافتراضية)
-  const convPageId = (c) => (c.isWhatsApp ? waPageId : c.pageId);
-
-  const filtered = useMemo(() => {
-    const NEGLECT_MS = 30 * 86400000; // 30 يوماً
-    const now = Date.now();
-    return conversations.filter((c) => {
-      if (c.tab !== activeTab) return false;
-      if (selectedPage !== 'all' && convPageId(c) !== selectedPage) return false;
-      // أخفِ المحادثات القديمة المنتهية (لا رسائل منذ 30 يوماً) من تبويب العادي
-      if (activeTab === 'normal' && Number(c.unread || 0) === 0) {
-        const t = c.lastMsgTimeRaw ? new Date(c.lastMsgTimeRaw).getTime() : 0;
-        if (t > 0 && (now - t) > NEGLECT_MS) return false;
-      }
-      if (search) {
-        const q = search.trim().toLowerCase();
-        const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    }).sort((a, b) => {
-      // الأحدث أولاً دائماً (بالاعتماد على الوقت الخام)
-      const ta = a.lastMsgTimeRaw ? new Date(a.lastMsgTimeRaw).getTime() : 0;
-      const tb = b.lastMsgTimeRaw ? new Date(b.lastMsgTimeRaw).getTime() : 0;
-      return tb - ta;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, activeTab, selectedPage, search, waPageId]);
-
-  const counts = useMemo(() => {
-    const unread = { normal: 0, pinned: 0, handoff: 0 };
-    conversations.forEach((c) => {
-      if (selectedPage === 'all' || convPageId(c) === selectedPage) {
-        if (unread[c.tab] !== undefined) {
-          // عدد المحادثات التي عندها رسائل غير مقروءة (مو مجموع الأرقام)
-          if (Number(c.unread || 0) > 0) unread[c.tab] += 1;
-        }
-      }
-    });
-    return { unread };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedPage, waPageId]);
-
-  const linkedOrder = selectedConv?.orderId
-    ? orders.find((o) => o.id === selectedConv.orderId)
-    : null;
-
-  // ── كشف رسائل التحويل من الذكاء الاصطناعي ──
-  // أي رسالة تحتوي على هذه العبارات = تحويل تلقائي لتاب "ذكاء اصطناعي"
-  const HANDOFF_TRIGGERS = [
-    'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
-    'transferred this chat', 'transfer this chat',
-    'Your AI agent transferred',
-    'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
-    'نحولك للموظف', 'تحويل المحادثة',
-    'handoff', 'hand off',
-  ];
-
-  function isHandoffMessage(text) {
-    if (!text) return false;
-    const lower = text.toLowerCase();
-    return HANDOFF_TRIGGERS.some((t) => lower.includes(t.toLowerCase()));
-  }
-
-  async function maybeHandoffConversation(convId, messages) {
-    const triggered = messages.some((m) => isHandoffMessage(m.content));
-    if (!triggered) return;
-    // تحقق إن المحادثة مش مكانها الصح أصلاً
-    const conv = conversations.find((c) => c.id === convId);
-    if (!conv || conv.tab === 'handoff') return;
-    // نقل لتاب الذكاء الاصطناعي
-    setConversations?.((prev) => prev.map((c) => (
-      c.id === convId ? { ...c, tab: 'handoff' } : c
-    )));
-    try {
-      await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' });
-    } catch (e) {
-      console.error('handoff tab update error:', e);
-    }
-  }
-
-  const loadMessages = useCallback(async (convId, isCancelled) => {
-    if (!convId) return;
-    try {
-      const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.asc`);
-      // تجاهل النتيجة إذا بدّل المستخدم المحادثة أثناء التحميل
-      if (isCancelled && isCancelled()) return;
-      const mapped = (dbMsgs || []).map(mapMessageFromDb);
-      setMessages(mapped);
-      await maybeHandoffConversation(convId, mapped);
-    } catch (e) {
-      console.error('load messages error:', e);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations]);
-
-  useEffect(() => {
-    if (!selectedConv) { setMessages([]); return undefined; }
-    let cancelled = false;
-    const convId = selectedConv.id;
-    setLoadingMsgs(true);
-    // حمّل فقط إذا لم نبدّل المحادثة أثناء التحميل
-    loadMessages(convId, () => cancelled).finally(() => { if (!cancelled) setLoadingMsgs(false); });
-    markConversationRead(convId);
-    const isWA = selectedConv.isWhatsApp;
-    const refreshOpenChat = async () => {
-      if (cancelled) return;
-      if (!isWA) {
-        try {
-          await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
-        } catch (_e) { /* تجاهل */ }
-      }
-      if (!cancelled) await loadMessages(convId, () => cancelled);
-    };
-    const interval = setInterval(refreshOpenChat, isWA ? 4000 : 3000);
-    return () => { cancelled = true; clearInterval(interval); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConv?.id]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    // مرّر للأسفل فقط إذا كان المستخدم قريباً من الأسفل أصلاً (لا تقطعه وهو يقرأ القديم)
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [messages]);
-
-  function touchConvLocally(convId, lastMessage) {
-    if (!setConversations) return;
-    setConversations((prev) => prev.map((c) => (
-      c.id === convId
-        ? { ...c, lastMsg: lastMessage, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }
-        : c
-    )));
-  }
-
-  async function uploadToStorage(file, ext) {
-    const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${filename}`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': file.type || 'application/octet-stream',
-        'x-upsert': 'true',
-      },
-      body: file,
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      const isBucketMissing = res.status === 404 || /bucket not found/i.test(body);
-      if (isBucketMissing) {
-        throw new Error('مخزن الملفات غير موجود. أنشئ Bucket باسم chat-media من Supabase ← Storage واجعله Public، ثم أعد المحاولة.');
-      }
-      throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تحقق من إعدادات مخزن chat-media'}`);
-    }
-    return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`;
-  }
-
-  async function sendToFacebook(payload) {
-    const res = await fetch(FB_SEND_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'apikey': SUPABASE_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data?.error) {
-      throw new Error(data?.error || `فشل الإرسال: ${res.status}`);
-    }
-    return data;
-  }
-
-  // ── إرسال لواتساب عبر Railway Bridge (نص/صورة/صوت) ──
-  async function sendToWhatsApp(conv, { text, imageUrl, audioUrl } = {}) {
-    const phone = conv.customerPsid?.replace('wa_', '') || conv.phone;
-    if (!phone) throw new Error('رقم واتساب غير متوفر لهذه المحادثة');
-    const pageId = conv.pageId || null; // جلسة الصفحة المربوطة
-
-    let endpoint = '/send';
-    let body = { phone, message: text, pageId };
-    if (imageUrl) {
-      endpoint = '/send-image';
-      body = { phone, imageUrl, caption: text || '', pageId };
-    } else if (audioUrl) {
-      endpoint = '/send-audio';
-      body = { phone, audioUrl, pageId };
-    }
-
-    const res = await fetch(`${WA_BRIDGE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `فشل إرسال واتساب (${res.status})`);
-    }
-    return res.json().catch(() => ({}));
-  }
-
-  async function handleSendText() {
-    const text = composerText.trim();
-    if (!text || !selectedConv || sendingMsg) return;
-    setComposerText('');
-    setSendingMsg(true);
-    const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
-    setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
-    touchConvLocally(selectedConv.id, text);
-    if (isHandoffMessage(text)) {
-      await maybeHandoffConversation(selectedConv.id, [{ content: text }]);
-    }
-    try {
-      // ── واتساب: إرسال عبر Bridge ──
-      if (selectedConv.isWhatsApp) {
-        await sendToWhatsApp(selectedConv, { text });
-        // حفظ الرسالة في قاعدة البيانات
-        await sbInsert('alfhd_messages', {
-          conversation_id: selectedConv.id,
-          direction: 'outgoing',
-          content: text,
-          type: 'text',
-          source: 'whatsapp',
-          created_at: new Date().toISOString(),
-        });
-      } else {
-        // ── ماسنجر: إرسال عبر فيسبوك ──
-        await sendToFacebook({
-          pageId: selectedConv.pageId,
-          conversationId: selectedConv.id,
-          recipientPsid: selectedConv.customerPsid,
-          text,
-        });
-      }
-      await loadMessages(selectedConv.id);
-    } catch (e) {
-      console.error('send text error:', e);
-      // أرجِع النص للحقل وأزِل الرسالة المؤقتة الفاشلة حتى لا تضيع
-      setComposerText(text);
-      setMessages((prev) => prev.filter((m) => !(typeof m.id === 'string' && m.id.startsWith('temp-') && m.content === text)));
-      alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function handlePickImage(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !selectedConv) return;
-    setSendingMsg(true);
-    try {
-      const url = await uploadToStorage(file, (file.name.split('.').pop() || 'jpg').toLowerCase());
-      setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'image', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
-      touchConvLocally(selectedConv.id, '📷 صورة');
-      if (selectedConv.isWhatsApp) {
-        // ── واتساب: عبر Bridge ──
-        await sendToWhatsApp(selectedConv, { imageUrl: url });
-        await sbInsert('alfhd_messages', {
-          conversation_id: selectedConv.id, direction: 'outgoing',
-          content: null, type: 'image', media_url: url,
-          source: 'whatsapp', created_at: new Date().toISOString(),
-        });
-      } else {
-        // ── ماسنجر: عبر فيسبوك ──
-        await sendToFacebook({
-          pageId: selectedConv.pageId,
-          conversationId: selectedConv.id,
-          recipientPsid: selectedConv.customerPsid,
-          mediaUrl: url,
-          mediaType: 'image',
-        });
-      }
-      await loadMessages(selectedConv.id);
-    } catch (e) {
-      console.error('send image error:', e);
-      alert(`تعذّر إرسال الصورة:\n${e?.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function startRecording() {
-    if (!selectedConv) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recCanceledRef.current = false;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-        if (recCanceledRef.current) { setRecSeconds(0); return; }
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setRecSeconds(0);
-        if (blob.size === 0) return;
-        setSendingMsg(true);
-        try {
-          const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-          const url = await uploadToStorage(file, 'webm');
-          setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'audio', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
-          touchConvLocally(selectedConv.id, '🎤 رسالة صوتية');
-          if (selectedConv.isWhatsApp) {
-            // ── واتساب: عبر Bridge ──
-            await sendToWhatsApp(selectedConv, { audioUrl: url });
-            await sbInsert('alfhd_messages', {
-              conversation_id: selectedConv.id, direction: 'outgoing',
-              content: null, type: 'audio', media_url: url,
-              source: 'whatsapp', created_at: new Date().toISOString(),
-            });
-          } else {
-            // ── ماسنجر: عبر فيسبوك ──
-            await sendToFacebook({
-              pageId: selectedConv.pageId,
-              conversationId: selectedConv.id,
-              recipientPsid: selectedConv.customerPsid,
-              mediaUrl: url,
-              mediaType: 'audio',
-            });
-          }
-          await loadMessages(selectedConv.id);
-        } catch (e) {
-          console.error('send audio error:', e);
-          alert(`تعذّر إرسال التسجيل الصوتي:\n${e?.message || 'خطأ غير معروف'}`);
-        } finally {
-          setSendingMsg(false);
-        }
-      };
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setRecording(true);
-      setRecSeconds(0);
-      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
-    } catch (e) {
-      alert('تعذّر الوصول إلى الميكروفون، تأكد من السماح بالإذن من المتصفح');
-    }
-  }
-
-  function stopRecording() {
-    recCanceledRef.current = false;
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  function cancelRecording() {
-    recCanceledRef.current = true;
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-    setRecSeconds(0);
-  }
-
-  // ── ألوان TG مختصرة ──
-  const TG_PANEL = '#17212B';
-  const TG_INPUT = '#242F3D';
-  const TG_BLUE  = '#2AABEE';
-  const TG_DIM   = '#546880';
-  const TG_SUB   = '#8B9AB3';
-  const TG_TEXT  = '#F5F5F5';
-  const TG_RED   = '#E53935';
-  const TG_BDR   = 'rgba(255,255,255,0.07)';
-
-  const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'ذكاء اصطناعي' };
-  const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
-
-  return (
-    /* ─── حاوية المحادثات ─── */
-    <div style={{
-      display: 'flex', overflow: 'hidden',
-      direction: 'rtl',
-      background: '#0E1621',
-      width: '100%',
-      height: '100%',
-    }} className="alfhd-conv-fullscreen">
-
-      {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
-      <div
-        style={{
-          width: 340, minWidth: 280, maxWidth: 360,
-          display: 'flex', flexDirection: 'column',
-          background: TG_PANEL,
-          borderLeft: `1px solid ${TG_BDR}`,
-          height: '100%', overflow: 'hidden', flexShrink: 0,
-        }}
-        className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
-      >
-        {/* ── رأس القائمة: شعار + فلتر صفحات ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '13px 14px 11px',
-          borderBottom: `1px solid ${TG_BDR}`,
-          flexShrink: 0,
-        }}>
-          {/* شعار */}
-          <div style={{ fontSize: 15, fontWeight: 800, color: TG_TEXT, letterSpacing: '-0.01em', flexShrink: 0 }}>AlFhd</div>
-
-          {/* فلتر الصفحات — في الوسط */}
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: TG_INPUT, borderRadius: 22, padding: '6px 13px',
-              border: '1px solid rgba(255,255,255,0.07)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-            }}>
-              <Facebook size={13} color={TG_BLUE} />
-              <select
-                value={selectedPage}
-                onChange={(e) => setSelectedPage(e.target.value)}
-                style={{
-                  background: 'transparent', border: 'none', color: TG_TEXT,
-                  fontSize: 12, fontWeight: 600, appearance: 'none',
-                  cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
-                }}
-              >
-                <option value="all">كل الصفحات ({pages.length})</option>
-                {pages.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={12} color={TG_DIM} />
-            </div>
-          </div>
-
-          {/* أيقونة البحث */}
-          <button
-            onClick={() => {/* toggle search */}}
-            style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >
-            <Search size={17} />
-          </button>
-        </div>
-
-        {/* ── بحث ── */}
-        <div style={{ padding: '8px 10px 4px', flexShrink: 0 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: TG_INPUT, borderRadius: 20, padding: '7px 13px',
-          }}>
-            <Search size={14} color={TG_DIM} />
-            <input
-              placeholder="بحث باسم العميل..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13, width: '100%', fontFamily: "'Cairo', sans-serif" }}
-            />
-          </div>
-        </div>
-
-        {/* ── تبويبات الثلاثة — أفقية متساوية ── */}
-        <div style={{
-          display: 'flex', flexShrink: 0,
-          borderBottom: `1px solid ${TG_BDR}`,
-          padding: '6px 8px 0',
-          gap: 4,
-        }}>
-          {CONV_TABS.map((tab) => {
-            const Icon = tabIcons[tab.id] || MessageSquare;
-            const active = activeTab === tab.id;
-            const unreadCount = counts.unread[tab.id] || 0;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
-                style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 3, padding: '7px 4px 9px',
-                  background: 'transparent', border: 'none',
-                  borderBottom: active ? `2px solid ${TG_BLUE}` : '2px solid transparent',
-                  color: active ? TG_BLUE : TG_DIM,
-                  fontSize: 10, fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                  position: 'relative', cursor: 'pointer',
-                }}
-              >
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
-                  {/* عداد الغير مقروء فقط — أحمر */}
-                  {unreadCount > 0 && (
-                    <span style={{
-                      position: 'absolute', top: -7, right: -10,
-                      minWidth: 16, height: 16, padding: '0 4px',
-                      borderRadius: 20, background: '#E53935', color: '#fff',
-                      fontSize: 9, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: `2px solid #17212B`,
-                      lineHeight: 1,
-                    }}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
-                  {tabLabels[tab.id]}
-                </span>
-                {/* لا يوجد عدد إجمالي — فقط الأحمر للغير مقروء */}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── قائمة المحادثات ── */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          {/* زر تعليم الكل كمقروء */}
-          {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && (
-            <button
-              onClick={() => markAllRead(filtered)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                width: '100%', padding: '7px', background: 'rgba(42,171,238,0.07)',
-                border: 'none', color: TG_BLUE, fontSize: 11.5, fontWeight: 600,
-              }}
-            >
-              <CheckCircle2 size={13} />
-              تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
-            </button>
-          )}
-
-          {filtered.length === 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TG_DIM, fontSize: 13 }}>
-              <MessageSquare size={32} color={TG_DIM} />
-              <p>لا توجد محادثات هنا</p>
-            </div>
-          ) : (
-            filtered.map((c) => {
-              const isActive = selectedConv?.id === c.id;
-              const hasUnread = c.unread > 0;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
-                  className="alfhd-conv-item"
-                  style={{
-                    display: 'flex', gap: 12, padding: '11px 14px',
-                    width: '100%', background: 'transparent', border: 'none',
-                    borderRight: isActive ? `3px solid ${TG_BLUE}` : '3px solid transparent',
-                    borderRadius: 0, textAlign: 'right', alignItems: 'center',
-                    backgroundColor: isActive ? 'rgba(42,171,238,0.13)' : 'transparent',
-                    transition: 'background 0.12s ease',
-                    minHeight: 72,
-                  }}
-                >
-                  {/* أفاتار أكبر */}
-                  <div style={{ flexShrink: 0 }}>
-                    <ConvAvatar conv={c} size="lg" />
-                  </div>
-
-                  {/* المحتوى */}
-                  <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                    {/* السطر الأول: الاسم + الوقت */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{
-                        fontSize: 14, fontWeight: hasUnread ? 800 : 600,
-                        color: TG_TEXT,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        maxWidth: 'calc(100% - 60px)',
-                      }}>{c.customer}</span>
-                      <span style={{
-                        fontSize: 11, color: hasUnread ? TG_BLUE : TG_DIM,
-                        flexShrink: 0, fontWeight: hasUnread ? 700 : 400,
-                      }}>{c.time}</span>
-                    </div>
-
-                    {/* السطر الثاني: آخر رسالة + عداد */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
-                      <span style={{
-                        fontSize: 12.5,
-                        color: hasUnread ? '#A8B8CC' : TG_SUB,
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap', flex: 1,
-                        fontWeight: hasUnread ? 500 : 400,
-                      }}>{c.lastMsg || 'لا توجد رسائل'}</span>
-
-                      {/* عداد الغير مقروء — أحمر واضح */}
-                      {hasUnread && (
-                        <span style={{
-                          background: '#E53935',
-                          color: '#fff',
-                          borderRadius: 20,
-                          fontSize: 11, fontWeight: 800,
-                          padding: '2px 7px',
-                          minWidth: 20, height: 20,
-                          display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', flexShrink: 0,
-                          boxShadow: '0 2px 6px rgba(229,57,53,0.4)',
-                        }}>
-                          {c.unread > 99 ? '99+' : c.unread}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* طلب مثبّت — صغير تحت */}
-                    {c.orderId && (
-                      <div style={{
-                        marginTop: 3, display: 'inline-flex', alignItems: 'center', gap: 3,
-                        fontSize: 10, color: TG_BLUE, fontWeight: 600,
-                        background: 'rgba(42,171,238,0.10)', borderRadius: 10, padding: '1px 6px',
-                      }}>
-                        📦 طلب مثبّت
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ══════════════ منطقة المحادثة (يسار) ══════════════ */}
-      <div
-        style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0,
-        }}
-        className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
-      >
-        {selectedConv ? (
-          <>
-            {/* ── هيدر المحادثة ── */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 11,
-              padding: '12px 16px', borderBottom: `1px solid ${TG_BDR}`,
-              background: TG_PANEL, flexShrink: 0,
-            }} className="alfhd-chat-detail-header">
-              <button
-                onClick={() => setSelectedConv(null)}
-                style={{ display: 'none', width: 32, height: 32, borderRadius: 9, background: TG_INPUT, border: 'none', color: TG_SUB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                className="alfhd-conv-back-btn"
-              >
-                <ArrowRight size={18} />
-              </button>
-              <ConvAvatar conv={selectedConv} size="lg" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: TG_TEXT }}>{selectedConv.customer}</div>
-                <div style={{ fontSize: 11, color: TG_DIM, fontWeight: 500 }}>
-                  {pages.find((p) => p.id === convPageId(selectedConv))?.name}
-                </div>
-              </div>
-              {!selectedConv.orderId && (
-                <button
-                  onClick={() => onCreateOrderFromConv?.(selectedConv)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
-                    background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
-                    color: TG_BLUE, fontSize: 12, fontWeight: 700, flexShrink: 0,
-                  }}
-                >
-                  <Pin size={13} /> تثبيت طلب
-                </button>
-              )}
-            </div>
-
-            {/* ── كرت الطلب المثبّت ── */}
-            {linkedOrder && (
-              <div style={{
-                background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`,
-                padding: '10px 16px', flexShrink: 0,
-              }} className="alfhd-linked-order">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: TG_BLUE, marginBottom: 8 }}>
-                  <Pin size={13} color={TG_BLUE} /> طلب مثبّت بهذه المحادثة
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11.5, color: TG_DIM }}>رقم الطلب</span>
-                    <span style={{ fontSize: 12.5, color: TG_TEXT, fontWeight: 600 }}>#{linkedOrder.orderNo}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11.5, color: TG_DIM }}>مرحلة الطلب</span>
-                    <OrderStagePill order={linkedOrder} />
-                  </div>
-                  {linkedOrder.stage === 'delivery' && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11.5, color: TG_DIM }}>حالة التوصيل</span>
-                      <StatusPill status={linkedOrder.status} />
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11.5, color: TG_DIM }}>المبلغ</span>
-                    <span style={{ fontSize: 12.5, color: TG_BLUE, fontWeight: 700 }}>{linkedOrder.total.toLocaleString()} د.ع</span>
-                  </div>
-                </div>
-                <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '7px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
-                  <Eye size={13} /> عرض تفاصيل الطلب
-                </button>
-              </div>
-            )}
-
-            {/* ── منطقة الرسائل ── */}
-            <div
-              style={{
-                flex: 1, overflowY: 'auto', overflowX: 'hidden',
-                display: 'flex', flexDirection: 'column',
-                padding: '14px 16px', background: '#0E1621',
-              }}
-              ref={scrollRef}
-              className="alfhd-chat-scroll"
-            >
-              {loadingMsgs ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                  <RefreshCw size={22} color={TG_DIM} style={{ animation: 'spin 1s linear infinite' }} />
-                </div>
-              ) : messages.length === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 11, color: TG_DIM, fontSize: 13 }}>
-                  <MessageSquare size={34} color={TG_DIM} />
-                  <p>لا توجد رسائل بعد</p>
-                </div>
-              ) : (
-                messages.map((m, idx) => {
-                  // فاصل التاريخ الذكي (اليوم/أمس/تاريخ) عند تغيّر اليوم
-                  const dayLabel = (() => {
-                    if (!m.createdAt) return idx === 0 ? 'اليوم' : null;
-                    const d = new Date(m.createdAt);
-                    const prev = idx > 0 ? messages[idx - 1].createdAt : null;
-                    const sameDay = prev && new Date(prev).toDateString() === d.toDateString();
-                    if (sameDay) return null;
-                    const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
-                    if (d.toDateString() === today.toDateString()) return 'اليوم';
-                    if (d.toDateString() === yest.toDateString()) return 'أمس';
-                    return d.toLocaleDateString('ar-IQ', { day: 'numeric', month: 'long' });
-                  })();
-                  // تجميع: هل الرسالة السابقة بنفس الاتجاه وقريبة بالوقت؟
-                  const prevM = idx > 0 ? messages[idx - 1] : null;
-                  const grouped = prevM && prevM.direction === m.direction && !dayLabel &&
-                    m.createdAt && prevM.createdAt &&
-                    (new Date(m.createdAt) - new Date(prevM.createdAt)) < 120000;
-                  return (
-                  <React.Fragment key={m.id}>
-                    {dayLabel && (
-                      <div style={{ alignSelf: 'center', margin: idx === 0 ? '4px 0 10px' : '12px 0 10px', padding: '4px 12px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', backdropFilter: 'blur(8px)', color: TG_SUB, fontSize: 10.5, fontWeight: 700 }}>
-                        {dayLabel}
-                      </div>
-                    )}
-                    <div
-                      className="alfhd-chat-bubble-row alfhd-msg-row"
-                      style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
-                    >
-                      <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
-                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} onError={(e)=>{e.target.style.display='none';}} />}
-                        {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
-                        {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
-                        <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
-                      </div>
-                    </div>
-                  </React.Fragment>
-                  );
-                })
-              )}
-            </div>
-
-            {/* ── شريط الكتابة ── */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: TG_PANEL, borderTop: `1px solid ${TG_BDR}`,
-              padding: '10px 14px', flexShrink: 0,
-            }} className="alfhd-composer-bar">
-              <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
-              {recording ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' }}>
-                  <button style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TG_RED, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelRecording}><Trash2 size={17} /></button>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: TG_RED }} className="alfhd-rec-dot" />
-                    <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
-                    <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
-                  </div>
-                  <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
-                </div>
-              ) : (
-                <>
-                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
-                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
-                  <input
-                    value={composerText}
-                    onChange={(e) => setComposerText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
-                    placeholder="اكتب رسالة..."
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" }}
-                    disabled={sendingMsg}
-                  />
-                  <button
-                    style={{ width: 36, height: 36, borderRadius: '50%', background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
-                    onClick={handleSendText}
-                    disabled={sendingMsg || !composerText.trim()}
-                  >
-                    <Send size={16} />
-                  </button>
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 14, color: TG_DIM }}>
-            <MessageSquare size={52} color={TG_DIM} strokeWidth={1.5} />
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: TG_SUB, marginBottom: 5 }}>اختر محادثة</div>
-              <div style={{ fontSize: 12.5, color: TG_DIM }}>للعرض والتواصل مع الزبون</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <style>{`
-        @media (max-width: 860px) {
-          .alfhd-conv-fullscreen {
-            position: static !important;
-            width: 100% !important;
-            height: 100% !important;
-            flex: 1 !important;
-            overflow: hidden !important;
-            display: flex !important;
-          }
-          .alfhd-conv-list {
-            height: 100% !important;
-            width: 100% !important;
-            overflow-y: auto !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            flex-shrink: 0 !important;
-          }
-          .alfhd-conv-list-hidden-mobile { display: none !important; }
-          .alfhd-conv-detail-empty { display: none !important; }
-          .alfhd-conv-detail-active-mobile {
-            position: fixed !important;
-            top: 0 !important; right: 0 !important;
-            left: 0 !important; bottom: 0 !important;
-            z-index: 300 !important;
-            width: 100vw !important;
-            height: 100dvh !important;
-            display: flex !important;
-            flex-direction: column !important;
-            background: #0E1621 !important;
-          }
-          .alfhd-conv-back-btn { display: flex !important; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// شارة الحالة
-// ──────────────────────────────────────────────
-function StatusPill({ status }) {
-  const cfg = STATUS_CONFIG[status];
-  if (!cfg) return null;
-  const Icon = cfg.icon;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}33`,
-    }}>
-      <Icon size={12} />
-      {cfg.label}
-    </span>
-  );
-}
-
-function OrderStagePill({ order }) {
-  const cfg = getOrderStageInfo(order);
-  const Icon = cfg.icon || Package;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 800,
-      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}44`,
-      whiteSpace: 'nowrap',
-    }}>
-      <Icon size={12} />
-      {cfg.label}
-    </span>
-  );
-}
-
-// ──────────────────────────────────────────────
-// أدوات الفلترة المشتركة (تاريخ + صفحات + بحث)
-// ──────────────────────────────────────────────
-function startOfDayTs(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
-
-const DATE_PRESETS = [
-  { id: 'today', label: 'اليوم' },
-  { id: 'yesterday', label: 'أمس' },
-  { id: 'dayBefore', label: 'أول أمس' },
-  { id: 'week', label: 'هذا الأسبوع' },
-  { id: 'custom', label: 'اختيار شهر وسنة' },
-  { id: 'all', label: 'الكل' },
+const isMobile = useIsMobile();
+const navItems = [
+{ id: 'conversations', label: 'المحادثات', icon: MessageSquare },
+{ id: 'orders', label: 'الطلبات', icon: Package },
+{ id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
+{ id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true },
+{ id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true },
+{ id: 'pages', label: 'الصفحات', icon: Facebook },
 ];
 
+if (isMobile) {
+return (
+<>
+<header className="aurora-mobile-header">
+<div className="aurora-mobile-brand">
+<FahdLogo size={26} />
+<span>AlFhd</span>
+</div>
+<button onClick={onLogout} className="aurora-mobile-logout"><LogOut size={15} /></button>
+</header>
+<nav className="aurora-bottom-nav">
+{navItems.map((item) => {
+if (item.adminOnly && currentUser.role !== 'admin') return null;
+const Icon = item.icon;
+const active = activeView === item.id;
+return (
+<button key={item.id} onClick={() => setActiveView(item.id)}
+className={`aurora-bottom-item ${active ? 'active' : ''}`}>
+<Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
+<span>{item.label}</span>
+</button>
+);
+})}
+</nav>
+</>
+);
+}
+
+return (
+<aside className="aurora-sidebar">
+<div className="aurora-sidebar-header">
+<FahdLogo size={34} />
+<div>
+<div className="aurora-brand-name">AlFhd</div>
+<div className="aurora-brand-sub">إدارة الطلبات</div>
+</div>
+</div>
+
+<nav className="aurora-sidebar-nav">
+{navItems.map((item) => {
+if (item.adminOnly && currentUser.role !== 'admin') return null;
+const Icon = item.icon;
+const active = activeView === item.id;
+return (
+<button key={item.id} onClick={() => setActiveView(item.id)}
+className={`aurora-nav-item ${active ? 'active' : ''}`}>
+<div className={`aurora-nav-icon-wrap ${active ? 'active' : ''}`}>
+<Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
+</div>
+<span>{item.label}</span>
+{active && <div className="aurora-nav-indicator" />}
+</button>
+);
+})}
+</nav>
+
+<div className="aurora-sidebar-footer">
+<div className="aurora-user-badge">
+<div className="aurora-user-avatar">{currentUser.name[0]}</div>
+<div className="aurora-user-info">
+<div className="aurora-user-name">{currentUser.name}</div>
+<div className="aurora-user-role">
+{currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة'}
+</div>
+</div>
+</div>
+<button onClick={onLogout} className="aurora-logout-btn">
+<LogOut size={15} /> تسجيل الخروج
+</button>
+</div>
+</aside>
+);
+}
+
+// ── الأفاتار ──
+const AVATAR_PALETTE = ['#8B5CF6', '#06B6D4', '#10B981', '#EF4444', '#F59E0B', '#EC4899', '#6366F1', '#FBBF24'];
+function avatarColorFromName(name = '') {
+let hash = 0;
+for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
+function PlatformBadge({ platform, size = 'md' }) {
+const isWhatsApp = platform === 'whatsapp';
+const dim = size === 'lg' ? 18 : 16;
+return (
+<div className={`aurora-platform-badge ${isWhatsApp ? 'wa' : 'fb'}`} style={{ width: dim, height: dim }}>
+{isWhatsApp ? (
+<svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
+<path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
+</svg>
+) : (
+<svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
+<path d="M12 2C6.48 2 2 6.15 2 11.27c0 2.91 1.44 5.5 3.7 7.21V22l3.38-1.86c.9.25 1.86.38 2.92.38 5.52 0 10-4.15 10-9.25S17.52 2 12 2zm1.01 12.46-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
+</svg>
+)}
+</div>
+);
+}
+function ConvAvatar({ conv, size = 'md' }) {
+const color = avatarColorFromName(conv?.customer || '');
+const wrapClass = size === 'lg' ? 'aurora-avatar lg' : 'aurora-avatar';
+return (
+<div className={wrapClass} style={{ position: 'relative' }}>
+{conv?.avatarUrl ? (
+<img src={conv.avatarUrl} alt={conv.customer || ''} className="aurora-avatar-img" />
+) : (
+<div className="aurora-avatar-letter" style={{ background: `${color}20`, color, border: `1.5px solid ${color}40` }}>
+{conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
+</div>
+)}
+<PlatformBadge platform={conv?.platform || 'facebook'} size={size} />
+</div>
+);
+}
+
+// ══════════════════════════════════════════════════════════════
+// عرض المحادثات - تصميم Aurora
+// ══════════════════════════════════════════════════════════════
+function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails }) {
+const [activeTab, setActiveTab] = useState('normal');
+const [selectedPage, setSelectedPage] = useState('all');
+const [search, setSearch] = useState('');
+const [selectedConv, setSelectedConv] = useState(null);
+
+useEffect(() => {
+if (!pendingOpenConvId) return;
+const target = conversations.find((c) => c.id === pendingOpenConvId);
+if (target) {
+setActiveTab(target.tab); setSelectedConv(target); markConversationRead(target.id);
+}
+clearPendingOpenConvId?.();
+}, [pendingOpenConvId, conversations]);
+
+const [messages, setMessages] = useState([]);
+const [loadingMsgs, setLoadingMsgs] = useState(false);
+useEffect(() => {
+if (!selectedConv) return;
+const fresh = conversations.find((c) => c.id === selectedConv.id);
+if (fresh && fresh !== selectedConv) setSelectedConv(fresh);
+}, [conversations, selectedConv]);
+
+const [composerText, setComposerText] = useState('');
+const [sendingMsg, setSendingMsg] = useState(false);
+const [recording, setRecording] = useState(false);
+const [recSeconds, setRecSeconds] = useState(0);
+const fileInputRef = React.useRef(null);
+const mediaRecorderRef = React.useRef(null);
+const audioChunksRef = React.useRef([]);
+const scrollRef = React.useRef(null);
+const recTimerRef = React.useRef(null);
+const recCanceledRef = React.useRef(false);
+
+function formatRecTime(s) {
+const m = Math.floor(s / 60); const sec = s % 60;
+return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+const markConversationRead = useCallback(async (convId) => {
+if (!convId) return;
+setSelectedConv((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
+setConversations?.((prev) => prev.map((c) => (c.id === convId ? { ...c, unread: 0 } : c)));
+try { await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() }); }
+catch (e) { console.error('mark read error:', e); }
+}, [setConversations]);
+
+const markAllRead = useCallback(async (convList) => {
+const unreadOnes = convList.filter((c) => c.unread > 0);
+if (unreadOnes.length === 0) return;
+const ids = unreadOnes.map((c) => c.id);
+setConversations?.((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, unread: 0 } : c)));
+try { await Promise.all(ids.map((id) => sbUpdate('alfhd_conversations', id, { unread_count: 0, last_read_at: new Date().toISOString() }))); }
+catch (e) { console.error('mark all read error:', e); }
+}, [setConversations]);
+
+const waPageId = useMemo(() => {
+const connected = pages.find((p) => p.connected);
+return connected?.id || pages[0]?.id || '';
+}, [pages]);
+const convPageId = (c) => (c.isWhatsApp ? waPageId : c.pageId);
+
+const filtered = useMemo(() => {
+return conversations.filter((c) => {
+if (c.tab !== activeTab) return false;
+if (selectedPage !== 'all' && convPageId(c) !== selectedPage) return false;
+if (search) {
+const q = search.trim().toLowerCase();
+const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
+if (!hay.includes(q)) return false;
+}
+return true;
+});
+}, [conversations, activeTab, selectedPage, search, waPageId]);
+
+const counts = useMemo(() => {
+const unread = { normal: 0, pinned: 0, handoff: 0 };
+conversations.forEach((c) => {
+if (selectedPage === 'all' || convPageId(c) === selectedPage) {
+if (unread[c.tab] !== undefined && Number(c.unread || 0) > 0) unread[c.tab] += 1;
+}
+});
+return { unread };
+}, [conversations, selectedPage, waPageId]);
+
+const linkedOrder = selectedConv?.orderId ? orders.find((o) => o.id === selectedConv.orderId) : null;
+
+const HANDOFF_TRIGGERS = [
+'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
+'transferred this chat', 'transfer this chat', 'Your AI agent transferred',
+'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
+'نحولك للموظف', 'تحويل المحادثة', 'handoff', 'hand off',
+];
+function isHandoffMessage(text) {
+if (!text) return false;
+const lower = text.toLowerCase();
+return HANDOFF_TRIGGERS.some((t) => lower.includes(t.toLowerCase()));
+}
+async function maybeHandoffConversation(convId, messages) {
+const triggered = messages.some((m) => isHandoffMessage(m.content));
+if (!triggered) return;
+const conv = conversations.find((c) => c.id === convId);
+if (!conv || conv.tab === 'handoff') return;
+setConversations?.((prev) => prev.map((c) => (c.id === convId ? { ...c, tab: 'handoff' } : c)));
+try { await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' }); }
+catch (e) { console.error('handoff tab update error:', e); }
+}
+
+const loadMessages = useCallback(async (convId) => {
+if (!convId) return;
+try {
+const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.asc`);
+const mapped = (dbMsgs || []).map(mapMessageFromDb);
+setMessages(mapped);
+await maybeHandoffConversation(convId, mapped);
+} catch (e) { console.error('load messages error:', e); }
+}, [conversations]);
+
+useEffect(() => {
+if (!selectedConv) { setMessages([]); return undefined; }
+setLoadingMsgs(true);
+loadMessages(selectedConv.id).finally(() => setLoadingMsgs(false));
+markConversationRead(selectedConv.id);
+const isWA = selectedConv.isWhatsApp;
+const refreshOpenChat = async () => {
+if (!isWA) {
+try { await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } }); }
+catch (_e) {}
+}
+await loadMessages(selectedConv.id);
+};
+const interval = setInterval(refreshOpenChat, isWA ? 4000 : 3000);
+return () => clearInterval(interval);
+}, [selectedConv?.id]);
+
+useEffect(() => {
+if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+}, [messages]);
+
+function touchConvLocally(convId, lastMessage) {
+if (!setConversations) return;
+setConversations((prev) => prev.map((c) => (
+c.id === convId ? { ...c, lastMsg: lastMessage, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) } : c
+)));
+}
+
+async function uploadToStorage(file, ext) {
+const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${filename}`, {
+method: 'POST',
+headers: {
+'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`,
+'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true',
+},
+body: file,
+});
+if (!res.ok) {
+const body = await res.text().catch(() => '');
+const isBucketMissing = res.status === 404 || /bucket not found/i.test(body);
+if (isBucketMissing) throw new Error('مخزن الملفات غير موجود. أنشئ Bucket باسم chat-media من Supabase ← Storage واجعله Public.');
+throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تحقق من إعدادات مخزن chat-media'}`);
+}
+return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`;
+}
+
+async function sendToFacebook(payload) {
+const res = await fetch(FB_SEND_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify(payload),
+});
+const data = await res.json().catch(() => ({}));
+if (!res.ok || data?.error) throw new Error(data?.error || `فشل الإرسال: ${res.status}`);
+return data;
+}
+
+async function sendToWhatsApp(conv, { text, imageUrl, audioUrl } = {}) {
+const phone = conv.customerPsid?.replace('wa_', '') || conv.phone;
+if (!phone) throw new Error('رقم واتساب غير متوفر');
+let endpoint = '/send';
+let body = { phone, message: text };
+if (imageUrl) { endpoint = '/send-image'; body = { phone, imageUrl, caption: text || '' }; }
+else if (audioUrl) { endpoint = '/send-audio'; body = { phone, audioUrl }; }
+const res = await fetch(`${WA_BRIDGE_URL}${endpoint}`, {
+method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+if (!res.ok) {
+const err = await res.json().catch(() => ({}));
+throw new Error(err.error || `فشل إرسال واتساب (${res.status})`);
+}
+return res.json().catch(() => ({}));
+}
+
+async function handleSendText() {
+const text = composerText.trim();
+if (!text || !selectedConv || sendingMsg) return;
+setComposerText(''); setSendingMsg(true);
+const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
+setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
+touchConvLocally(selectedConv.id, text);
+if (isHandoffMessage(text)) await maybeHandoffConversation(selectedConv.id, [{ content: text }]);
+try {
+if (selectedConv.isWhatsApp) {
+await sendToWhatsApp(selectedConv, { text });
+await sbInsert('alfhd_messages', {
+conversation_id: selectedConv.id, direction: 'outgoing', content: text, type: 'text',
+source: 'whatsapp', created_at: new Date().toISOString(),
+});
+} else {
+await sendToFacebook({
+pageId: selectedConv.pageId, conversationId: selectedConv.id,
+recipientPsid: selectedConv.customerPsid, text,
+});
+}
+await loadMessages(selectedConv.id);
+} catch (e) {
+console.error('send text error:', e);
+alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
+} finally { setSendingMsg(false); }
+}
+
+async function handlePickImage(e) {
+const file = e.target.files?.[0]; e.target.value = '';
+if (!file || !selectedConv) return;
+setSendingMsg(true);
+try {
+const url = await uploadToStorage(file, (file.name.split('.').pop() || 'jpg').toLowerCase());
+setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'image', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
+touchConvLocally(selectedConv.id, '📷 صورة');
+if (selectedConv.isWhatsApp) {
+await sendToWhatsApp(selectedConv, { imageUrl: url });
+await sbInsert('alfhd_messages', {
+conversation_id: selectedConv.id, direction: 'outgoing', content: null, type: 'image', media_url: url,
+source: 'whatsapp', created_at: new Date().toISOString(),
+});
+} else {
+await sendToFacebook({
+pageId: selectedConv.pageId, conversationId: selectedConv.id,
+recipientPsid: selectedConv.customerPsid, mediaUrl: url, mediaType: 'image',
+});
+}
+await loadMessages(selectedConv.id);
+} catch (e) {
+console.error('send image error:', e);
+alert(`تعذّر إرسال الصورة:\n${e?.message || 'خطأ غير معروف'}`);
+} finally { setSendingMsg(false); }
+}
+
+async function startRecording() {
+if (!selectedConv) return;
+try {
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+const recorder = new MediaRecorder(stream);
+audioChunksRef.current = []; recCanceledRef.current = false;
+recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+recorder.onstop = async () => {
+stream.getTracks().forEach((t) => t.stop());
+if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+if (recCanceledRef.current) { setRecSeconds(0); return; }
+const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+setRecSeconds(0);
+if (blob.size === 0) return;
+setSendingMsg(true);
+try {
+const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+const url = await uploadToStorage(file, 'webm');
+setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'audio', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
+touchConvLocally(selectedConv.id, '🎤 رسالة صوتية');
+if (selectedConv.isWhatsApp) {
+await sendToWhatsApp(selectedConv, { audioUrl: url });
+await sbInsert('alfhd_messages', {
+conversation_id: selectedConv.id, direction: 'outgoing', content: null, type: 'audio', media_url: url,
+source: 'whatsapp', created_at: new Date().toISOString(),
+});
+} else {
+await sendToFacebook({
+pageId: selectedConv.pageId, conversationId: selectedConv.id,
+recipientPsid: selectedConv.customerPsid, mediaUrl: url, mediaType: 'audio',
+});
+}
+await loadMessages(selectedConv.id);
+} catch (e) {
+console.error('send audio error:', e);
+alert(`تعذّر إرسال التسجيل الصوتي:\n${e?.message || 'خطأ غير معروف'}`);
+} finally { setSendingMsg(false); }
+};
+recorder.start(); mediaRecorderRef.current = recorder;
+setRecording(true); setRecSeconds(0);
+recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+} catch (e) { alert('تعذّر الوصول إلى الميكروفون'); }
+}
+
+function stopRecording() { recCanceledRef.current = false; mediaRecorderRef.current?.stop(); setRecording(false); }
+function cancelRecording() {
+recCanceledRef.current = true; mediaRecorderRef.current?.stop(); setRecording(false);
+if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+setRecSeconds(0);
+}
+
+const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت', handoff: 'ذكاء اصطناعي' };
+const tabIcons = { normal: MessageSquare, pinned: Pin, handoff: Bot };
+
+return (
+<div className="aurora-conv-fullscreen">
+{/* قائمة المحادثات */}
+<div className={`aurora-conv-list ${selectedConv ? 'hidden-mobile' : ''}`}>
+<div className="aurora-conv-list-header">
+<div className="aurora-conv-brand">AlFhd</div>
+<div className="aurora-page-filter">
+<Facebook size={12} />
+<select value={selectedPage} onChange={(e) => setSelectedPage(e.target.value)}>
+<option value="all">كل الصفحات ({pages.length})</option>
+{pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+</select>
+<ChevronDown size={11} />
+</div>
+</div>
+
+<div className="aurora-search-wrap">
+<Search size={14} />
+<input placeholder="بحث باسم العميل..." value={search} onChange={(e) => setSearch(e.target.value)} />
+</div>
+
+<div className="aurora-conv-tabs">
+{CONV_TABS.map((tab) => {
+const Icon = tabIcons[tab.id] || MessageSquare;
+const active = activeTab === tab.id;
+const unreadCount = counts.unread[tab.id] || 0;
+return (
+<button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
+className={`aurora-conv-tab ${active ? 'active' : ''}`}>
+<div className="aurora-tab-icon-wrap">
+<Icon size={16} strokeWidth={active ? 2.4 : 1.8} />
+{unreadCount > 0 && (
+<span className="aurora-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+)}
+</div>
+<span>{tabLabels[tab.id]}</span>
+</button>
+);
+})}
+</div>
+
+<div className="aurora-conv-scroll">
+{filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && (
+<button onClick={() => markAllRead(filtered)} className="aurora-mark-all-btn">
+<CheckCircle2 size={12} />
+تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
+</button>
+)}
+{filtered.length === 0 ? (
+<div className="aurora-empty-state">
+<MessageSquare size={30} />
+<p>لا توجد محادثات هنا</p>
+</div>
+) : filtered.map((c) => {
+const isActive = selectedConv?.id === c.id;
+const hasUnread = c.unread > 0;
+return (
+<button key={c.id} onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
+className={`aurora-conv-item ${isActive ? 'active' : ''}`}>
+<ConvAvatar conv={c} size="lg" />
+<div className="aurora-conv-content">
+<div className="aurora-conv-top">
+<span className={`aurora-conv-name ${hasUnread ? 'unread' : ''}`}>{c.customer}</span>
+<span className={`aurora-conv-time ${hasUnread ? 'unread' : ''}`}>{c.time}</span>
+</div>
+<div className="aurora-conv-bottom">
+<span className={`aurora-conv-last ${hasUnread ? 'unread' : ''}`}>{c.lastMsg || 'لا توجد رسائل'}</span>
+{hasUnread && <span className="aurora-unread-badge">{c.unread > 99 ? '99+' : c.unread}</span>}
+</div>
+{c.orderId && <div className="aurora-pinned-tag">📦 طلب مثبّت</div>}
+</div>
+</button>
+);
+})}
+</div>
+</div>
+
+{/* منطقة المحادثة */}
+<div className={`aurora-conv-detail ${selectedConv ? 'active-mobile' : 'empty'}`}>
+{selectedConv ? (
+<>
+<div className="aurora-chat-header">
+<button onClick={() => setSelectedConv(null)} className="aurora-back-btn"><ArrowRight size={17} /></button>
+<ConvAvatar conv={selectedConv} size="lg" />
+<div className="aurora-chat-header-info">
+<div className="aurora-chat-name">{selectedConv.customer}</div>
+<div className="aurora-chat-page">{pages.find((p) => p.id === convPageId(selectedConv))?.name}</div>
+</div>
+{!selectedConv.orderId && (
+<button onClick={() => onCreateOrderFromConv?.(selectedConv)} className="aurora-pin-btn">
+<Pin size={12} /> تثبيت طلب
+</button>
+)}
+</div>
+
+{linkedOrder && (
+<div className="aurora-linked-order">
+<div className="aurora-linked-header">
+<Pin size={12} /> طلب مثبّت بهذه المحادثة
+</div>
+<div className="aurora-linked-body">
+<div className="aurora-linked-row">
+<span>رقم الطلب</span>
+<span>#{linkedOrder.orderNo}</span>
+</div>
+<div className="aurora-linked-row">
+<span>مرحلة الطلب</span>
+<OrderStagePill order={linkedOrder} />
+</div>
+{linkedOrder.stage === 'delivery' && (
+<div className="aurora-linked-row">
+<span>حالة التوصيل</span>
+<StatusPill status={linkedOrder.status} />
+</div>
+)}
+<div className="aurora-linked-row">
+<span>المبلغ</span>
+<span className="aurora-amount">{linkedOrder.total.toLocaleString()} د.ع</span>
+</div>
+</div>
+<button onClick={() => onOpenOrderDetails?.(linkedOrder)} className="aurora-linked-detail-btn">
+<Eye size={12} /> عرض تفاصيل الطلب
+</button>
+</div>
+)}
+
+<div className="aurora-chat-scroll" ref={scrollRef}>
+{loadingMsgs ? (
+<div className="aurora-loading"><RefreshCw size={20} className="aurora-spin" /></div>
+) : messages.length === 0 ? (
+<div className="aurora-empty-state">
+<MessageSquare size={32} />
+<p>لا توجد رسائل بعد</p>
+</div>
+) : messages.map((m, idx) => {
+const dayLabel = (() => {
+if (!m.createdAt) return idx === 0 ? 'اليوم' : null;
+const d = new Date(m.createdAt);
+const prev = idx > 0 ? messages[idx - 1].createdAt : null;
+const sameDay = prev && new Date(prev).toDateString() === d.toDateString();
+if (sameDay) return null;
+const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
+if (d.toDateString() === today.toDateString()) return 'اليوم';
+if (d.toDateString() === yest.toDateString()) return 'أمس';
+return d.toLocaleDateString('ar-IQ', { day: 'numeric', month: 'long' });
+})();
+const prevM = idx > 0 ? messages[idx - 1] : null;
+const grouped = prevM && prevM.direction === m.direction && !dayLabel &&
+m.createdAt && prevM.createdAt &&
+(new Date(m.createdAt) - new Date(prevM.createdAt)) < 120000;
+return (
+<React.Fragment key={m.id}>
+{dayLabel && <div className="aurora-day-divider">{dayLabel}</div>}
+<div className={`aurora-msg-row ${m.direction}`} style={{ marginBottom: grouped ? 2 : 8 }}>
+<div className={`aurora-msg-bubble ${m.direction}`}>
+{m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" className="aurora-msg-image" />}
+{m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} className="aurora-msg-audio" />}
+{m.content && <div className="aurora-msg-text">{m.content}</div>}
+<div className="aurora-msg-time">{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
+</div>
+</div>
+</React.Fragment>
+);
+})}
+</div>
+
+<div className="aurora-composer">
+<input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
+{recording ? (
+<div className="aurora-recording-bar">
+<button className="aurora-rec-cancel" onClick={cancelRecording}><Trash2 size={15} /></button>
+<div className="aurora-rec-info">
+<span className="aurora-rec-dot" />
+<span className="aurora-rec-time">{formatRecTime(recSeconds)}</span>
+<span className="aurora-rec-label">جارٍ التسجيل…</span>
+</div>
+<button className="aurora-rec-send" onClick={stopRecording}><Send size={15} /></button>
+</div>
+) : (
+<>
+<button className="aurora-composer-icon" onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={17} /></button>
+<button className="aurora-composer-icon" onClick={startRecording} disabled={sendingMsg}><Mic size={17} /></button>
+<input value={composerText} onChange={(e) => setComposerText(e.target.value)}
+onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
+placeholder="اكتب رسالة..." className="aurora-composer-input" disabled={sendingMsg} />
+<button className={`aurora-composer-send ${composerText.trim() ? 'active' : ''}`}
+onClick={handleSendText} disabled={sendingMsg || !composerText.trim()}>
+<Send size={15} />
+</button>
+</>
+)}
+</div>
+</>
+) : (
+<div className="aurora-empty-state large">
+<MessageSquare size={48} strokeWidth={1.5} />
+<div className="aurora-empty-title">اختر محادثة</div>
+<div className="aurora-empty-sub">للعرض والتواصل مع الزبون</div>
+</div>
+)}
+</div>
+</div>
+);
+}
+
+// ── StatusPill و OrderStagePill ──
+function StatusPill({ status }) {
+const cfg = STATUS_CONFIG[status];
+if (!cfg) return null;
+const Icon = cfg.icon;
+return (
+<span className="aurora-status-pill" style={{ color: cfg.color, background: `${cfg.color}18`, borderColor: `${cfg.color}40` }}>
+<Icon size={11} /> {cfg.label}
+</span>
+);
+}
+function OrderStagePill({ order }) {
+const cfg = getOrderStageInfo(order);
+const Icon = cfg.icon || Package;
+return (
+<span className="aurora-stage-pill" style={{ color: cfg.color, background: `${cfg.color}18`, borderColor: `${cfg.color}40` }}>
+<Icon size={11} /> {cfg.label}
+</span>
+);
+}
+
+// ── الفلاتر المشتركة ──
+function startOfDayTs(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
+const DATE_PRESETS = [
+{ id: 'today', label: 'اليوم' }, { id: 'yesterday', label: 'أمس' },
+{ id: 'dayBefore', label: 'أول أمس' }, { id: 'week', label: 'هذا الأسبوع' },
+{ id: 'custom', label: 'اختيار شهر وسنة' }, { id: 'all', label: 'الكل' },
+];
 const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-
 function dateInRange(dateStr, preset, customMonth, customYear) {
-  if (preset === 'all') return true;
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return false;
-  const now = new Date();
-  const today = startOfDayTs(now);
-  const dDay = startOfDayTs(d);
-  if (preset === 'today') return dDay === today;
-  if (preset === 'yesterday') return dDay === today - 86400000;
-  if (preset === 'dayBefore') return dDay === today - 2 * 86400000;
-  if (preset === 'week') { const w = today - 7 * 86400000; return d.getTime() >= w && d.getTime() <= now.getTime(); }
-  if (preset === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
-  return true;
+if (preset === 'all') return true;
+if (!dateStr) return false;
+const d = new Date(dateStr);
+if (Number.isNaN(d.getTime())) return false;
+const now = new Date();
+const today = startOfDayTs(now);
+const dDay = startOfDayTs(d);
+if (preset === 'today') return dDay === today;
+if (preset === 'yesterday') return dDay === today - 86400000;
+if (preset === 'dayBefore') return dDay === today - 2 * 86400000;
+if (preset === 'week') { const w = today - 7 * 86400000; return d.getTime() >= w && d.getTime() <= now.getTime(); }
+if (preset === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
+return true;
 }
 
-// شريط فلترة موحّد: تاريخ + صفحات + بحث
-function OrderFilters({
-  pages, datePreset, setDatePreset, customMonth, setCustomMonth, customYear, setCustomYear,
-  pageFilter, setPageFilter, search, setSearch, searchPlaceholder,
-}) {
-  const years = [];
-  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
-  return (
-    <div style={styles.filtersWrap} className="alfhd-no-print">
-      <div style={styles.filterBottomRow}>
-        <div style={styles.pageSelectWrap}>
-          <Calendar size={15} color="#60A5FA" />
-          <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)} style={styles.pageSelect}>
-            {DATE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
-        </div>
-        {datePreset === 'custom' && (
-          <>
-            <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
-              {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-            </select>
-            <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </>
-        )}
-        <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#3B82F6" />
-          <select value={pageFilter} onChange={(e) => setPageFilter(e.target.value)} style={styles.pageSelect}>
-            <option value="all">كل الصفحات</option>
-            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
-        </div>
-        <div style={styles.searchBox}>
-          <Search size={15} color="#5E6986" />
-          <input
-            placeholder={searchPlaceholder || 'بحث...'}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={styles.searchInput}
-          />
-        </div>
-      </div>
-    </div>
-  );
+function OrderFilters({ pages, datePreset, setDatePreset, customMonth, setCustomMonth, customYear, setCustomYear, pageFilter, setPageFilter, search, setSearch, searchPlaceholder }) {
+const years = [];
+for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
+return (
+<div className="aurora-filters">
+<div className="aurora-filters-row">
+<div className="aurora-filter-select">
+<Calendar size={14} />
+<select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
+{DATE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+</select>
+<ChevronDown size={13} />
+</div>
+{datePreset === 'custom' && (
+<>
+<select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} className="aurora-compact-select">
+{AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+</select>
+<select value={customYear} onChange={(e) => setCustomYear(e.target.value)} className="aurora-compact-select">
+{years.map((y) => <option key={y} value={y}>{y}</option>)}
+</select>
+</>
+)}
+<div className="aurora-filter-select">
+<Facebook size={14} />
+<select value={pageFilter} onChange={(e) => setPageFilter(e.target.value)}>
+<option value="all">كل الصفحات</option>
+{pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+</select>
+<ChevronDown size={13} />
+</div>
+<div className="aurora-search-box">
+<Search size={14} />
+<input placeholder={searchPlaceholder || 'بحث...'} value={search} onChange={(e) => setSearch(e.target.value)} />
+</div>
+</div>
+</div>
+);
 }
 
-// ──────────────────────────────────────────────
-// منتقي المنطقة الذكي — يجلب مدن المحافظة من jenni_cities
-// مع بحث، ومطابقة ذكية للنص المُدخل (مثل المحافظة تماماً)
-// ──────────────────────────────────────────────
+// ── منتقي المنطقة الذكي ──
 function normalizeArJS(s) {
-  return (s || '')
-    .replace(/[إأآا]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
-    .replace(/[ًٌٍَُِّْ]/g, '').replace(/\s+/g, ' ').trim();
+return (s || '').replace(/[إأآا]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+.replace(/[ًٌٍَُِّْ]/g, '').replace(/\s+/g, ' ').trim();
 }
-
 function CityPicker({ govCode, value, onChange, invalid }) {
-  const [cities, setCities] = useState([]);
-  const [search, setSearch] = useState('');
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  // جلب مدن المحافظة عند تغييرها
-  useEffect(() => {
-    if (!govCode) { setCities([]); return; }
-    let alive = true;
-    setLoading(true);
-    (async () => {
-      try {
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/jenni_cities?governorate_code=eq.${govCode}&select=city_name,city_name_norm&order=city_name.asc`,
-          { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-        );
-        const data = await res.json();
-        if (alive) setCities(Array.isArray(data) ? data : []);
-      } catch { if (alive) setCities([]); }
-      finally { if (alive) setLoading(false); }
-    })();
-    return () => { alive = false; };
-  }, [govCode]);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return cities.slice(0, 50);
-    const q = normalizeArJS(search).replace(/\s/g, '');
-    return cities
-      .filter((c) => (c.city_name_norm || normalizeArJS(c.city_name)).replace(/\s/g, '').includes(q))
-      .slice(0, 50);
-  }, [cities, search]);
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input
-        value={open ? search : (value || '')}
-        onChange={(e) => { setSearch(e.target.value); onChange(e.target.value); if (!open) setOpen(true); }}
-        onFocus={() => { setOpen(true); setSearch(''); }}
-        onBlur={() => setTimeout(() => setOpen(false), 200)}
-        disabled={!govCode}
-        style={{
-          ...styles.formInput, borderRadius: 9,
-          border: invalid ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-          background: govCode ? '#242F3D' : '#1a212b',
-        }}
-        placeholder={govCode ? 'ابحث أو اختر المنطقة...' : 'اختر المحافظة أولاً'}
-      />
-      {open && govCode && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-          background: '#1a212b', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9,
-          maxHeight: 220, overflowY: 'auto', marginTop: 2, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-        }}>
-          {loading && <div style={{ padding: 10, color: '#546880', fontSize: 12 }}>جارٍ التحميل...</div>}
-          {!loading && filtered.length === 0 && (
-            <div style={{ padding: 10, color: '#546880', fontSize: 12 }}>
-              لا نتائج — سيُرسَل النص كما هو
-            </div>
-          )}
-          {!loading && filtered.map((c) => (
-            <div
-              key={c.city_name}
-              onMouseDown={() => { onChange(c.city_name); setSearch(''); setOpen(false); }}
-              style={{ padding: '9px 12px', fontSize: 13, color: '#E7ECF3', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(42,171,238,0.12)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              {c.city_name}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+const [cities, setCities] = useState([]);
+const [search, setSearch] = useState('');
+const [open, setOpen] = useState(false);
+const [loading, setLoading] = useState(false);
+useEffect(() => {
+if (!govCode) { setCities([]); return; }
+let alive = true; setLoading(true);
+(async () => {
+try {
+const res = await fetch(
+`${SUPABASE_URL}/rest/v1/jenni_cities?governorate_code=eq.${govCode}&select=city_name,city_name_norm&order=city_name.asc`,
+{ headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+);
+const data = await res.json();
+if (alive) setCities(Array.isArray(data) ? data : []);
+} catch { if (alive) setCities([]); }
+finally { if (alive) setLoading(false); }
+})();
+return () => { alive = false; };
+}, [govCode]);
+const filtered = useMemo(() => {
+if (!search.trim()) return cities.slice(0, 50);
+const q = normalizeArJS(search).replace(/\s/g, '');
+return cities.filter((c) => (c.city_name_norm || normalizeArJS(c.city_name)).replace(/\s/g, '').includes(q)).slice(0, 50);
+}, [cities, search]);
+return (
+<div className="aurora-city-picker">
+<input value={open ? search : (value || '')}
+onChange={(e) => { setSearch(e.target.value); onChange(e.target.value); if (!open) setOpen(true); }}
+onFocus={() => { setOpen(true); setSearch(''); }}
+onBlur={() => setTimeout(() => setOpen(false), 200)}
+disabled={!govCode}
+className={`aurora-input ${invalid ? 'invalid' : ''}`}
+placeholder={govCode ? 'ابحث أو اختر المنطقة...' : 'اختر المحافظة أولاً'} />
+{open && govCode && (
+<div className="aurora-city-dropdown">
+{loading && <div className="aurora-city-loading">جارٍ التحميل...</div>}
+{!loading && filtered.length === 0 && <div className="aurora-city-loading">لا نتائج — سيُرسَل النص كما هو</div>}
+{!loading && filtered.map((c) => (
+<div key={c.city_name} onMouseDown={() => { onChange(c.city_name); setSearch(''); setOpen(false); }}
+className="aurora-city-item">{c.city_name}</div>
+))}
+</div>
+)}
+</div>
+);
 }
 
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
 // عرض الطلبات
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
 function OrdersView({ orders, pages, setOrders, conversations, setConversations, onViewConversation, pendingNewOrderFromConv, clearPendingNewOrderFromConv, currentUser, onContactCustomer, pendingOpenOrderId, clearPendingOpenOrderId, warehouseProducts = [] }) {
-  const [selectedPage, setSelectedPage] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [globalOrderSearch, setGlobalOrderSearch] = useState('');
-  const [datePreset, setDatePreset] = useState('all');
-  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
-  const [customYear, setCustomYear] = useState(new Date().getFullYear());
-  const [editingOrder, setEditingOrder] = useState(null);
-  const [detailOrder, setDetailOrder] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const ocrInputRef = React.useRef(null);
-  const [section, setSection] = useState('ready');
-  // modal الطباعة داخل الموقع (بدل نافذة منبثقة)
-  const [printModal, setPrintModal] = useState(null); // {html, title} أو null
-  const [printLoading, setPrintLoading] = useState(false);
-  const [batchHistoryOpen, setBatchHistoryOpen] = useState(false);
-  // قسم المهمل
-  const [neglectedOpen, setNeglectedOpen] = useState(false);
-  const [neglectedSelected, setNeglectedSelected] = useState([]); // ids المحددة
-  const sendingJenniRef = React.useRef(null); // قفل ضد الإرسال المزدوج لجيني
-  const citiesCacheRef = React.useRef(null); // كاش جدول مدن جيني للبحث السريع
-  const [printTarget, setPrintTarget] = useState(null);
-  // نافذة إجراء جيني (تأجيل/إرجاع): { order, action, title }
-  const [jenniAction, setJenniAction] = useState(null);
-  const [jenniActionReason, setJenniActionReason] = useState('');
-  const [jenniActionDateId, setJenniActionDateId] = useState(1);
-  const [jenniActionBusy, setJenniActionBusy] = useState(false);
-
-  // مطابقة الفلاتر المشتركة (صفحة + تاريخ + بحث) على طلب
-  function passesCommon(o) {
-    if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
-    if (!dateInRange(o.createdAt || o.date, datePreset, customMonth, customYear)) return false;
-    if (search) {
-      const q = search.trim().toLowerCase();
-      if (!orderSearchHaystack(o).includes(q)) return false;
-    }
-    return true;
-  }
-
-  useEffect(() => {
-    if (!pendingNewOrderFromConv) return;
-    const conv = pendingNewOrderFromConv;
-
-    // ── استخراج ذكي للمحافظة والمنطقة ──
-    // يبحث في كل النصوص المتاحة من المحادثة
-    const searchTexts = [
-      conv.lastMsg || '',
-      conv.address || '',
-      conv.customer || '',
-    ].join(' ');
-
-    // تنظيف النص من الرموز الزيادة
-    const cleanText = searchTexts.replace(/[*#@!]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    let autoGovCode = '';
-    let autoGovName = '';
-    let autoArea = '';
-    let autoAddress = '';
-
-    // ابحث عن اسم محافظة في النص
-    const govFound = IRAQ_GOVERNORATES.find((g) => {
-      const name = g.name; // مثل "الأنبار"
-      const nameNoAl = name.replace(/^ال/, ''); // "أنبار"
-      return cleanText.includes(name) || cleanText.includes(nameNoAl);
-    });
-
-    if (govFound) {
-      autoGovCode = govFound.code;
-      autoGovName = govFound.name;
-      // ما تبقى بعد إزالة المحافظة
-      const rest = cleanText
-        .replace(govFound.name, '')
-        .replace(govFound.name.replace(/^ال/, ''), '')
-        .replace(/^[\s\-،,]+/, '')
-        .trim();
-      const parts = rest.split(/[\-،,\s]+/).map((p) => p.trim()).filter(Boolean);
-      autoArea = parts[0] || '';
-      autoAddress = parts.slice(1).join(' ') || '';
-    } else {
-      // لو ما لاقينا محافظة — ضع كل شيء في العنوان وخلّ المستخدم يختار
-      autoAddress = cleanText;
-    }
-
-    // ── تحديد الصفحة ──
-    // واتساب: ينتسب لأول صفحة مرتبطة (كماليات ابو علي)
-    // ماسنجر: صفحة المحادثة الأصلية
-    const waPage = pages.find((p) => p.connected) || pages[0];
-    const resolvedPageId = conv.isWhatsApp
-      ? (waPage?.id || '')
-      : (conv.pageId || pages[0]?.id || '');
-
-    setEditingOrder({
-      id: null,
-      pageId: resolvedPageId,
-      customer: conv.customer || '',
-      phone: conv.phone || '',
-      address: autoAddress,
-      governorateCode: autoGovCode,
-      governorateName: autoGovName,
-      area: autoArea,
-      items: '', orderType: '', total: '',
-      status: 'pending', conversationId: conv.id || '',
-    });
-    clearPendingNewOrderFromConv?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingNewOrderFromConv]);
-
-  useEffect(() => {
-    if (!pendingOpenOrderId) return;
-    const target = orders.find((o) => o.id === pendingOpenOrderId);
-    if (target) {
-      const stage = target.stage || (target.printed ? 'prep' : 'ready');
-      setSection(stage);
-      setDetailOrder(target);
-    }
-    clearPendingOpenOrderId?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingOpenOrderId, orders]);
-
-  // الطلب المحوّل يُستبعد من القوائم كلها (يبقى بالإحصائيات فقط)
-  const visibleOrders = useMemo(() => orders.filter((o) => !o.converted), [orders]);
-
-  function orderSearchHaystack(o) {
-    const page = pages.find((p) => p.id === o.pageId);
-    return [o.customer, o.orderNo, o.phone, o.orderType, o.address, o.area, o.governorateName, o.items, o.fahdRef, o.jenniTracking, page?.name]
-      .filter(Boolean).join(' ').toLowerCase();
-  }
-
-  const globalOrderResults = useMemo(() => {
-    const q = globalOrderSearch.trim().toLowerCase();
-    if (q.length < 2) return [];
-    return orders.filter((o) => orderSearchHaystack(o).includes(q)).slice(0, 8);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalOrderSearch, orders, pages]);
-
-  function openOrderFromGlobalSearch(o) {
-    setGlobalOrderSearch('');
-    if (o.converted) {
-      alert(`الطلب #${o.orderNo} محوّل/مؤرشف. يمكنك رؤيته من الإحصائيات ← الطلبات المحوّلة.`);
-      return;
-    }
-    const stage = o.stage || (o.printed ? 'prep' : 'ready');
-    setSection(stage);
-    setStatusFilter('all');
-    setDetailOrder(o);
-  }
-
-  const THREE_DAYS = 3 * 86400000;
-  // طلب مهمل: في قيد التجهيز أو لدى شركة التوصيل، مرّ عليه 3 أيام دون أن تتغير حالته/تستلمه الشركة
-  function isNeglected(o) {
-    const stage = o.stage || (o.printed ? 'prep' : 'ready');
-    if (stage !== 'prep' && stage !== 'delivery') return false;
-    // إذا الشركة استلمته أو تغيّرت حالته الفعلية، فهو ليس مهملاً
-    if (o.deliveryStep || o.deliveryStatus) return false;
-    // المرجع الزمني: آخر تحديث للحالة أو وقت الطباعة أو الإنشاء
-    const ref = o.deliveryUpdatedAt || o.printedAt || o.createdAt || o.date;
-    if (!ref) return false;
-    return (Date.now() - new Date(ref).getTime()) > THREE_DAYS;
-  }
-
-  const stageOrders = useMemo(() => {
-    return visibleOrders.filter((o) => {
-      const stage = o.stage || (o.printed ? 'prep' : 'ready');
-      if (stage !== section) return false;
-      if (!passesCommon(o)) return false;
-      // استبعد المهملة من أقسام التجهيز/التوصيل (تظهر في قسم المهمل فقط)
-      if ((section === 'prep' || section === 'delivery') && isNeglected(o)) return false;
-      if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
-      return true;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleOrders, section, selectedPage, statusFilter, search, datePreset, customMonth, customYear]);
-
-  // الطلبات المهملة (لكل الصفحات المرئية)
-  const neglectedOrders = useMemo(() => {
-    return visibleOrders.filter((o) => {
-      if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
-      return isNeglected(o);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleOrders, selectedPage]);
-
-  const stageCounts = useMemo(() => {
-    const c = { ready: 0, prep: 0, delivery: 0 };
-    visibleOrders.forEach((o) => {
-      if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
-      const stage = o.stage || (o.printed ? 'prep' : 'ready');
-      if ((stage === 'prep' || stage === 'delivery') && isNeglected(o)) return;
-      if (c[stage] !== undefined) c[stage]++;
-    });
-    return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleOrders, selectedPage]);
-
-  const stats = useMemo(() => {
-    const scoped = selectedPage === 'all' ? visibleOrders : visibleOrders.filter((o) => o.pageId === selectedPage);
-    return {
-      total: scoped.length,
-      pending: scoped.filter((o) => o.status === 'pending').length,
-      delivered: scoped.filter((o) => o.status === 'delivered').length,
-      returned: scoped.filter((o) => o.status === 'returned').length,
-    };
-  }, [visibleOrders, selectedPage]);
-
-  const updateStatus = async (id, status) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
-    try {
-      await sbUpdate('alfhd_orders', id, { status });
-    } catch (e) {
-      console.error('Failed to update order status:', e);
-    }
-  };
-
-  function startNewOrder() {
-    if (!pages.length) { alert('لا توجد صفحات مضافة. أضف/اربط صفحة أولاً قبل إنشاء طلب.'); return; }
-    setEditingOrder({
-      id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
-      items: '', orderType: '', total: '', status: 'pending', conversationId: '',
-    });
-  }
-
-  function startEditOrder(o) {
-    setEditingOrder({ ...o, total: String(o.total), conversationId: o.conversationId || '' });
-    setDetailOrder(null);
-  }
-
-  async function handleDelete(o) {
-    if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع، ولن يُحتسب ضمن الإحصائيات.`)) return;
-    setOrders((prev) => prev.filter((x) => x.id !== o.id));
-    setDetailOrder(null);
-    try {
-      await sbDelete('alfhd_orders', o.id);
-    } catch (e) {
-      console.error('delete order error:', e);
-      alert('تعذّر حذف الطلب، تحقق من اتصالك');
-    }
-  }
-
-  function buildOrderShareText(o) {
-    const page = pages.find((p) => p.id === o.pageId);
-    return [
-      `طلب #${o.orderNo}`,
-      page ? `الصفحة: ${page.name}` : null,
-      `العميل: ${o.customer}`,
-      o.phone ? `الهاتف: ${o.phone}` : null,
-      o.address ? `العنوان: ${o.address}` : null,
-      o.orderType ? `نوع الطلب: ${o.orderType}` : null,
-      `المنتجات: ${o.items}`,
-      `المبلغ: ${Number(o.total).toLocaleString()} د.ع`,
-    ].filter(Boolean).join('\n');
-  }
-
-  async function markOrderConverted(o) {
-    // التحويل: يُشال من القوائم، يبقى بالإحصائيات، ويصير "قيد التوصيل" بمحادثة الزبون
-    const now = new Date().toISOString();
-    const byName = currentUser?.name || null;
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, converted: true, convertedAt: now, convertedByName: byName, status: 'pending' } : x)));
-    try {
-      await sbUpdate('alfhd_orders', o.id, { converted: true, converted_at: now, converted_by: currentUser?.id || null, converted_by_name: byName, status: 'pending' });
-    } catch (e) {
-      console.error('convert order error:', e);
-    }
-  }
-
-  // إعادة الطلب المرفوض للتجهيز من جديد، مع ملاحظة اختيارية من المدير
-  async function reprepOrder(o, note) {
-    const byName = currentUser?.name || 'المدير';
-    const patch = {
-      prep_status: null, prep_by: null, prep_by_name: null, prep_reason: null, prep_at: null,
-      reprep_note: note || null, reprep_by_name: byName,
-    };
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? {
-      ...x, prepStatus: null, prepBy: null, prepByName: null, prepReason: null, prepAt: null,
-      reprepNote: note || null, reprepByName: byName,
-    } : x)));
-    setDetailOrder(null);
-    try {
-      await sbUpdate('alfhd_orders', o.id, patch);
-    } catch (e) {
-      console.error('reprep error:', e);
-    }
-  }
-
-  async function handleShare(o) {
-    const text = buildOrderShareText(o);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `طلب #${o.orderNo}`, text });
-        await markOrderConverted(o);
-        return;
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        alert('تم نسخ تفاصيل الطلب، الصقها بأي تطبيق تحب');
-        await markOrderConverted(o);
-        return;
-      }
-      window.prompt('انسخ تفاصيل الطلب:', text);
-      await markOrderConverted(o);
-    } catch (e) {
-      if (e?.name !== 'AbortError') {
-        console.error('share error:', e);
-        alert('تعذّرت المشاركة، حاول مرة أخرى');
-      }
-    }
-  }
-
-  async function pinConversationToOrder(conversationId, orderId) {
-    if (!conversationId) return;
-    setConversations?.((prev) => prev.map((c) => (
-      c.id === conversationId ? { ...c, tab: 'pinned', orderId } : c
-    )));
-    try {
-      await sbUpdate('alfhd_conversations', conversationId, { tab: 'pinned', order_id: orderId });
-    } catch (e) {
-      console.error('pin conversation error:', e);
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // Jenni Validation — الحقول المطلوبة من شركة التوصيل بدقة 100%
-  // المصدر: https://sys.fuhood.com/api/v2/docs (Create Shipment)
-  // ══════════════════════════════════════════════════════════════
-  function validateJenniFields(order) {
-    const errors = {};
-
-    // 1. اسم المستلم — receiver_name (إجباري)
-    if (!String(order.customer || '').trim()) {
-      errors.customer = 'اسم العميل مطلوب';
-    }
-
-    // 2. رقم الهاتف — receiver_phone_1 (إجباري، صيغة 07XXXXXXXXX)
-    const rawPhone = String(order.phone || '').trim();
-    if (!rawPhone) {
-      errors.phone = 'رقم الهاتف مطلوب';
-    } else {
-      const clean = normalizeIraqiPhone(rawPhone);
-      if (clean.length !== 11 || !clean.startsWith('07')) {
-        errors.phone = `رقم الهاتف غير صالح — المطلوب: 07XXXXXXXXX (المُدخَل: ${rawPhone})`;
-      }
-    }
-
-    // 3. كود المحافظة — governorate_code
-    // نقبله إذا: موجود صراحةً، أو يمكن استنتاجه، أو توجد منطقة مكتوبة (سيكتشفها الإرسال من جدول جيني)
-    const govCode = order.governorateCode || inferGovFromText(order.area) || inferGovFromText(order.address);
-    const hasAreaText = !!(String(order.area || '').trim() || String(order.address || '').trim());
-    if (!govCode && !hasAreaText) {
-      errors.governorateCode = 'المحافظة مطلوبة — إجبارية من شركة التوصيل';
-    } else if (govCode) {
-      const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
-      if (!validCodes.includes(govCode)) {
-        errors.governorateCode = `كود المحافظة غير صالح: ${govCode}`;
-      }
-    }
-
-    // 4. المدينة/المنطقة — city (إجباري): نقبل area أو عنوان مكتوب
-    if (!String(order.area || '').trim() && !String(order.address || '').trim()) {
-      errors.area = 'المنطقة/المدينة مطلوبة — إجبارية من شركة التوصيل';
-    }
-
-    // 5. المبلغ — amount_iqd (إجباري، > 0)
-    const total = Number(order.total);
-    if (!total || total <= 0) {
-      errors.total = 'المبلغ مطلوب ويجب أن يكون أكبر من صفر';
-    }
-
-    return errors; // {} = لا أخطاء
-  }
-
-  async function handleSaveOrder() {
-    if (!editingOrder.pageId) { alert('اختر الصفحة أولاً'); return; }
-    if (!String(editingOrder.customer || '').trim()) { alert('اسم العميل مطلوب على الأقل'); return; }
-
-    // تحقق من حقول جيني — تحذير فقط، لا يمنع الحفظ
-    const validationErrors = validateJenniFields(editingOrder);
-    const hasJenniGaps = Object.keys(validationErrors).length > 0;
-    if (hasJenniGaps) {
-      const msgs = Object.values(validationErrors).join('\n• ');
-      const proceed = confirm(`⚠️ الطلب سيُحفظ، لكن لن يُرسَل لشركة التوصيل حتى تكتمل هذه الحقول:\n\n• ${msgs}\n\nهل تريد الحفظ الآن وإكمالها لاحقاً؟`);
-      if (!proceed) { return; }
-    }
-
-    setSaving(true);
-    try {
-      if (editingOrder.id) {
-        const payload = {
-          page_id: editingOrder.pageId,
-          customer_name: editingOrder.customer,
-          phone: editingOrder.phone,
-          address: editingOrder.address,
-          governorate_code: editingOrder.governorateCode || null,
-          governorate_name: editingOrder.governorateName || null,
-          area: editingOrder.area || null,
-          items: editingOrder.items,
-          order_type: editingOrder.orderType || null,
-          total: parseAmountIQD(editingOrder.total),
-          status: editingOrder.status,
-          conversation_id: editingOrder.conversationId || null,
-          source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
-          storage_location: editingOrder.storageLocation || null,
-        };
-        await sbUpdate('alfhd_orders', editingOrder.id, payload);
-        const updatedOrder = {
-          ...editingOrder,
-          pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
-          address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
-          governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
-          total: parseAmountIQD(editingOrder.total), status: editingOrder.status,
-          conversationId: editingOrder.conversationId || null,
-          source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
-        };
-        setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
-        if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
-        // ── إعادة إرسال لجيني فقط إذا اكتملت الحقول ولم يُرسَل بعد ──
-        const prevOrder = orders.find((o) => o.id === editingOrder.id);
-        if (!prevOrder?.jenniSent && !hasJenniGaps) {
-          sendOrderToJenni(updatedOrder, { silent: true });
-        }
-      } else {
-        const payload = {
-          order_no: String(Date.now()).slice(-6),
-          page_id: editingOrder.pageId,
-          customer_name: editingOrder.customer,
-          phone: editingOrder.phone,
-          address: editingOrder.address,
-          governorate_code: editingOrder.governorateCode || null,
-          governorate_name: editingOrder.governorateName || null,
-          area: editingOrder.area || null,
-          items: editingOrder.items,
-          order_type: editingOrder.orderType || null,
-          total: parseAmountIQD(editingOrder.total),
-          status: editingOrder.status || 'pending',
-          stage: 'ready',
-          order_date: new Date().toISOString().slice(0, 10),
-          fahd_ref: `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
-          conversation_id: editingOrder.conversationId || null,
-          source: editingOrder.conversationId ? 'chat' : 'manual',
-        };
-        const created = await sbInsert('alfhd_orders', payload);
-        if (created?.[0]) {
-          const newOrder = mapOrderFromDb(created[0]);
-          setOrders((prev) => [newOrder, ...prev]);
-          if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
-          // ── إرسال فوري لجيني فقط إذا اكتملت كل الحقول ──
-          // إن نقص حقل، يُحفظ الطلب وينتظر الإكمال (لا يُرسل ناقصاً)
-          if (!hasJenniGaps) {
-            sendOrderToJenni(newOrder, { silent: true });
-          }
-        }
-      }
-      setEditingOrder(null);
-    } catch (e) {
-      console.error('save order error:', e);
-      alert('تعذّر حفظ الطلب، تحقق من اتصالك');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handlePickOcrImage(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setOcrLoading(true);
-    try {
-      const { base64, mediaType } = await fileToBase64(file);
-      const res = await fetch(ORDER_EXTRACT_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'apikey': SUPABASE_KEY,
-        },
-        body: JSON.stringify({ imageBase64: base64, mediaType }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.error) throw new Error(data?.error || 'فشل الاستخراج');
-
-      // ── استخراج المحافظة من البيانات المستخرجة بالـ OCR ──
-      const rawAddress = data.order?.address || '';
-      const rawGovName = data.order?.governorate || data.order?.city || '';
-
-      let ocrGovCode = '';
-      let ocrGovName = '';
-      let ocrArea = data.order?.area || '';
-      let ocrAddress = rawAddress;
-
-      // ابحث عن المحافظة في الحقول المستخرجة
-      const govSearchText = rawGovName || rawAddress;
-      const govFound = IRAQ_GOVERNORATES.find((g) =>
-        govSearchText.includes(g.name) || govSearchText.includes(g.name.replace('ال', ''))
-      );
-      if (govFound) {
-        ocrGovCode = govFound.code;
-        ocrGovName = govFound.name;
-        // إذا كانت المحافظة داخل العنوان، أزلها وخلّ الباقي هو العنوان
-        ocrAddress = rawAddress.replace(govFound.name, '').replace(/^[\s\-،,]+/, '').trim();
-        if (!ocrArea && ocrAddress) {
-          const parts = ocrAddress.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
-          ocrArea = parts[0] || '';
-          ocrAddress = parts.slice(1).join(' - ') || '';
-        }
-      }
-
-      setEditingOrder({
-        id: null, pageId: pages[0]?.id || '',
-        customer: data.order?.customer_name || '',
-        phone: data.order?.phone || '',
-        address: ocrAddress,
-        governorateCode: ocrGovCode,
-        governorateName: ocrGovName,
-        area: ocrArea,
-        items: data.order?.items || '',
-        orderType: data.order?.order_type || '',
-        total: data.order?.total ? String(data.order.total) : '',
-        status: 'pending', conversationId: '',
-      });
-    } catch (e) {
-      console.error('ocr error:', e);
-      alert('تعذّر استخراج التفاصيل تلقائياً، أدخلها يدوياً بالنموذج');
-      setEditingOrder({
-        id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
-        items: '', orderType: '', total: '', status: 'pending', conversationId: '',
-      });
-    } finally {
-      setOcrLoading(false);
-    }
-  }
-
-  function groupByBatch(printedOrders) {
-    const batches = new Map();
-    for (const o of printedOrders) {
-      const key = o.printBatchId || 'unknown';
-      if (!batches.has(key)) batches.set(key, []);
-      batches.get(key).push(o);
-    }
-    return Array.from(batches.entries())
-      .map(([batchId, batchOrders]) => ({ batchId, orders: batchOrders, printedAt: batchOrders[0]?.printedAt || null }))
-      .sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
-  }
-
-  // الطباعة تنقل الطلب من "جاهز للطباعة" إلى "قيد التجهيز" داخل موقعك فقط.
-  // الطلب أُرسِل لجيني مسبقاً عند إنشائه (مرحلة ready) بحالة NEW_ORDER_TO_PRINT.
-  // لو لسبب ما لم يُرسَل بعد (مثلاً طلب قديم)، يُرسَل الآن كاحتياط.
-  async function markOrdersPrintedAndPrep(ids) {
-    if (ids.length === 0) return;
-    const batchId = `batch-${Date.now()}`;
-    const printedAt = new Date().toISOString();
-    // الطلبات التي لم تُرسَل لجيني بعد (احتياط للطلبات القديمة)
-    const notSentYet = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
-    setOrders((prev) => prev.map((o) => (
-      ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
-    )));
-    // حفظ في DB
-    try {
-      await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
-        printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
-      })));
-    } catch (e) {
-      console.error('mark printed error:', e);
-    }
-    // إرسال احتياطي فقط للطلبات القديمة التي لم تُرسَل عند الإنشاء
-    for (const o of notSentYet) {
-      await sendOrderToJenni(o, { silent: true });
-    }
-  }
-
-  // إرسال طلب واحد لشركة Jenni وحفظ رقم الشحنة (صامت)
-  // تحويل الأرقام العربية/الفارسية إلى إنجليزية
-  function toEnglishDigits(str) {
-    return arabicToEnglishDigits(str);
-  }
-
-  // تنظيف رقم الهاتف ليكون بصيغة 07XXXXXXXXX التي تقبلها جيني
-  function normalizeIraqiPhone(raw) {
-    if (!raw) return '';
-    // حوّل الأرقام العربية لإنجليزية أولاً ثم أزل غير الأرقام
-    let digits = toEnglishDigits(raw).replace(/[^0-9]/g, '');
-    if (digits.startsWith('00964')) digits = '0' + digits.slice(5);
-    else if (digits.startsWith('964')) digits = '0' + digits.slice(3);
-    if (!digits.startsWith('0')) digits = '0' + digits;
-    return digits.slice(0, 11); // 07XXXXXXXXX = 11 رقماً
-  }
-
-  async function sendOrderToJenni(o, { silent = false } = {}) {
-    // ── قفل ضد الإرسال المزدوج (يمنع إنشاء شحنتين لنفس الطلب) ──
-    if (!sendingJenniRef.current) sendingJenniRef.current = new Set();
-    if (sendingJenniRef.current.has(o.id)) {
-      return false; // إرسال جارٍ بالفعل لهذا الطلب
-    }
-    // إن كان مُرسلاً مسبقاً، لا نعيد الإرسال
-    if (o.jenniSent || o.jenniShipmentId) {
-      return { success: true, shipment_id: o.jenniShipmentId, tracking_number: o.jenniTracking, already: true };
-    }
-    sendingJenniRef.current.add(o.id);
-    try {
-      return await _sendOrderToJenniInner(o, { silent });
-    } finally {
-      sendingJenniRef.current.delete(o.id);
-    }
-  }
-
-  // البحث عن منطقة في جدول jenni_cities (2515 منطقة) — يرجّع {city_id, city_name, governorate_code}
-  // القاعدة الصارمة: إذا ذُكرت محافظة صريحة في النص، نبحث داخلها فقط (يمنع "الزعفرانية"→أربيل الخاطئ)
-  async function lookupCityInJenni(text, forcedGovCode) {
-    if (!text || !text.trim()) return null;
-    try {
-      const norm = (s) => normalizeArJS(String(s || '')).replace(/\s/g, '');
-      const rawWords = normalizeArJS(String(text)).split(/[\s\-،,]+/).filter((w) => w.length >= 3);
-      if (rawWords.length === 0 && !forcedGovCode) return null;
-
-      if (!citiesCacheRef.current) {
-        const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
-        citiesCacheRef.current = Array.isArray(all) ? all : [];
-      }
-      const allCities = citiesCacheRef.current;
-      if (!allCities.length) return null;
-
-      // ── الخطوة 1: حدّد المحافظة الملزِمة ──
-      // أولوية: (أ) محافظة ممرّرة، (ب) محافظة صريحة في النص عبر الأسماء الشائعة
-      let govCode = forcedGovCode || null;
-      if (!govCode) {
-        govCode = inferGovFromText(text); // يفحص أسماء المحافظات ومراكزها الصريحة
-      }
-      // كلمات المنطقة (نستبعد كلمات المحافظة نفسها من البحث عن المنطقة)
-      const stopWords = new Set();
-      for (const g of IRAQ_GOVERNORATES) { stopWords.add(norm(g.name)); stopWords.add(norm(g.name.replace(/^ال/, ''))); }
-      for (const alias of Object.keys(CITY_ALIAS_TO_GOV)) stopWords.add(norm(alias));
-      const words = rawWords.filter((w) => !stopWords.has(norm(w)));
-
-      // النطاق: مدن المحافظة الملزِمة فقط (إن وُجدت)، وإلا كل المدن
-      const scope = govCode ? allCities.filter((c) => c.governorate_code === govCode) : allCities;
-      if (govCode && scope.length === 0) {
-        // محافظة معروفة لكن لا مدن لها في الجدول — نرجّع المحافظة بلا منطقة محددة
-        return { city_id: null, city_name: null, governorate_code: govCode, _govOnly: true };
-      }
-
-      const searchWords = words.length ? words : rawWords;
-      const fullNorm = norm(searchWords.join(''));
-
-      // ── الخطوة 2: طابق المنطقة داخل النطاق فقط ──
-      // (أ) تطابق دقيق لاسم منطقة = كلمة كاملة
-      for (const w of searchWords) {
-        const wn = norm(w);
-        if (wn.length < 3) continue;
-        const exact = scope.find((c) => norm(c.city_name_norm || c.city_name) === wn);
-        if (exact) return exact;
-      }
-      // (ب) اسم المنطقة الرسمي (≥4 حروف) موجود داخل كلمة من النص
-      let best = null, bestLen = 0;
-      for (const c of scope) {
-        const cn = norm(c.city_name_norm || c.city_name);
-        if (cn.length < 4) continue;
-        for (const w of searchWords) {
-          const wn = norm(w);
-          if ((wn.includes(cn) || cn.includes(wn)) && cn.length > bestLen) { bestLen = cn.length; best = c; }
-        }
-      }
-      if (best) return best;
-      // (ج) أقرب تشابه — فقط داخل النطاق وبعتبة صارمة (يمنع المطابقة العشوائية)
-      const longest = [...searchWords].sort((a, b) => b.length - a.length)[0] || '';
-      const target = norm(longest);
-      if (target.length >= 4) {
-        let bestM = null, bestRatio = 0.25; // عتبة صارمة جداً
-        for (const c of scope) {
-          const cn = norm(c.city_name_norm || c.city_name);
-          if (cn.length < 4 || Math.abs(cn.length - target.length) > 2) continue;
-          const dp = Array.from({ length: target.length + 1 }, (_, i) => i);
-          for (let i = 1; i <= cn.length; i++) {
-            let prev = dp[0]; dp[0] = i;
-            for (let j = 1; j <= target.length; j++) {
-              const tmp = dp[j];
-              dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (cn[i - 1] === target[j - 1] ? 0 : 1));
-              prev = tmp;
-            }
-          }
-          const ratio = dp[target.length] / Math.max(cn.length, target.length);
-          if (ratio < bestRatio) { bestRatio = ratio; bestM = c; }
-        }
-        if (bestM) return bestM;
-      }
-      // (د) عرفنا المحافظة لكن ما لقينا المنطقة بدقة → نرجّع المحافظة بلا منطقة (لا نخمّن عشوائياً)
-      if (govCode) return { city_id: null, city_name: null, governorate_code: govCode, _govOnly: true };
-      return null;
-    } catch (_e) { return null; }
-  }
-
-  async function _sendOrderToJenniInner(o, { silent = false } = {}) {
-    // ══ اكتشاف المحافظة والمنطقة تلقائياً من جدول جيني (2515 منطقة) ══
-    // يحل: "زاخو"→دهوك، "شقلاوة"→أربيل، "عقرة"→دهوك... أي منطقة يكتبها الزبون
-    if (!o.governorateCode || !o.cityId) {
-      const searchText = `${o.area || ''} ${o.address || ''}`.trim();
-      // مرّر المحافظة الموجودة (إن كانت) لتقييد البحث داخلها فقط
-      const found = await lookupCityInJenni(searchText, o.governorateCode || null);
-      if (found) {
-        const gov = IRAQ_GOVERNORATES.find((g) => g.code === found.governorate_code);
-        const patch = {
-          governorate_code: found.governorate_code,
-          governorate_name: gov?.name || null,
-        };
-        // حدّث المنطقة والكود فقط إذا وُجدت منطقة فعلية (لا نمسح منطقة صحيحة بـ null)
-        if (found.city_id && found.city_name) {
-          patch.city_id = found.city_id;
-          patch.area = found.city_name;
-        }
-        o = {
-          ...o,
-          governorateCode: found.governorate_code,
-          governorateName: gov?.name || o.governorateName,
-          cityId: found.city_id || o.cityId,
-          area: (found.city_name || o.area),
-        };
-        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        setOrders((prev) => prev.map((x) => x.id === o.id ? {
-          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id || x.cityId, area: (found.city_name || x.area),
-        } : x));
-      }
-    }
-    // احتياط: الخريطة اليدوية للمراكز الكبيرة إن لم يجد في الجدول
-    if (!o.governorateCode) {
-      const inferred = inferGovFromText(o.area) || inferGovFromText(o.address);
-      if (inferred) {
-        const gov = IRAQ_GOVERNORATES.find((g) => g.code === inferred);
-        o = { ...o, governorateCode: inferred, governorateName: gov?.name || o.governorateName };
-        try { await sbUpdate('alfhd_orders', o.id, { governorate_code: inferred, governorate_name: gov?.name || null }); } catch (_e) { /* تجاهل */ }
-        setOrders((prev) => prev.map((x) => x.id === o.id ? { ...x, governorateCode: inferred, governorateName: gov?.name } : x));
-      }
-    }
-    // ── خط دفاع: التحقق من كل الحقول الإجبارية قبل الإرسال ──
-    if (!o.governorateCode || !o.phone) {
-      const msg = 'لا يمكن الإرسال لشركة التوصيل: المحافظة ورقم الهاتف مطلوبان';
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
-      if (!silent) alert(msg);
-      return false;
-    }
-    const cleanPhone = normalizeIraqiPhone(o.phone);
-    if (cleanPhone.length !== 11 || !cleanPhone.startsWith('07')) {
-      const msg = `رقم الهاتف غير صالح: ${o.phone} — يجب أن يكون بصيغة 07XXXXXXXXX`;
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
-      if (!silent) alert(msg);
-      return false;
-    }
-    // المنطقة: من area أو العنوان، وإن لم توجد نستخدم اسم المحافظة (لا نرفض الإرسال)
-    let cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1]?.trim() || '';
-    if (!cityValue) {
-      cityValue = String(o.governorateName || '').trim() || String(o.address || '').split(' - ')[0]?.trim() || 'غير محدد';
-    }
-    // city_id: استُنتج مسبقاً من lookupCityInJenni الصارمة (المقيّدة بالمحافظة)
-    // إن لم يوجد، نبحث مرة أخيرة داخل محافظة الطلب فقط (لا بحث شامل عشوائي)
-    let cityId = o.cityId || null;
-    if (!cityId && o.governorateCode) {
-      const strictFound = await lookupCityInJenni(`${o.area || ''} ${o.address || ''}`.trim(), o.governorateCode);
-      if (strictFound && strictFound.city_id) {
-        cityId = strictFound.city_id;
-        cityValue = strictFound.city_name || cityValue;
-      }
-    }
-    // ملاذ أخير: المحافظة معروفة لكن لم نجد كود المنطقة → استخدم مركز/أشهر منطقة بالمحافظة
-    // (يضمن قبول جيني بدل رفض الطلب — التوصيل يتواصل مع الزبون للعنوان الدقيق)
-    if (!cityId && o.governorateCode) {
-      try {
-        if (!citiesCacheRef.current) {
-          const all = await sbSelect('jenni_cities', 'select=city_id,city_name,city_name_norm,governorate_code&limit=3000');
-          citiesCacheRef.current = Array.isArray(all) ? all : [];
-        }
-        const govCities = citiesCacheRef.current.filter((c) => c.governorate_code === o.governorateCode);
-        if (govCities.length) {
-          // فضّل منطقة اسمها = اسم المحافظة (المركز)، وإلا أول منطقة
-          const govNameNorm = normalizeArJS(o.governorateName || '').replace(/\s/g, '');
-          const center = govCities.find((c) => {
-            const cn = normalizeArJS(c.city_name_norm || c.city_name).replace(/\s/g, '');
-            return cn === govNameNorm || cn.includes(govNameNorm) || govNameNorm.includes(cn);
-          }) || govCities[0];
-          cityId = center.city_id;
-          // نُبقي اسم المنطقة الأصلي في العنوان، ونستخدم كود المركز فقط
-          if (!o.area) cityValue = center.city_name;
-        }
-      } catch (_e) { /* تجاهل */ }
-    }
-    if (!Number(o.total) || Number(o.total) <= 0) {
-      const msg = 'المبلغ يجب أن يكون أكبر من صفر';
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
-      if (!silent) alert(msg);
-      return false;
-    }
-
-    // ── ملاحظات التوصيل: نوع الطلب + المنتجات (نوع السيارة، الموديل، النوعية) ──
-    const noteText = [
-      o.orderType ? o.orderType.trim() : '',
-      o.items ? o.items.trim() : '',
-    ].filter(Boolean).join(' — ');
-
-    // ── البيانات المرسلة لشركة التوصيل ──
-    const cleanAmount = parseAmountIQD(o.total);
-    // العنوان الكامل: نضم المنطقة الأصلية التي كتبها الزبون + العنوان التفصيلي
-    // (يضمن وصول المندوب للموقع الصحيح حتى لو استخدمنا كود مركز المحافظة)
-    const fullAddress = [o.area, o.address].filter(Boolean).map((s) => String(s).trim()).filter((s, i, arr) => s && arr.indexOf(s) === i).join(' - ');
-    const shipmentPayload = {
-      external_shipment_id: String(o.id),
-      shipment_number: String(o.orderNo || o.id),
-      receiver_name: o.customer || '',
-      receiver_phone_1: cleanPhone,
-      governorate_code: o.governorateCode,
-      city: cityValue,
-      ...(cityId ? { city_id: cityId } : {}),
-      address: fullAddress || String(o.address || '').trim() || cityValue,
-      amount_iqd: cleanAmount,
-      note: noteText || undefined,
-    };
-
-    console.log('📦 إرسال لشركة التوصيل:', shipmentPayload);
-
-    try {
-      const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'apikey': SUPABASE_KEY,
-        },
-        body: JSON.stringify(shipmentPayload),
-      });
-
-      let data = {};
-      const rawText = await res.text();
-      try { data = JSON.parse(rawText); } catch (_) { data = { raw: rawText }; }
-
-      console.log('📬 رد شركة التوصيل:', res.status, data);
-
-      // نجاح حقيقي = جيني أنشأ شحنة فعلية (shipment_id موجود)
-      const realShipmentId = data.shipment_id || data.data?.shipment_id || data.shipment?.id || null;
-      const realTracking = data.tracking_number || data.data?.tracking_number || data.shipment?.tracking_number || null;
-      if (res.ok && realShipmentId) {
-        const patch = {
-          jenni_sent: true,
-          jenni_shipment_id: realShipmentId,
-          jenni_tracking: realTracking,
-          delivery_status: 'sorting',
-        };
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? {
-          ...x,
-          jenniSent: true,
-          jenniShipmentId: realShipmentId,
-          jenniTracking: realTracking,
-          jenniError: null,
-          deliveryStatus: 'sorting',
-        } : x)));
-        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        console.log('✅ تم الإرسال لشركة التوصيل بنجاح، shipment_id:', realShipmentId);
-        return { success: true, shipment_id: realShipmentId, tracking_number: realTracking };
-      }
-
-      // نجح الرد لكن بدون shipment_id → نعرض سبب جيني الحقيقي + البيانات المُرسلة
-      if (res.ok && !realShipmentId) {
-        const reason = data?.jenni_error || data?.create_response?.message || 'بيانات ناقصة أو غير مقبولة';
-        const sent = data?.sent_payload || {};
-        const diag = `المحافظة: ${sent.governorate_code || o.governorateCode || '—'} | كود المنطقة: ${sent.city_id || cityId || 'مفقود'} | المنطقة: ${cityValue || '—'}`;
-        const msg = `الطلب #${o.orderNo} — لم تُنشأ الشحنة:\n${reason}\n\n${diag}`;
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: `${reason} (${diag})`, jenniSent: false } : x)));
-        console.error('❌ جيني رفض الطلب:', reason, 'المُرسل:', sent);
-        if (!silent) alert(msg);
-        return false;
-      }
-
-      // 409 = موجود مسبقاً
-      if (res.status === 409) {
-        const patch = { jenni_sent: true, delivery_status: 'sorting' };
-        setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniError: null, deliveryStatus: 'sorting' } : x)));
-        try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
-        console.log('ℹ️ الطلب موجود مسبقاً في شركة التوصيل');
-        return true;
-      }
-
-      const errMsg = data?.error || data?.message || data?.raw || `فشل الإرسال (${res.status})`;
-      console.error('❌ فشل الإرسال لشركة التوصيل:', res.status, errMsg, data);
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`فشل الإرسال لشركة التوصيل:\n${errMsg}`);
-      return false;
-    } catch (e) {
-      const errMsg = e?.message || 'خطأ اتصال غير معروف';
-      console.error('❌ خطأ في الاتصال بشركة التوصيل:', e);
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
-      if (!silent) alert(`تعذّر الاتصال بشركة التوصيل:\n${errMsg}`);
-      return false;
-    }
-  }
-
-  // ── أزرار الإجراءات المتاحة حسب حالة جيني ──
-  // ── تنفيذ إجراء جيني فعلياً (تأجيل/إرجاع/معالجة) عبر الدالة ──
-  async function callJenniAction(order, action, { reason = '', postponedDateId = null } = {}) {
-    if (!order.jenniShipmentId && !order.orderNo) {
-      alert('لا يمكن تنفيذ الإجراء: الطلب غير مرسل لشركة التوصيل');
-      return false;
-    }
-    try {
-      const payload = {
-        shipment_id: order.jenniShipmentId || undefined,
-        shipment_number: order.jenniShipmentId ? undefined : String(order.orderNo),
-        action,
-        reason,
-      };
-      if (action === 'POSTPONED') payload.postponed_date_id = postponedDateId || 1;
-
-      const res = await fetch(JENNI_UPDATE_STATUS_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'apikey': SUPABASE_KEY,
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) {
-        alert(`فشل الإجراء في شركة التوصيل: ${data.error || data.jenni_response?.message || 'خطأ غير معروف'}`);
-        return false;
-      }
-
-      // تحديث الطلب محلياً + قاعدة البيانات بالحالة الجديدة من جيني
-      const patch = {
-        delivery_step: data.new_status || order.deliveryStep,
-        delivery_step_ar: data.new_status_ar || order.deliveryStepAr,
-        delivery_note: reason || order.deliveryNote,
-        delivery_updated_at: data.updated_at || new Date().toISOString(),
-      };
-      try { await sbUpdate('alfhd_orders', order.id, patch); } catch (_e) { /* المزامنة ستصحح لاحقاً */ }
-      setOrders((prev) => prev.map((x) => (x.id === order.id ? {
-        ...x,
-        deliveryStep: patch.delivery_step,
-        deliveryStepAr: patch.delivery_step_ar,
-        deliveryNote: patch.delivery_note,
-        deliveryUpdatedAt: patch.delivery_updated_at,
-      } : x)));
-      return true;
-    } catch (e) {
-      alert(`خطأ في الاتصال بشركة التوصيل: ${e.message}`);
-      return false;
-    }
-  }
-
-  // فتح نافذة إجراء يتطلب سبب (تأجيل/إرجاع)
-  function openJenniActionModal(order, action, title) {
-    setJenniAction({ order, action, title });
-    setJenniActionReason('');
-    setJenniActionDateId(1);
-  }
-
-  // تأكيد نافذة الإجراء
-  async function confirmJenniAction() {
-    if (!jenniAction) return;
-    const { order, action } = jenniAction;
-    if (!jenniActionReason.trim()) { alert('السبب مطلوب'); return; }
-    setJenniActionBusy(true);
-    const ok = await callJenniAction(order, action, {
-      reason: jenniActionReason.trim(),
-      postponedDateId: action === 'POSTPONED' ? jenniActionDateId : null,
-    });
-    setJenniActionBusy(false);
-    if (ok) {
-      setJenniAction(null);
-      setDetailOrder(null);
-    }
-  }
-
-  // ── طباعة باركود الشحنة من جيني (PDF) ──
-
-  async function printJenniBarcode(order) {
-    if (!order.orderNo && !order.jenniShipmentId) {
-      alert('لا يمكن طباعة الباركود: الطلب غير مرسل لشركة التوصيل');
-      return;
-    }
-    setPrintLoading(true);
-    setPrintModal({ title: `باركود الطلب #${order.orderNo}`, html: '', loading: true });
-    try {
-      // إن لم يُرسَل الطلب لجيني بعد → أرسله الآن أولاً
-      if (!order.jenniSent && !order.jenniShipmentId) {
-        setPrintModal({ title: `طلب #${order.orderNo}`, html: '', loading: true, note: 'جارٍ إرسال الطلب لشركة التوصيل أولاً...' });
-        try {
-          const sent = await sendOrderToJenni(order, { silent: true });
-          if (sent && (sent.shipment_id || sent.tracking_number)) {
-            order = { ...order, jenniSent: true, jenniShipmentId: sent.shipment_id || order.jenniShipmentId, jenniTracking: sent.tracking_number || order.jenniTracking };
-          } else {
-            order = { ...order, jenniSent: true };
-          }
-        } catch (_e) { /* نكمل */ }
-      }
-
-      const payload = {
-        shipment_ids: order.jenniShipmentId ? [order.jenniShipmentId] : [],
-        shipment_numbers: [order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).map(String),
-      };
-      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) {
-        const jr = data.jenni_response;
-        const detail = data.error || jr?.message || jr?.error || jr?.msg
-          || (jr ? JSON.stringify(jr).slice(0, 300) : '')
-          || (data.jenni_status ? `جيني ردّ بالحالة ${data.jenni_status}` : '') || 'غير متاح';
-        const tried = [order.orderNo, order.jenniShipmentId, order.jenniTracking].filter(Boolean).join(', ');
-        setPrintModal({ title: 'تعذّر الطباعة', error: `${detail}\n\nالأرقام المُجرّبة: ${tried}` });
-        console.error('JENNI STICKERS:', JSON.stringify(data, null, 2));
-        return;
-      }
-
-      let src = '';
-      if (data.type === 'pdf_base64' && data.data) src = `data:application/pdf;base64,${data.data}`;
-      else if (data.type === 'url' && data.url) src = data.url;
-      else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح لهذا الطلب' }); return; }
-
-      setPrintModal({ title: `باركود الطلب #${order.orderNo}`, src, count: 1 });
-    } catch (e) {
-      setPrintModal({ title: 'خطأ', error: e.message });
-    } finally {
-      setPrintLoading(false);
-    }
-  }
-
-  function JenniActionsPanel({ o }) {
-    if (!o.jenniSent) return null;
-    const step = (o.deliveryStep || '').toUpperCase();
-    const actions = [];
-
-    const btnStyle = (color, bgA) => ({
-      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-      background: `rgba(${bgA})`, border: `1px solid ${color}40`,
-      borderRadius: 9, color, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-    });
-
-    const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(step);
-    const isReturned = step.startsWith('RTO');
-    const isActive = !isDelivered && !isReturned; // قيد التوصيل
-
-    // قيد التوصيل: تأجيل / إرجاع / معالجة
-    if (isActive) {
-      actions.push(
-        <button key="postpone" style={btnStyle('#F0A868', '240,168,104,0.10')}
-          onClick={() => openJenniActionModal(o, 'POSTPONED', 'تأجيل التوصيل')}>
-          <Calendar size={13} /> تأجيل التوصيل
-        </button>
-      );
-      actions.push(
-        <button key="return" style={btnStyle('#F25050', '242,80,80,0.08')}
-          onClick={() => openJenniActionModal(o, 'RETURNED_WITH_AGENT', 'إرجاع الطلب')}>
-          <XCircle size={13} /> إرجاع الطلب
-        </button>
-      );
-    }
-
-    // راجع: تأكيد الإرجاع وأرشفة
-    if (isReturned) {
-      actions.push(
-        <button key="confirm_return" style={btnStyle('#F25050', '242,80,80,0.08')}
-          onClick={() => markOrderConverted(o)}>
-          <XCircle size={13} /> تأكيد الإرجاع وأرشفة الطلب
-        </button>
-      );
-    }
-
-    // مستلم: تأكيد وأرشفة
-    if (isDelivered) {
-      actions.push(
-        <button key="archive" style={btnStyle('#4DDB6B', '77,219,107,0.08')}
-          onClick={() => markOrderConverted(o)}>
-          <CheckCircle2 size={13} /> تأكيد الاستلام وأرشفة الطلب
-        </button>
-      );
-    }
-
-    // الباركود متاح دائماً طالما الطلب مُرسل لجيني (حتى لو ما في إجراءات أخرى)
-    return (
-      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontSize: 11, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات شركة التوصيل:</div>
-        {actions}
-        <button key="barcode" style={btnStyle('#2AABEE', '42,171,238,0.10')}
-          onClick={() => printJenniBarcode(o)}>
-          <Printer size={13} /> طباعة باركود الشحنة
-        </button>
-      </div>
-    );
-  }
-
-  // طباعة جماعية من جيني — يجلب باركود كل الطلبات دفعة واحدة (داخل modal)
-  async function printJenniBatch(orders, { saveBatch = true } = {}) {
-    const valid = orders.filter((o) => o.orderNo || o.jenniShipmentId);
-    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة'); return; }
-    setPrintLoading(true);
-    setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ تحميل ${valid.length} باركود...` });
-    try {
-      // أرسل الطلبات غير المُرسلة لجيني أولاً.
-      // عند الطباعة الأصلية: كل الطلبات غير المرسلة. عند إعادة الطباعة: فقط من لا يملك أي رقم شحنة.
-      const notSent = saveBatch
-        ? valid.filter((o) => !o.jenniSent && !o.jenniShipmentId)
-        : valid.filter((o) => !o.jenniShipmentId && !o.jenniTracking && !o.orderNo);
-      if (notSent.length > 0) {
-        setPrintModal({ title: `طباعة ${valid.length} طلب`, loading: true, note: `جارٍ إرسال ${notSent.length} طلب لشركة التوصيل أولاً...` });
-        for (let i = 0; i < notSent.length; i++) {
-          try {
-            const sent = await sendOrderToJenni(notSent[i], { silent: true });
-            if (sent && (sent.shipment_id || sent.tracking_number)) {
-              const idx = valid.findIndex((v) => v.id === notSent[i].id);
-              if (idx >= 0) valid[idx] = { ...valid[idx], jenniSent: true, jenniShipmentId: sent.shipment_id || valid[idx].jenniShipmentId, jenniTracking: sent.tracking_number || valid[idx].jenniTracking };
-            }
-          } catch (_e) { /* تابع */ }
-        }
-      }
-
-      // ── الجذر: افصل الطلبات التي لم تُنشأ لها شحنة فعلية عند جيني ──
-      // (ليس لها shipment_id ولا tracking) — هذه لن يكون لها باركود، فنستبعدها ونبقيها في الطباعة
-      const readyToPrint = valid.filter((o) => o.jenniShipmentId || o.jenniTracking || (o.jenniSent && o.orderNo));
-      const notReady = valid.filter((o) => !(o.jenniShipmentId || o.jenniTracking || (o.jenniSent && o.orderNo)));
-
-      if (readyToPrint.length === 0) {
-        const names = notReady.map((o) => `#${o.orderNo || '?'}`).join('، ');
-        setPrintModal({ title: 'تعذّر الطباعة', error: `لم تُنشأ شحنات لهذه الطلبات في شركة التوصيل (بيانات ناقصة): ${names}\n\nتحقق من المنطقة والهاتف والمحافظة لكل طلب.` });
-        return;
-      }
-
-      // اجمع أرقام الطلبات الجاهزة فقط
-      const allNumbers = [];
-      const allIds = [];
-      readyToPrint.forEach((o) => {
-        if (o.orderNo) allNumbers.push(String(o.orderNo));
-        if (o.jenniTracking && o.jenniTracking !== o.orderNo) allNumbers.push(String(o.jenniTracking));
-        if (o.jenniShipmentId) allIds.push(String(o.jenniShipmentId));
-      });
-      if (allNumbers.length === 0 && allIds.length === 0) {
-        setPrintModal({ title: 'تعذّر الطباعة', error: 'هذه الطلبات لا تحتوي أرقام شحنات صالحة. أعد إرسالها لشركة التوصيل أولاً.' });
-        return;
-      }
-      const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
-        body: JSON.stringify({ shipment_ids: allIds, shipment_numbers: allNumbers }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) {
-        const jr = data.jenni_response;
-        const detail = data.error || jr?.message || jr?.error || (jr ? JSON.stringify(jr).slice(0,200) : '') || 'غير متاح';
-        setPrintModal({ title: 'تعذّر الطباعة', error: detail });
-        return;
-      }
-
-      let src = '';
-      if (data.type === 'pdf_base64' && data.data) src = `data:application/pdf;base64,${data.data}`;
-      else if (data.type === 'url' && data.url) src = data.url;
-      else { setPrintModal({ title: 'تعذّر الطباعة', error: 'الباركود غير متاح' }); return; }
-
-      setPrintModal({ title: `طباعة ${readyToPrint.length} طلب`, src, count: readyToPrint.length });
-
-      // احفظ الدفعة + انقل لقيد التجهيز
-      // readyToPrint مضمونة: لها shipment_id أو tracking فعلي (تحقّقنا عند الإرسال)
-      if (saveBatch) {
-        const printedIds = readyToPrint.map((o) => o.id);
-        const batchId = `batch-${Date.now()}`;
-        const printedAt = new Date().toISOString();
-        setOrders((prev) => prev.map((o) => printedIds.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o));
-        for (const id of printedIds) {
-          try { await sbUpdate('alfhd_orders', id, { printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep' }); } catch (_e) { /* تجاهل */ }
-        }
-
-        // تنبيه عن الطلبات الناقصة التي استُبعدت (لم تُنشأ لها شحنة)
-        if (notReady.length > 0) {
-          const names = notReady.map((o) => `#${o.orderNo || '?'}`).join('، ');
-          setPrintModal({
-            title: `طُبع ${printedIds.length} من ${valid.length}`,
-            src, count: printedIds.length,
-            warning: `${notReady.length} طلب لم يُطبع (بيانات ناقصة): ${names}. بقيت في قسم الطباعة — صحّح بياناتها.`,
-          });
-        }
-      }
-    } catch (e) {
-      setPrintModal({ title: 'خطأ', error: e.message });
-    } finally {
-      setPrintLoading(false);
-    }
-  }
-
-  function handlePrintReady() {
-    if (stageOrders.length === 0) { alert('لا توجد طلبات جاهزة للطباعة'); return; }
-    // افصل المكتمل عن الناقص — لا نحاول طباعة طلب ناقص البيانات
-    const complete = stageOrders.filter((o) => Object.keys(validateJenniFields(o)).length === 0);
-    const incomplete = stageOrders.filter((o) => Object.keys(validateJenniFields(o)).length > 0);
-    if (complete.length === 0) {
-      alert(`كل الطلبات (${incomplete.length}) تحتاج إكمال بيانات قبل الطباعة.\nراجع الطلبات المميّزة باللون البرتقالي وأكمل الناقص (المنطقة، الهاتف، المحافظة).`);
-      return;
-    }
-    if (incomplete.length > 0) {
-      const names = incomplete.map((o) => `#${o.orderNo || '?'}`).join('، ');
-      if (!window.confirm(`${complete.length} طلب جاهز للطباعة.\n\n${incomplete.length} طلب ناقص البيانات سيُتخطّى: ${names}\n\nمتابعة طباعة المكتمل فقط؟`)) return;
-    }
-    printJenniBatch(complete, { saveBatch: true });
-  }
-
-  function handleReprintBatch(batchId, batchOrders) {
-    printJenniBatch(batchOrders, { saveBatch: false });
-  }
-
-  // تجميع الطلبات المطبوعة في دفعات (للسجل) — من بيانات الطلبات نفسها
-  const printBatches = useMemo(() => {
-    const map = {};
-    orders.forEach((o) => {
-      if (!o.printBatchId || !o.printed) return;
-      if (!map[o.printBatchId]) map[o.printBatchId] = { batchId: o.printBatchId, printedAt: o.printedAt, orders: [] };
-      map[o.printBatchId].orders.push(o);
-      // خذ أحدث تاريخ
-      if (o.printedAt && (!map[o.printBatchId].printedAt || o.printedAt > map[o.printBatchId].printedAt)) {
-        map[o.printBatchId].printedAt = o.printedAt;
-      }
-    });
-    return Object.values(map).sort((a, b) => (b.printedAt || '').localeCompare(a.printedAt || ''));
-  }, [orders]);
-
-  function fmtBatchDate(iso) {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      const date = d.toLocaleDateString('ar-IQ', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const time = d.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
-      return `${date} · ${time}`;
-    } catch { return iso; }
-  }
-
-  // إعادة طلبات مهملة لقسم الطباعة
-  async function restoreNeglected(ids) {
-    if (!ids.length) return;
-    const now = new Date().toISOString();
-    setOrders((prev) => prev.map((o) => ids.includes(o.id)
-      ? { ...o, stage: 'ready', printed: false, printBatchId: null, printedAt: null, createdAt: now }
-      : o));
-    for (const id of ids) {
-      try { await sbUpdate('alfhd_orders', id, { stage: 'ready', printed: false, print_batch_id: null, printed_at: null, created_at: now }); } catch (_e) { /* تجاهل */ }
-    }
-    setNeglectedSelected([]);
-  }
-
-  // حذف طلبات مهملة نهائياً
-  async function deleteNeglected(ids) {
-    if (!ids.length) return;
-    if (!window.confirm(`حذف ${ids.length} طلب نهائياً؟ لا يمكن التراجع.`)) return;
-    setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
-    for (const id of ids) {
-      try { await sbDelete('alfhd_orders', id); } catch (_e) { /* تجاهل */ }
-    }
-    setNeglectedSelected([]);
-  }
-
-  function toggleNeglectedSelect(id) {
-    setNeglectedSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  }
-
-  // نقل الطلب لمرحلة شركة التوصيل الفعلية: غالباً يكون منشأ مسبقاً في Jenni من لحظة الطباعة
-  // إذا لم يكن منشأ لأي سبب، نحاول إنشاءه قبل النقل حتى يبقى التطابق صحيحاً.
-  async function moveToDelivery(o) {
-    const sentOk = o.jenniSent || await sendOrderToJenni(o);
-    if (!sentOk) return;
-    const patch = { stage: 'delivery', delivery_status: 'sorting', status: 'pending' };
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? {
-      ...x, stage: 'delivery', deliveryStatus: 'sorting', jenniSent: true, status: 'pending',
-    } : x)));
-    setDetailOrder(null);
-    try {
-      await sbUpdate('alfhd_orders', o.id, patch);
-    } catch (e) { console.error('move to delivery error:', e); }
-  }
-
-  const prepBatches = useMemo(() => groupByBatch(stageOrders), [stageOrders]);
-
-  function StageStatusBadge({ o }) {
-    if (section === 'delivery') {
-      const stepU = (o.deliveryStep || '').toUpperCase();
-      const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU);
-      const isReturned = stepU.startsWith('RTO');
-      let color, bg;
-      if (isDelivered) { color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)'; }
-      else if (isReturned) { color = '#F25050'; bg = 'rgba(242,80,80,0.12)'; }
-      else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) { color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)'; }
-      else { color = '#A78BFA'; bg = 'rgba(167,139,250,0.12)'; }
-      // حالة جيني الفعلية فقط (كما هي عند شركة التوصيل)
-      const label = o.deliveryStepAr || 'بانتظار التحديث';
-      return <div style={{ ...styles.orderStatusPill, color, background: bg }}>{label}</div>;
-    }
-    if (section === 'prep') {
-      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
-    }
-    return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
-  }
-
-  function renderOrderCard(o, index = 0) {
-    const page = pages.find((p) => p.id === o.pageId);
-    const isRejected = o.prepStatus === 'rejected';
-    // لون الشريط حسب الحالة: أخضر=مستلم، أحمر=راجع، برتقالي=قيد التوصيل، أزرق=جاهز
-    const stepU = (o.deliveryStep || '').toUpperCase();
-    let stripColor = '#2AABEE'; // افتراضي (جاهز/تجهيز)
-    if (o.converted) stripColor = '#4DDB6B';
-    else if (isRejected) stripColor = '#F25050';
-    else if (stepU.startsWith('RTO')) stripColor = '#F25050';
-    else if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) stripColor = '#4DDB6B';
-    else if (stepU) stripColor = '#F0A868'; // قيد التوصيل
-    return (
-      <div
-        key={o.id}
-        style={{ ...styles.orderCard, ...(isRejected ? styles.rejectedCard : {}), animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
-        className="alfhd-order-card alfhd-card-enter"
-      >
-        {/* شريط لوني علوي حسب الحالة */}
-        <div style={{ height: 3, background: stripColor, width: '100%' }} />
-
-        {isRejected && (
-          <div style={styles.rejectedBanner}>
-            <AlertCircle size={16} />
-            <span>لم يُجهَّز من قبل المخزن — تحقق قبل الطباعة</span>
-          </div>
-        )}
-
-        {/* بانر نقص البيانات — يظهر في قسم الطباعة إذا الطلب غير مكتمل لجيني */}
-        {isReady && (() => {
-          const errs = validateJenniFields(o);
-          const missing = Object.values(errs);
-          if (missing.length === 0) return null;
-          return (
-            <div style={{ background: 'rgba(240,168,104,0.12)', borderBottom: '1px solid rgba(240,168,104,0.25)', padding: '9px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <AlertTriangle size={15} color="#F0A868" style={{ flexShrink: 0, marginTop: 2 }} />
-              <div style={{ fontSize: 11.5, color: '#F0A868', fontWeight: 600, lineHeight: 1.6 }}>
-                <span style={{ fontWeight: 800 }}>يحتاج إكمال قبل الطباعة:</span> {missing.join(' · ')}
-              </div>
-            </div>
-          );
-        })()}
-
-        <div style={styles.orderTicketHead}>
-          <div style={styles.orderTicketAvatar}>{o.customer?.[0] || '؟'}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={styles.orderCardCustomer}>{o.customer}</div>
-            <div style={styles.orderTicketPage}>{page?.avatar} {page?.name || 'بدون صفحة'}</div>
-          </div>
-          <StageStatusBadge o={o} />
-        </div>
-
-        {isRejected && o.prepReason && (
-          <div style={styles.rejectReasonBox}>
-            <span style={styles.rejectReasonLabel}>سبب المخزن:</span>
-            <span>{o.prepReason}{o.prepByName ? ` — ${o.prepByName}` : ''}</span>
-          </div>
-        )}
-
-        {o.reprepNote && (
-          <div style={styles.orderReprepNoteBox}>
-            <AlertCircle size={14} />
-            <span><strong>ملاحظة {o.reprepByName || 'المدير'}:</strong> {o.reprepNote}</span>
-          </div>
-        )}
-
-        <div style={styles.orderTicketBody}>
-          {o.orderType && (
-            <div style={styles.orderDetailRow}><Package size={12} color="#5E6986" /><span>{o.orderType}</span></div>
-          )}
-          {o.phone && (
-            <div style={styles.orderDetailRow}><Phone size={12} color="#5E6986" /><span>{o.phone}</span></div>
-          )}
-          {(o.governorateName || o.address) && (
-            <div style={styles.orderDetailRow}><MapPin size={12} color="#5E6986" /><span>{[o.governorateName, o.area, o.address].filter(Boolean).join(' - ')}</span></div>
-          )}
-          {o.items && <div style={styles.orderTicketItems}>{o.items}</div>}
-
-          {/* ── موقع المنتج في المخزن — للمجهّز فقط ── */}
-          {section === 'prep' && (() => {
-            const match = matchOrderToWarehouseProduct(o, warehouseProducts);
-            if (!match) return (
-              <div style={{ fontSize: 11, color: '#F0A868', background: 'rgba(240,168,104,0.08)', border: '1px solid rgba(240,168,104,0.2)', borderRadius: 8, padding: '6px 10px', marginTop: 4 }}>
-                ⚠️ لم يُعثر على منتج مطابق في المخزن
-              </div>
-            );
-            const { product, confidence } = match;
-            return (
-              <div style={{ background: confidence === 'high' ? 'rgba(77,219,107,0.07)' : 'rgba(42,171,238,0.07)', border: `1px solid ${confidence === 'high' ? 'rgba(77,219,107,0.22)' : 'rgba(42,171,238,0.22)'}`, borderRadius: 9, padding: '8px 10px', marginTop: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: confidence === 'high' ? '#4DDB6B' : '#2AABEE', marginBottom: 4 }}>
-                  📦 المنتج في المخزن {confidence === 'high' ? '✓' : '~'}
-                </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5F5F5' }}>
-                  {product.car_name} — {PRODUCT_TYPE_LABELS[product.type]}
-                </div>
-                {product.location && (
-                  <div style={{ fontSize: 11, color: '#2AABEE', marginTop: 3, fontWeight: 700 }}>
-                    📍 الموقع: {product.location}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: '#546880', marginTop: 2 }}>
-                  المتبقي في المخزن: {product.quantity} قطعة
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── معلومات شركة التوصيل (للمتابعة فقط — التحكم من جيني) ── */}
-          {o.jenniSent && (o.deliveryNote || o.jenniTracking) && (
-            <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.12)', borderRadius: 10 }}>
-              {o.deliveryNote && (
-                <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
-              )}
-              {o.jenniTracking && (
-                <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace' }}>تتبع: #{o.jenniTracking}</div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {o.jenniError && (
-          <div style={{ margin: '0 0 6px', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(244,91,105,0.3)' }}>
-            <div style={{ background: 'rgba(244,91,105,0.1)', padding: '7px 10px', fontSize: 11, color: '#F45B69', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-              <span style={{ flexShrink: 0 }}>⚠️</span>
-              <span>{o.jenniError}</span>
-            </div>
-            <button
-              onClick={() => startEditOrder(o)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '7px', background: 'rgba(244,91,105,0.08)',
-                border: 'none', borderTop: '1px solid rgba(244,91,105,0.18)',
-                color: '#F45B69', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
-              }}
-            >
-              <Edit3 size={12} /> إصلاح البيانات — سيُرسَل لشركة التوصيل تلقائياً
-            </button>
-          </div>
-        )}
-        <div style={styles.orderCardActions} className="alfhd-no-print">
-          <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
-            <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
-          </button>
-          {/* زر طباعة فردي من جيني — في قسم الطباعة والتجهيز */}
-          {(section === 'ready' || section === 'prep') && (
-            <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#2AABEE', borderColor: 'rgba(42,171,238,0.3)' }} title="طباعة باركود هذا الطلب">
-              <Printer size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>طباعة</span>
-            </button>
-          )}
-          {/* زر المحادثة — الزر الوحيد من الموقع، يفتح محادثة الزبون */}
-          {o.conversationId && (
-            <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="محادثة الزبون">
-              <MessageSquare size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const isReady = section === 'ready';
-  const isPrep = section === 'prep';
-  const isDelivery = section === 'delivery';
-
-  return (
-    <div style={styles.viewWrap}>
-      {/* ── هيدر الطلبات ── */}
-      <div style={styles.viewHeader} className="alfhd-view-header alfhd-no-print">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div>
-            <h2 style={styles.viewTitle}>الطلبات</h2>
-            <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
-          </div>
-          {/* مثلث الطلبات المهملة */}
-          <button
-            onClick={() => { setNeglectedOpen(true); setNeglectedSelected([]); }}
-            title={neglectedOrders.length ? `${neglectedOrders.length} طلب مهمل` : 'الطلبات المهملة'}
-            style={{
-              position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 38, height: 38, borderRadius: 10, cursor: 'pointer',
-              background: neglectedOrders.length ? 'rgba(244,91,105,0.15)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${neglectedOrders.length ? 'rgba(244,91,105,0.45)' : 'rgba(255,255,255,0.08)'}`,
-            }}
-          >
-            <AlertTriangle size={18} color={neglectedOrders.length ? '#F45B69' : '#5E6986'} />
-            {neglectedOrders.length > 0 && (
-              <span style={{
-                position: 'absolute', top: -7, right: -7, minWidth: 19, height: 19, padding: '0 5px',
-                borderRadius: 10, background: '#F45B69', color: '#fff', fontSize: 11, fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0E1420',
-              }}>{neglectedOrders.length}</span>
-            )}
-          </button>
-        </div>
-        {/* أزرار الإجراءات — صف أنيق */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
-
-          {/* بحث عام */}
-          <div style={styles.globalOrderSearchWrap}>
-            <Search size={14} color="#60A5FA" />
-            <input
-              value={globalOrderSearch}
-              onChange={(e) => setGlobalOrderSearch(e.target.value)}
-              placeholder="بحث سريع..."
-              style={styles.globalOrderSearchInput}
-            />
-            {globalOrderSearch.trim().length >= 2 && (
-              <div style={styles.globalOrderResultsBox}>
-                {globalOrderResults.length === 0 ? (
-                  <div style={styles.globalOrderEmpty}>لا توجد نتائج</div>
-                ) : globalOrderResults.map((o) => {
-                  const page = pages.find((p) => p.id === o.pageId);
-                  return (
-                    <button key={o.id} onClick={() => openOrderFromGlobalSearch(o)} style={styles.globalOrderResultItem}>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={styles.globalOrderResultTitle}>{o.customer || 'بدون اسم'} <span>#{o.orderNo}</span></div>
-                        <div style={styles.globalOrderResultMeta}>{page?.name || 'بدون صفحة'} · {o.phone || 'بدون هاتف'}</div>
-                      </div>
-                      <OrderStagePill order={o} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <input type="file" accept="image/*" ref={ocrInputRef} onChange={handlePickOcrImage} style={{ display: 'none' }} />
-
-          {/* زر إضافة بالصورة */}
-          <button
-            onClick={() => ocrInputRef.current?.click()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 13px', background: 'rgba(42,171,238,0.10)',
-              border: '1px solid rgba(42,171,238,0.22)', borderRadius: 10,
-              color: '#2AABEE', fontSize: 12.5, fontWeight: 700,
-            }}
-            disabled={ocrLoading}
-          >
-            {ocrLoading
-              ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              : <Image size={14} />}
-            {ocrLoading ? 'جارٍ الاستخراج...' : 'إضافة بصورة'}
-          </button>
-
-          {/* زر إضافة طلب */}
-          <button
-            onClick={startNewOrder}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px',
-              background: 'linear-gradient(135deg,#2AABEE,#229ED9)',
-              border: 'none', borderRadius: 10,
-              color: '#fff', fontSize: 12.5, fontWeight: 700,
-              boxShadow: '0 2px 8px rgba(42,171,238,0.35)',
-            }}
-          >
-            <Plus size={15} /> طلب جديد
-          </button>
-
-          {/* زر طباعة — فقط في قسم جاهز */}
-          {isReady && (
-            <button
-              onClick={handlePrintReady}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px',
-                background: 'linear-gradient(135deg,#4DDB6B,#22C55E)',
-                border: 'none', borderRadius: 10,
-                color: '#fff', fontSize: 12.5, fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(77,219,107,0.35)',
-              }}
-            >
-              <Printer size={15} /> طباعة الكل ({stageOrders.length})
-            </button>
-          )}
-          {/* زر دائرة سجل الدفعات المطبوعة */}
-          <button
-            onClick={() => setBatchHistoryOpen(true)}
-            title="سجل الطباعة"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 38, height: 38, borderRadius: '50%',
-              background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)',
-              color: '#A78BFA', cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            <Clock size={17} />
-          </button>
-        </div>
-      </div>
-
-      <div style={styles.statsRow} className="alfhd-stats-row alfhd-no-print">
-        <ClickableStat icon={Package} label="إجمالي الطلبات" value={stats.total} color="#3B82F6"
-          active={isDelivery && statusFilter === 'all'} onClick={() => { setSection('delivery'); setStatusFilter('all'); }} />
-        <ClickableStat icon={Truck} label="قيد التوصيل" value={stats.pending} color="#3B82F6"
-          active={isDelivery && statusFilter === 'pending'} onClick={() => { setSection('delivery'); setStatusFilter('pending'); }} />
-        <ClickableStat icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#4ADE80"
-          active={isDelivery && statusFilter === 'delivered'} onClick={() => { setSection('delivery'); setStatusFilter('delivered'); }} />
-        <ClickableStat icon={XCircle} label="راجعة" value={stats.returned} color="#F45B69"
-          active={isDelivery && statusFilter === 'returned'} onClick={() => { setSection('delivery'); setStatusFilter('returned'); }} />
-      </div>
-
-      <div style={styles.sectionTabs} className="alfhd-no-print">
-        {ORDER_STAGES.map((st) => (
-          <button
-            key={st.id}
-            onClick={() => { setSection(st.id); setStatusFilter('all'); }}
-            style={{ ...styles.sectionTab, ...(section === st.id ? styles.sectionTabActive : {}) }}
-          >
-            {st.label}
-            <span style={{ ...styles.convTabCount, ...(section === st.id ? styles.convTabCountActive : {}) }}>
-              {stageCounts[st.id]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <OrderFilters
-        pages={pages}
-        datePreset={datePreset} setDatePreset={setDatePreset}
-        customMonth={customMonth} setCustomMonth={setCustomMonth}
-        customYear={customYear} setCustomYear={setCustomYear}
-        pageFilter={selectedPage} setPageFilter={setSelectedPage}
-        search={search} setSearch={setSearch}
-        searchPlaceholder="رقم الطلب، الاسم، الهاتف، أو نوع الطلب..."
-      />
-
-      {isDelivery && (
-        <div style={{ ...styles.filterChips, marginBottom: 16 }} className="alfhd-no-print">
-          {['all', 'pending', 'delivered', 'returned'].map((s) => (
-            <button key={s} onClick={() => setStatusFilter(s)} style={{ ...styles.chip, ...(statusFilter === s ? styles.chipActive : {}) }}>
-              {s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {isPrep ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {prepBatches.length === 0 ? (
-            <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا توجد طلبات قيد التجهيز</p></div>
-          ) : prepBatches.map((batch) => (
-            <div key={batch.batchId} style={styles.batchBlock}>
-              <div style={styles.batchHeader} className="alfhd-no-print">
-                <div style={styles.batchHeaderInfo}>
-                  <Printer size={14} color="#3B82F6" />
-                  <span>دفعة — {batch.orders.length} طلب</span>
-                  {batch.printedAt && <span style={styles.batchHeaderTime}>{new Date(batch.printedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}</span>}
-                </div>
-                <button onClick={() => handleReprintBatch(batch.batchId, batch.orders)} style={styles.secondaryBtn}>
-                  <Printer size={14} /> إعادة طباعة
-                </button>
-              </div>
-              <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === batch.batchId ? ' alfhd-print-area' : ''}`}>
-                {batch.orders.map(renderOrderCard)}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === 'ready' ? ' alfhd-print-area' : ''}`}>
-          {stageOrders.length === 0 ? (
-            <div style={styles.emptyState}>
-              {isReady ? <Package size={32} color="#39425C" /> : <Truck size={32} color="#39425C" />}
-              <p>{isReady ? 'لا توجد طلبات جاهزة للطباعة' : 'لا توجد طلبات لدى شركة التوصيل بعد'}</p>
-            </div>
-          ) : stageOrders.map(renderOrderCard)}
-        </div>
-      )}
-
-      {detailOrder && (
-        <OrderDetailModal
-          order={detailOrder}
-          page={pages.find((p) => p.id === detailOrder.pageId)}
-          section={section}
-          onClose={() => setDetailOrder(null)}
-          onEdit={() => startEditOrder(detailOrder)}
-          onDelete={() => handleDelete(detailOrder)}
-          onShare={() => handleShare(detailOrder)}
-          onViewConversation={detailOrder.conversationId ? () => { onViewConversation?.(detailOrder.conversationId); setDetailOrder(null); } : null}
-          onMoveToDelivery={null}
-          onReprep={detailOrder.prepStatus === 'rejected' ? (note) => reprepOrder(detailOrder, note) : null}
-          onContactCustomer={onContactCustomer}
-        />
-      )}
-
-      {/* ── نافذة إجراء جيني: تأجيل / إرجاع (تطلب السبب) ── */}
-      {jenniAction && (
-        <div style={styles.modalOverlay} onClick={() => !jenniActionBusy && setJenniAction(null)}>
-          <div style={{ ...styles.modal, maxWidth: 420 }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>{jenniAction.title}</h3>
-              <button onClick={() => setJenniAction(null)} style={styles.modalClose}><X size={18} /></button>
-            </div>
-            <div style={{ padding: '4px 17px 17px' }}>
-              <div style={{ fontSize: 12, color: '#546880', marginBottom: 12 }}>
-                طلب #{jenniAction.order.orderNo} — {jenniAction.order.customer}
-              </div>
-
-              {/* تاريخ التأجيل (فقط للتأجيل) */}
-              {jenniAction.action === 'POSTPONED' && (
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 12, color: '#E7ECF3', fontWeight: 700, display: 'block', marginBottom: 6 }}>موعد إعادة المحاولة</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[{ id: 1, t: 'غداً' }, { id: 2, t: 'بعد يومين' }, { id: 3, t: 'بعد 3 أيام' }].map((d) => (
-                      <button key={d.id} onClick={() => setJenniActionDateId(d.id)}
-                        style={{
-                          flex: 1, padding: '8px 4px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                          background: jenniActionDateId === d.id ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.04)',
-                          border: jenniActionDateId === d.id ? '1.5px solid #2AABEE' : '1px solid rgba(255,255,255,0.1)',
-                          color: jenniActionDateId === d.id ? '#2AABEE' : '#9FB0C3',
-                        }}>{d.t}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* السبب */}
-              <label style={{ fontSize: 12, color: '#E7ECF3', fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                {jenniAction.action === 'POSTPONED' ? 'سبب التأجيل' : 'سبب الإرجاع'}
-                <span style={{ color: '#F25050' }}> *</span>
-              </label>
-              <textarea
-                value={jenniActionReason}
-                onChange={(e) => setJenniActionReason(e.target.value)}
-                placeholder={jenniAction.action === 'POSTPONED' ? 'مثال: العميل غير متوفر، سيتواصل لاحقاً' : 'مثال: رفض الاستلام، العنوان خاطئ'}
-                rows={3}
-                style={{
-                  width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 9,
-                  background: '#242F3D', border: '1.5px solid rgba(42,171,238,0.25)', color: '#E7ECF3',
-                  fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
-                }}
-              />
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={() => setJenniAction(null)} disabled={jenniActionBusy}
-                  style={{ flex: 1, padding: '11px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#9FB0C3', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  إلغاء
-                </button>
-                <button onClick={confirmJenniAction} disabled={jenniActionBusy}
-                  style={{ flex: 2, padding: '11px', borderRadius: 9, background: jenniActionBusy ? '#1a5a7a' : '#2AABEE', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: jenniActionBusy ? 'wait' : 'pointer' }}>
-                  {jenniActionBusy ? 'جارٍ الإرسال...' : 'تأكيد وإرسال لشركة التوصيل'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingOrder && (
-        <div style={styles.modalOverlay} onClick={() => !saving && setEditingOrder(null)}>
-          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>{editingOrder.id ? 'تعديل الطلب' : 'إضافة طلب جديد'}</h3>
-              <button onClick={() => setEditingOrder(null)} style={styles.modalClose}><X size={18} /></button>
-            </div>
-
-            {/* ── بانر تنبيه Jenni ── */}
-            <div style={{
-              margin: '0 17px 2px',
-              padding: '8px 11px',
-              background: 'rgba(42,171,238,0.07)',
-              border: '1px solid rgba(42,171,238,0.20)',
-              borderRadius: 9,
-              fontSize: 11,
-              color: '#2AABEE',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontWeight: 600,
-            }}>
-              <Truck size={13} />
-              الحقول المُعلَّمة بـ <span style={{ color: '#F25050', fontWeight: 800 }}>*</span> إجبارية من شركة التوصيل — لن تُقبل الشحنة بدونها
-            </div>
-
-            <div style={styles.modalBody}>
-              {/* الصفحة */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>الصفحة</label>
-                <select value={editingOrder.pageId} onChange={(e) => setEditingOrder({ ...editingOrder, pageId: e.target.value })} style={styles.formInput}>
-                  {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-
-              {/* اسم العميل — إجباري Jenni */}
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  اسم العميل
-                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                </label>
-                <input
-                  value={editingOrder.customer}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, customer: e.target.value })}
-                  style={{
-                    ...styles.formInput,
-                    borderRadius: 9,
-                    border: !editingOrder.customer.trim() ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-                    background: '#242F3D',
-                  }}
-                  placeholder="اسم الزبون الكامل"
-                />
-                {!editingOrder.customer.trim() && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>
-                )}
-              </div>
-
-              {/* رقم الهاتف — إجباري Jenni */}
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  رقم الهاتف
-                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>07XXXXXXXXX</span>
-                </label>
-                {(() => {
-                  const raw = String(editingOrder.phone || '').trim();
-                  const clean = raw ? normalizeIraqiPhone(raw) : '';
-                  const phoneOk = raw && clean.length === 11 && clean.startsWith('07');
-                  const phoneErr = raw && !phoneOk;
-                  return (
-                    <>
-                      <input
-                        value={editingOrder.phone}
-                        onChange={(e) => setEditingOrder({ ...editingOrder, phone: toEnglishDigits(e.target.value) })}
-                        style={{
-                          ...styles.formInput,
-                          borderRadius: 9,
-                          border: phoneErr ? '1.5px solid rgba(242,80,80,0.5)' : phoneOk ? '1.5px solid rgba(77,219,107,0.4)' : '1.5px solid rgba(242,80,80,0.5)',
-                          background: '#242F3D',
-                          direction: 'ltr',
-                          textAlign: 'right',
-                        }}
-                        placeholder="07XXXXXXXXX"
-                        inputMode="numeric"
-                      />
-                      {!raw && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>}
-                      {phoneErr && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ صيغة خاطئة — المطلوب: 07XXXXXXXXX</span>}
-                      {phoneOk && <span style={{ fontSize: 10.5, color: '#4DDB6B', marginTop: 3, fontWeight: 600 }}>✓ صالح لشركة التوصيل</span>}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* المحافظة — إجباري Jenni */}
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  المحافظة
-                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                </label>
-                {/* زر استخراج تلقائي إذا العنوان فيه محافظة والحقل فاضي */}
-                {!editingOrder.governorateCode && editingOrder.address && (() => {
-                  const cleanAddr = (editingOrder.address || '').replace(/[*#@!]/g, ' ');
-                  const found = IRAQ_GOVERNORATES.find((g) =>
-                    cleanAddr.includes(g.name) || cleanAddr.includes(g.name.replace(/^ال/, ''))
-                  );
-                  return found ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const rest = cleanAddr.replace(found.name, '').replace(/^[\s\-،,]+/, '').trim();
-                        const parts = rest.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
-                        setEditingOrder({
-                          ...editingOrder,
-                          governorateCode: found.code,
-                          governorateName: found.name,
-                          area: editingOrder.area || parts[0] || '',
-                          address: parts.slice(1).join(' - ') || rest,
-                        });
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
-                        padding: '6px 10px', background: 'rgba(42,171,238,0.10)',
-                        border: '1px solid rgba(42,171,238,0.22)', borderRadius: 8,
-                        color: '#2AABEE', fontSize: 11, fontWeight: 700, cursor: 'pointer', width: '100%',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      ✨ استخراج "{found.name}" من العنوان تلقائياً
-                    </button>
-                  ) : null;
-                })()}
-                <select
-                  value={editingOrder.governorateCode || ''}
-                  onChange={(e) => {
-                    const gov = IRAQ_GOVERNORATES.find((g) => g.code === e.target.value);
-                    setEditingOrder({ ...editingOrder, governorateCode: e.target.value, governorateName: gov?.name || '' });
-                  }}
-                  style={{
-                    ...styles.formInput,
-                    borderRadius: 9,
-                    border: !editingOrder.governorateCode ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-                    background: '#242F3D',
-                  }}
-                >
-                  <option value="">— اختر المحافظة —</option>
-                  {IRAQ_GOVERNORATES.map((g) => (
-                    <option key={g.code} value={g.code}>{g.name} ({g.code})</option>
-                  ))}
-                </select>
-                {!editingOrder.governorateCode && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — شركة التوصيل ترفض الشحنة بدون محافظة</span>
-                )}
-              </div>
-
-              {/* المنطقة/المدينة — إجباري Jenni (city) */}
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  المنطقة / المدينة
-                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city لشركة التوصيل</span>
-                </label>
-                <CityPicker
-                  govCode={editingOrder.governorateCode}
-                  value={editingOrder.area || ''}
-                  onChange={(val) => setEditingOrder({ ...editingOrder, area: val })}
-                  invalid={!String(editingOrder.area || '').trim()}
-                />
-                {!String(editingOrder.area || '').trim() && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لشركة التوصيل</span>
-                )}
-              </div>
-
-              {/* المبلغ — إجباري Jenni */}
-              <div style={styles.formGroup}>
-                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  المبلغ (د.ع)
-                  <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                </label>
-                {(() => {
-                  const total = Number(editingOrder.total);
-                  const totalOk = total > 0;
-                  return (
-                    <>
-                      <input
-                        type="number"
-                        min="1"
-                        value={editingOrder.total}
-                        onChange={(e) => setEditingOrder({ ...editingOrder, total: e.target.value })}
-                        style={{
-                          ...styles.formInput,
-                          borderRadius: 9,
-                          border: totalOk ? '1.5px solid rgba(42,171,238,0.25)' : '1.5px solid rgba(242,80,80,0.5)',
-                          background: '#242F3D',
-                          direction: 'ltr',
-                          textAlign: 'right',
-                        }}
-                        placeholder="0"
-                      />
-                      {!totalOk && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ المبلغ يجب أن يكون أكبر من صفر</span>}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* العنوان التفصيلي — اختياري */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>العنوان التفصيلي <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
-                <input
-                  value={editingOrder.address}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
-                  placeholder="أقرب نقطة دالة، رقم الدار..."
-                />
-              </div>
-
-              {/* عنوان الطلب — موقع التخزين (يُطبع على الستيكر) */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>عنوان الطلب — موقع التخزين <span style={{ color: '#546880', fontSize: 10 }}>(يُطبع على الستيكر — مثال: فرع A رف 3)</span></label>
-                <input
-                  value={editingOrder.storageLocation || ''}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, storageLocation: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(240,168,104,0.2)', background: '#242F3D' }}
-                  placeholder="مثال: فرع A رف 3"
-                />
-              </div>
-
-              {/* نوع الطلب — اختياري (note في Jenni) */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري — تُرسَل كـ note لشركة التوصيل)</span></label>
-                <input
-                  value={editingOrder.orderType}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
-                  placeholder="مثال: أرضيات سيارة، ملابس..."
-                />
-              </div>
-
-              {/* المنتجات — اختياري */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المنتجات / التفاصيل <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
-                <textarea
-                  value={editingOrder.items}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D', minHeight: 70, resize: 'vertical' }}
-                  placeholder="وصف المنتجات والكميات"
-                />
-              </div>
-
-              {/* ربط محادثة */}
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>ربط بمحادثة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
-                <select
-                  value={editingOrder.conversationId || ''}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
-                >
-                  <option value="">بدون ربط</option>
-                  {conversations.map((c) => <option key={c.id} value={c.id}>{c.customer}</option>)}
-                </select>
-              </div>
-
-              {/* ملخص الحالة — هل الطلب جاهز لجيني؟ */}
-              {(() => {
-                const errs = validateJenniFields(editingOrder);
-                const ready = Object.keys(errs).length === 0;
-                return (
-                  <div style={{
-                    padding: '10px 13px',
-                    borderRadius: 10,
-                    background: ready ? 'rgba(77,219,107,0.08)' : 'rgba(242,80,80,0.08)',
-                    border: ready ? '1px solid rgba(77,219,107,0.25)' : '1px solid rgba(242,80,80,0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: ready ? '#4DDB6B' : '#F25050',
-                  }}>
-                    {ready ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
-                    {ready
-                      ? '✓ جاهز للإرسال لشركة التوصيل — كل الحقول المطلوبة مكتملة'
-                      : `${Object.keys(errs).length} حقل ناقص — لن تُقبل الشحنة من شركة التوصيل`}
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div style={styles.modalFooter}>
-              <button onClick={() => setEditingOrder(null)} style={styles.modalCancelBtn}>إلغاء</button>
-              <button
-                onClick={handleSaveOrder}
-                style={{
-                  ...styles.modalSaveBtn,
-                  opacity: saving ? 0.6 : 1,
-                }}
-                disabled={saving}
-              >
-                {saving ? 'جارٍ الحفظ...' : 'حفظ الطلب'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── modal الطلبات المهملة ── */}
-      {neglectedOpen && (
-        <div onClick={() => setNeglectedOpen(false)} style={styles.modalOverlay}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 580, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(244,91,105,0.2)' }}>
-            {/* رأس */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertTriangle size={18} color="#F45B69" />
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>الطلبات المهملة</div>
-                {neglectedOrders.length > 0 && <span style={{ fontSize: 12, color: '#8B9AB3' }}>({neglectedOrders.length})</span>}
-              </div>
-              <button onClick={() => setNeglectedOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
-            </div>
-
-            {/* شريط الإجراءات الجماعية */}
-            {neglectedOrders.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, flexWrap: 'wrap' }}>
-                <button onClick={() => setNeglectedSelected(neglectedSelected.length === neglectedOrders.length ? [] : neglectedOrders.map((o) => o.id))}
-                  style={{ padding: '6px 11px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#9FB0C3', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
-                  {neglectedSelected.length === neglectedOrders.length ? 'إلغاء التحديد' : 'تحديد الكل'}
-                </button>
-                <span style={{ fontSize: 11.5, color: '#8B9AB3' }}>{neglectedSelected.length} محدد</span>
-                <div style={{ flex: 1 }} />
-                <button onClick={() => restoreNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(42,171,238,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#2AABEE' : '#546880', fontSize: 11.5, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
-                  <Printer size={13} /> إعادة للطباعة
-                </button>
-                <button onClick={() => deleteNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(244,91,105,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(244,91,105,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#F45B69' : '#546880', fontSize: 11.5, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
-                  <Trash2 size={13} /> حذف
-                </button>
-              </div>
-            )}
-
-            {/* قائمة الطلبات */}
-            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
-              {neglectedOrders.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
-                  لا توجد طلبات مهملة 🎉
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {neglectedOrders.map((o) => {
-                    const sel = neglectedSelected.includes(o.id);
-                    return (
-                      <div key={o.id} onClick={() => toggleNeglectedSelect(o.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 11, cursor: 'pointer', background: sel ? 'rgba(42,171,238,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${sel ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.06)'}` }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? '#2AABEE' : 'transparent', border: `1.5px solid ${sel ? '#2AABEE' : '#546880'}` }}>
-                          {sel && <CheckCircle2 size={13} color="#fff" />}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#EAF0F7' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
-                          <div style={{ fontSize: 11, color: '#8B9AB3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''} · {fmtBatchDate(o.printedAt || o.createdAt)}</div>
-                        </div>
-                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F0A868', flexShrink: 0 }}>
-                          {(o.stage === 'delivery') ? 'لدى الشركة' : 'قيد التجهيز'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── modal سجل الدفعات المطبوعة ── */}
-      {batchHistoryOpen && (
-        <div
-          onClick={() => setBatchHistoryOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} color="#A78BFA" />
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>سجل الطباعة</div>
-              </div>
-              <button onClick={() => setBatchHistoryOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 18, cursor: 'pointer' }}>×</button>
-            </div>
-
-            <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
-              {printBatches.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#546880', fontSize: 13, padding: '40px 0' }}>
-                  لا توجد دفعات مطبوعة بعد
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {printBatches.map((batch) => (
-                    <div key={batch.batchId} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Printer size={18} color="#2AABEE" />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
-                            <div style={{ fontSize: 11, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleReprintBatch(batch.batchId, batch.orders)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          <Printer size={13} /> إعادة طباعة
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#546880', lineHeight: 1.6 }}>
-                        {batch.orders.slice(0, 4).map((o) => `#${o.orderNo}`).join('، ')}
-                        {batch.orders.length > 4 ? ` +${batch.orders.length - 4}` : ''}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* ── modal الطباعة (داخل الموقع — لا نافذة منبثقة) ── */}
-      {printModal && (
-        <div
-          onClick={() => setPrintModal(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
-          >
-            {/* رأس الـ modal */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2234' }}>{printModal.title || 'طباعة الباركود'}</div>
-              <button onClick={() => setPrintModal(null)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: '#f1f1f1', color: '#555', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
-            </div>
-
-            {/* المحتوى */}
-            <div style={{ flex: 1, overflow: 'auto', background: '#f7f7f7', minHeight: 200 }}>
-              {printModal.loading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 14, color: '#555' }}>
-                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#2AABEE', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{printModal.note || 'جارٍ التحميل...'}</div>
-                  <style>{`@keyframes alfhd-spin{to{transform:rotate(360deg)}}`}</style>
-                </div>
-              ) : printModal.error ? (
-                <div style={{ padding: 30, textAlign: 'center', color: '#c0392b', fontSize: 15, fontWeight: 600, whiteSpace: 'pre-line', lineHeight: 1.7 }}>
-                  ⚠️ {printModal.error}
-                </div>
-              ) : printModal.src ? (
-                <>
-                  {printModal.warning && (
-                    <div style={{ margin: 12, padding: '11px 14px', borderRadius: 10, background: 'rgba(240,168,104,0.12)', border: '1px solid rgba(240,168,104,0.35)', color: '#F0A868', fontSize: 12.5, fontWeight: 600, lineHeight: 1.7 }}>
-                      ⚠️ {printModal.warning}
-                    </div>
-                  )}
-                  <iframe
-                    id="alfhd-print-frame"
-                    src={printModal.src}
-                    title="باركود"
-                    style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
-                  />
-                </>
-              ) : null}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
+const [selectedPage, setSelectedPage] = useState('all');
+const [statusFilter, setStatusFilter] = useState('all');
+const [search, setSearch] = useState('');
+const [globalOrderSearch, setGlobalOrderSearch] = useState('');
+const [datePreset, setDatePreset] = useState('all');
+const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+const [customYear, setCustomYear] = useState(new Date().getFullYear());
+const [editingOrder, setEditingOrder] = useState(null);
+const [detailOrder, setDetailOrder] = useState(null);
+const [saving, setSaving] = useState(false);
+const [ocrLoading, setOcrLoading] = useState(false);
+const ocrInputRef = React.useRef(null);
+const [section, setSection] = useState('ready');
+const [printTarget, setPrintTarget] = useState(null);
+const [jenniAction, setJenniAction] = useState(null);
+const [jenniActionReason, setJenniActionReason] = useState('');
+const [jenniActionDateId, setJenniActionDateId] = useState(1);
+const [jenniActionBusy, setJenniActionBusy] = useState(false);
+
+function passesCommon(o) {
+if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
+if (!dateInRange(o.createdAt || o.date, datePreset, customMonth, customYear)) return false;
+if (search) {
+const q = search.trim().toLowerCase();
+if (!orderSearchHaystack(o).includes(q)) return false;
+}
+return true;
+}
+
+useEffect(() => {
+if (!pendingNewOrderFromConv) return;
+const conv = pendingNewOrderFromConv;
+const searchTexts = [conv.lastMsg || '', conv.address || '', conv.customer || ''].join(' ');
+const cleanText = searchTexts.replace(/[*#@!]/g, ' ').replace(/\s+/g, ' ').trim();
+let autoGovCode = '', autoGovName = '', autoArea = '', autoAddress = '';
+const govFound = IRAQ_GOVERNORATES.find((g) => {
+const name = g.name; const nameNoAl = name.replace(/^ال/, '');
+return cleanText.includes(name) || cleanText.includes(nameNoAl);
+});
+if (govFound) {
+autoGovCode = govFound.code; autoGovName = govFound.name;
+const rest = cleanText.replace(govFound.name, '').replace(govFound.name.replace(/^ال/, ''), '').replace(/^[\s\-،,]+/, '').trim();
+const parts = rest.split(/[\-،,\s]+/).map((p) => p.trim()).filter(Boolean);
+autoArea = parts[0] || ''; autoAddress = parts.slice(1).join(' ') || '';
+} else { autoAddress = cleanText; }
+const waPage = pages.find((p) => p.connected) || pages[0];
+const resolvedPageId = conv.isWhatsApp ? (waPage?.id || '') : (conv.pageId || pages[0]?.id || '');
+setEditingOrder({
+id: null, pageId: resolvedPageId, customer: conv.customer || '', phone: conv.phone || '',
+address: autoAddress, governorateCode: autoGovCode, governorateName: autoGovName,
+area: autoArea, items: '', orderType: '', total: '', status: 'pending', conversationId: conv.id || '',
+});
+clearPendingNewOrderFromConv?.();
+}, [pendingNewOrderFromConv]);
+
+useEffect(() => {
+if (!pendingOpenOrderId) return;
+const target = orders.find((o) => o.id === pendingOpenOrderId);
+if (target) {
+const stage = target.stage || (target.printed ? 'prep' : 'ready');
+setSection(stage); setDetailOrder(target);
+}
+clearPendingOpenOrderId?.();
+}, [pendingOpenOrderId, orders]);
+
+const visibleOrders = useMemo(() => orders.filter((o) => !o.converted), [orders]);
+function orderSearchHaystack(o) {
+const page = pages.find((p) => p.id === o.pageId);
+return [o.customer, o.orderNo, o.phone, o.orderType, o.address, o.area, o.governorateName, o.items, o.fahdRef, o.jenniTracking, page?.name]
+.filter(Boolean).join(' ').toLowerCase();
+}
+const globalOrderResults = useMemo(() => {
+const q = globalOrderSearch.trim().toLowerCase();
+if (q.length < 2) return [];
+return orders.filter((o) => orderSearchHaystack(o).includes(q)).slice(0, 8);
+}, [globalOrderSearch, orders, pages]);
+function openOrderFromGlobalSearch(o) {
+setGlobalOrderSearch('');
+if (o.converted) { alert(`الطلب #${o.orderNo} محوّل/مؤرشف.`); return; }
+const stage = o.stage || (o.printed ? 'prep' : 'ready');
+setSection(stage); setStatusFilter('all'); setDetailOrder(o);
+}
+const THREE_DAYS = 3 * 86400000;
+function isWithinPrepWindow(o) {
+const ref = o.printedAt || o.createdAt || o.date;
+if (!ref) return true;
+return (Date.now() - new Date(ref).getTime()) <= THREE_DAYS;
+}
+const stageOrders = useMemo(() => {
+return visibleOrders.filter((o) => {
+const stage = o.stage || (o.printed ? 'prep' : 'ready');
+if (stage !== section) return false;
+if (!passesCommon(o)) return false;
+if (section === 'prep' && !isWithinPrepWindow(o)) return false;
+if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
+return true;
+});
+}, [visibleOrders, section, selectedPage, statusFilter, search, datePreset, customMonth, customYear]);
+
+const stageCounts = useMemo(() => {
+const c = { ready: 0, prep: 0, delivery: 0 };
+visibleOrders.forEach((o) => {
+if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
+const stage = o.stage || (o.printed ? 'prep' : 'ready');
+if (stage === 'prep' && !isWithinPrepWindow(o)) return;
+if (c[stage] !== undefined) c[stage]++;
+});
+return c;
+}, [visibleOrders, selectedPage]);
+
+const stats = useMemo(() => {
+const scoped = selectedPage === 'all' ? visibleOrders : visibleOrders.filter((o) => o.pageId === selectedPage);
+return {
+total: scoped.length,
+pending: scoped.filter((o) => o.status === 'pending').length,
+delivered: scoped.filter((o) => o.status === 'delivered').length,
+returned: scoped.filter((o) => o.status === 'returned').length,
+};
+}, [visibleOrders, selectedPage]);
+
+const updateStatus = async (id, status) => {
+setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+try { await sbUpdate('alfhd_orders', id, { status }); }
+catch (e) { console.error('Failed to update order status:', e); }
+};
+
+function startNewOrder() {
+if (!pages.length) { alert('لا توجد صفحات مضافة.'); return; }
+setEditingOrder({
+id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
+items: '', orderType: '', total: '', status: 'pending', conversationId: '',
+});
+}
+function startEditOrder(o) {
+setEditingOrder({ ...o, total: String(o.total), conversationId: o.conversationId || '' });
+setDetailOrder(null);
+}
+async function handleDelete(o) {
+if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟`)) return;
+setOrders((prev) => prev.filter((x) => x.id !== o.id));
+setDetailOrder(null);
+try { await sbDelete('alfhd_orders', o.id); }
+catch (e) { console.error('delete order error:', e); alert('تعذّر حذف الطلب'); }
+}
+function buildOrderShareText(o) {
+const page = pages.find((p) => p.id === o.pageId);
+return [
+`طلب #${o.orderNo}`, page ? `الصفحة: ${page.name}` : null,
+`العميل: ${o.customer}`, o.phone ? `الهاتف: ${o.phone}` : null,
+o.address ? `العنوان: ${o.address}` : null, o.orderType ? `نوع الطلب: ${o.orderType}` : null,
+`المنتجات: ${o.items}`, `المبلغ: ${Number(o.total).toLocaleString()} د.ع`,
+].filter(Boolean).join('\n');
+}
+async function markOrderConverted(o) {
+const now = new Date().toISOString();
+const byName = currentUser?.name || null;
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, converted: true, convertedAt: now, convertedByName: byName, status: 'pending' } : x)));
+try {
+await sbUpdate('alfhd_orders', o.id, { converted: true, converted_at: now, converted_by: currentUser?.id || null, converted_by_name: byName, status: 'pending' });
+} catch (e) { console.error('convert order error:', e); }
+}
+async function reprepOrder(o, note) {
+const byName = currentUser?.name || 'المدير';
+const patch = {
+prep_status: null, prep_by: null, prep_by_name: null, prep_reason: null, prep_at: null,
+reprep_note: note || null, reprep_by_name: byName,
+};
+setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+...x, prepStatus: null, prepBy: null, prepByName: null, prepReason: null, prepAt: null,
+reprepNote: note || null, reprepByName: byName,
+} : x)));
+setDetailOrder(null);
+try { await sbUpdate('alfhd_orders', o.id, patch); }
+catch (e) { console.error('reprep error:', e); }
+}
+async function handleShare(o) {
+const text = buildOrderShareText(o);
+try {
+if (navigator.share) { await navigator.share({ title: `طلب #${o.orderNo}`, text }); await markOrderConverted(o); return; }
+if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); alert('تم نسخ تفاصيل الطلب'); await markOrderConverted(o); return; }
+window.prompt('انسخ تفاصيل الطلب:', text); await markOrderConverted(o);
+} catch (e) {
+if (e?.name !== 'AbortError') { console.error('share error:', e); alert('تعذّرت المشاركة'); }
+}
+}
+async function pinConversationToOrder(conversationId, orderId) {
+if (!conversationId) return;
+setConversations?.((prev) => prev.map((c) => (c.id === conversationId ? { ...c, tab: 'pinned', orderId } : c)));
+try { await sbUpdate('alfhd_conversations', conversationId, { tab: 'pinned', order_id: orderId }); }
+catch (e) { console.error('pin conversation error:', e); }
+}
+
+function validateJenniFields(order) {
+const errors = {};
+if (!String(order.customer || '').trim()) errors.customer = 'اسم العميل مطلوب';
+const rawPhone = String(order.phone || '').trim();
+if (!rawPhone) errors.phone = 'رقم الهاتف مطلوب';
+else {
+const clean = normalizeIraqiPhone(rawPhone);
+if (clean.length !== 11 || !clean.startsWith('07')) errors.phone = `رقم الهاتف غير صالح`;
+}
+if (!order.governorateCode) errors.governorateCode = 'المحافظة مطلوبة';
+else {
+const validCodes = IRAQ_GOVERNORATES.map((g) => g.code);
+if (!validCodes.includes(order.governorateCode)) errors.governorateCode = `كود المحافظة غير صالح`;
+}
+if (!String(order.area || '').trim()) errors.area = 'المنطقة/المدينة مطلوبة';
+const total = Number(order.total);
+if (!total || total <= 0) errors.total = 'المبلغ مطلوب ويجب أن يكون أكبر من صفر';
+return errors;
+}
+
+async function handleSaveOrder() {
+if (!editingOrder.pageId) { alert('اختر الصفحة'); return; }
+const validationErrors = validateJenniFields(editingOrder);
+if (Object.keys(validationErrors).length > 0) {
+const msgs = Object.values(validationErrors).join('\n• ');
+alert(`⛔ لا يمكن حفظ الطلب — أخطاء إجبارية:\n• ${msgs}`);
+return;
+}
+setSaving(true);
+try {
+if (editingOrder.id) {
+const payload = {
+page_id: editingOrder.pageId, customer_name: editingOrder.customer, phone: editingOrder.phone,
+address: editingOrder.address, governorate_code: editingOrder.governorateCode || null,
+governorate_name: editingOrder.governorateName || null, area: editingOrder.area || null,
+items: editingOrder.items, order_type: editingOrder.orderType || null,
+total: Number(editingOrder.total) || 0, status: editingOrder.status,
+conversation_id: editingOrder.conversationId || null,
+source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
+storage_location: editingOrder.storageLocation || null,
+};
+await sbUpdate('alfhd_orders', editingOrder.id, payload);
+const updatedOrder = {
+...editingOrder, pageId: editingOrder.pageId, customer: editingOrder.customer, phone: editingOrder.phone,
+address: editingOrder.address, items: editingOrder.items, orderType: editingOrder.orderType,
+governorateCode: editingOrder.governorateCode || '', governorateName: editingOrder.governorateName || '', area: editingOrder.area || '',
+total: Number(editingOrder.total) || 0, status: editingOrder.status,
+conversationId: editingOrder.conversationId || null,
+source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
+};
+setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
+if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
+const prevOrder = orders.find((o) => o.id === editingOrder.id);
+if (!prevOrder?.jenniSent) sendOrderToJenni(updatedOrder, { silent: true });
+} else {
+const payload = {
+order_no: String(Date.now()).slice(-6), page_id: editingOrder.pageId,
+customer_name: editingOrder.customer, phone: editingOrder.phone,
+address: editingOrder.address, governorate_code: editingOrder.governorateCode || null,
+governorate_name: editingOrder.governorateName || null, area: editingOrder.area || null,
+items: editingOrder.items, order_type: editingOrder.orderType || null,
+total: Number(editingOrder.total) || 0, status: editingOrder.status || 'pending',
+stage: 'ready', order_date: new Date().toISOString().slice(0, 10),
+fahd_ref: `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
+conversation_id: editingOrder.conversationId || null,
+source: editingOrder.conversationId ? 'chat' : 'manual',
+};
+const created = await sbInsert('alfhd_orders', payload);
+if (created?.[0]) {
+const newOrder = mapOrderFromDb(created[0]);
+setOrders((prev) => [newOrder, ...prev]);
+if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
+sendOrderToJenni(newOrder, { silent: true });
+}
+}
+setEditingOrder(null);
+} catch (e) {
+console.error('save order error:', e);
+alert('تعذّر حفظ الطلب');
+} finally { setSaving(false); }
+}
+
+async function handlePickOcrImage(e) {
+const file = e.target.files?.[0]; e.target.value = '';
+if (!file) return;
+setOcrLoading(true);
+try {
+const { base64, mediaType } = await fileToBase64(file);
+const res = await fetch(ORDER_EXTRACT_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify({ imageBase64: base64, mediaType }),
+});
+const data = await res.json().catch(() => ({}));
+if (!res.ok || data?.error) throw new Error(data?.error || 'فشل الاستخراج');
+const rawAddress = data.order?.address || '';
+const rawGovName = data.order?.governorate || data.order?.city || '';
+let ocrGovCode = '', ocrGovName = '', ocrArea = data.order?.area || '', ocrAddress = rawAddress;
+const govSearchText = rawGovName || rawAddress;
+const govFound = IRAQ_GOVERNORATES.find((g) => govSearchText.includes(g.name) || govSearchText.includes(g.name.replace('ال', '')));
+if (govFound) {
+ocrGovCode = govFound.code; ocrGovName = govFound.name;
+ocrAddress = rawAddress.replace(govFound.name, '').replace(/^[\s\-،,]+/, '').trim();
+if (!ocrArea && ocrAddress) {
+const parts = ocrAddress.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+ocrArea = parts[0] || ''; ocrAddress = parts.slice(1).join(' - ') || '';
+}
+}
+setEditingOrder({
+id: null, pageId: pages[0]?.id || '', customer: data.order?.customer_name || '',
+phone: data.order?.phone || '', address: ocrAddress, governorateCode: ocrGovCode,
+governorateName: ocrGovName, area: ocrArea, items: data.order?.items || '',
+orderType: data.order?.order_type || '', total: data.order?.total ? String(data.order.total) : '',
+status: 'pending', conversationId: '',
+});
+} catch (e) {
+console.error('ocr error:', e);
+alert('تعذّر استخراج التفاصيل تلقائياً');
+setEditingOrder({
+id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
+items: '', orderType: '', total: '', status: 'pending', conversationId: '',
+});
+} finally { setOcrLoading(false); }
+}
+
+function groupByBatch(printedOrders) {
+const batches = new Map();
+for (const o of printedOrders) {
+const key = o.printBatchId || 'unknown';
+if (!batches.has(key)) batches.set(key, []);
+batches.get(key).push(o);
+}
+return Array.from(batches.entries())
+.map(([batchId, batchOrders]) => ({ batchId, orders: batchOrders, printedAt: batchOrders[0]?.printedAt || null }))
+.sort((a, b) => new Date(b.printedAt || 0) - new Date(a.printedAt || 0));
+}
+
+async function markOrdersPrintedAndPrep(ids) {
+if (ids.length === 0) return;
+const batchId = `batch-${Date.now()}`;
+const printedAt = new Date().toISOString();
+const notSentYet = orders.filter((o) => ids.includes(o.id) && !o.jenniSent);
+setOrders((prev) => prev.map((o) => (
+ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
+)));
+try {
+await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
+printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
+})));
+} catch (e) { console.error('mark printed error:', e); }
+for (const o of notSentYet) await sendOrderToJenni(o, { silent: true });
+}
+
+function normalizeIraqiPhone(raw) {
+if (!raw) return '';
+let digits = String(raw).replace(/[^0-9]/g, '');
+if (digits.startsWith('964')) digits = '0' + digits.slice(3);
+if (digits.startsWith('00964')) digits = '0' + digits.slice(5);
+if (!digits.startsWith('0')) digits = '0' + digits;
+return digits.slice(0, 11);
+}
+
+async function sendOrderToJenni(o, { silent = false } = {}) {
+if (!o.governorateCode || !o.phone) {
+const msg = 'لا يمكن الإرسال: المحافظة ورقم الهاتف مطلوبان';
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+if (!silent) alert(msg);
+return false;
+}
+const cleanPhone = normalizeIraqiPhone(o.phone);
+if (cleanPhone.length !== 11 || !cleanPhone.startsWith('07')) {
+const msg = `رقم الهاتف غير صالح: ${o.phone}`;
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+if (!silent) alert(msg);
+return false;
+}
+const cityValue = String(o.area || '').trim() || String(o.address || '').split(' - ')[1] || '';
+if (!cityValue) {
+const msg = 'المنطقة/المدينة مطلوبة';
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+if (!silent) alert(msg);
+return false;
+}
+if (!Number(o.total) || Number(o.total) <= 0) {
+const msg = 'المبلغ يجب أن يكون أكبر من صفر';
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: msg } : x)));
+if (!silent) alert(msg);
+return false;
+}
+const noteText = [o.orderType ? o.orderType.trim() : '', o.items ? o.items.trim() : ''].filter(Boolean).join(' — ');
+const shipmentPayload = {
+external_shipment_id: String(o.id), shipment_number: String(o.orderNo || o.id),
+receiver_name: o.customer || '', receiver_phone_1: cleanPhone,
+governorate_code: o.governorateCode, city: cityValue,
+address: String(o.address || '').trim(), amount_iqd: Number(o.total) || 0,
+note: noteText || undefined,
+};
+try {
+const res = await fetch(JENNI_CREATE_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify(shipmentPayload),
+});
+let data = {};
+const rawText = await res.text();
+try { data = JSON.parse(rawText); } catch (_) { data = { raw: rawText }; }
+if (res.ok && (data?.success || data?.shipment_id)) {
+const patch = {
+jenni_sent: true, jenni_shipment_id: data.shipment_id || null,
+jenni_tracking: data.tracking_number || null, delivery_status: 'sorting',
+};
+setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+...x, jenniSent: true, jenniShipmentId: data.shipment_id || null,
+jenniTracking: data.tracking_number || null, jenniError: null, deliveryStatus: 'sorting',
+} : x)));
+try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) {}
+return true;
+}
+if (res.status === 409) {
+const patch = { jenni_sent: true, delivery_status: 'sorting' };
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniSent: true, jenniError: null, deliveryStatus: 'sorting' } : x)));
+try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) {}
+return true;
+}
+const errMsg = data?.error || data?.message || data?.raw || `فشل الإرسال (${res.status})`;
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
+if (!silent) alert(`فشل الإرسال لشركة التوصيل:\n${errMsg}`);
+return false;
+} catch (e) {
+const errMsg = e?.message || 'خطأ اتصال';
+setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, jenniError: errMsg } : x)));
+if (!silent) alert(`تعذّر الاتصال بشركة التوصيل:\n${errMsg}`);
+return false;
+}
+}
+
+async function callJenniAction(order, action, { reason = '', postponedDateId = null } = {}) {
+if (!order.jenniShipmentId && !order.orderNo) { alert('الطلب غير مرسل لشركة التوصيل'); return false; }
+try {
+const payload = {
+shipment_id: order.jenniShipmentId || undefined,
+shipment_number: order.jenniShipmentId ? undefined : String(order.orderNo),
+action, reason,
+};
+if (action === 'POSTPONED') payload.postponed_date_id = postponedDateId || 1;
+const res = await fetch(JENNI_UPDATE_STATUS_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify(payload),
+});
+const data = await res.json().catch(() => ({}));
+if (!data.success) { alert(`فشل الإجراء: ${data.error || 'خطأ'}`); return false; }
+const patch = {
+delivery_step: data.new_status || order.deliveryStep,
+delivery_step_ar: data.new_status_ar || order.deliveryStepAr,
+delivery_note: reason || order.deliveryNote,
+delivery_updated_at: data.updated_at || new Date().toISOString(),
+};
+try { await sbUpdate('alfhd_orders', order.id, patch); } catch (_e) {}
+setOrders((prev) => prev.map((x) => (x.id === order.id ? {
+...x, deliveryStep: patch.delivery_step, deliveryStepAr: patch.delivery_step_ar,
+deliveryNote: patch.delivery_note, deliveryUpdatedAt: patch.delivery_updated_at,
+} : x)));
+return true;
+} catch (e) { alert(`خطأ: ${e.message}`); return false; }
+}
+
+function openJenniActionModal(order, action, title) {
+setJenniAction({ order, action, title });
+setJenniActionReason(''); setJenniActionDateId(1);
+}
+async function confirmJenniAction() {
+if (!jenniAction) return;
+const { order, action } = jenniAction;
+if (!jenniActionReason.trim()) { alert('السبب مطلوب'); return; }
+setJenniActionBusy(true);
+const ok = await callJenniAction(order, action, {
+reason: jenniActionReason.trim(),
+postponedDateId: action === 'POSTPONED' ? jenniActionDateId : null,
+});
+setJenniActionBusy(false);
+if (ok) { setJenniAction(null); setDetailOrder(null); }
+}
+
+async function printJenniBarcode(order) {
+if (!order.orderNo && !order.jenniShipmentId) { alert('الطلب غير مرسل'); return; }
+try {
+const payload = order.jenniShipmentId
+? { shipment_ids: [order.jenniShipmentId] }
+: { shipment_numbers: [String(order.orderNo)] };
+const res = await fetch(JENNI_STICKERS_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify(payload),
+});
+const data = await res.json().catch(() => ({}));
+if (!data.success) { alert(`تعذّر جلب الباركود`); return; }
+const storageLabel = order.storageLocation || '';
+const prepName = order.prepByName || '';
+const extraHtml = `
+<div style="margin-top:10px;padding:10px 14px;border:1.5px dashed #333;border-radius:8px;font-family:Cairo,Arial,sans-serif;direction:rtl;text-align:right;">
+<div style="font-size:15px;font-weight:800;">طلب #${order.orderNo} — ${order.customer || ''}</div>
+<div style="font-size:13px;color:#444;margin-top:3px;">${order.governorateName || ''}${order.area ? ' - ' + order.area : ''}</div>
+${storageLabel ? `<div style="font-size:14px;font-weight:700;margin-top:6px;">📍 عنوان الطلب: ${storageLabel}</div>` : `<div style="font-size:13px;color:#888;margin-top:6px;">📍 عنوان الطلب: ______________________</div>`}
+${prepName ? `<div style="font-size:13px;margin-top:4px;">👤 موظف التجهيز: ${prepName}</div>` : ''}
+</div>`;
+let bodyContent = '';
+if (data.type === 'pdf_base64' && data.data) bodyContent = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="500px" />`;
+else if (data.type === 'url' && data.url) bodyContent = `<iframe src="${data.url}" width="100%" height="500px" style="border:none;"></iframe>`;
+else { alert('الباركود غير متاح'); return; }
+const win = window.open('', '_blank');
+if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب'); return; }
+win.document.write(`
+<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>باركود الطلب #${order.orderNo}</title>
+<style>body{margin:0;padding:16px;background:#fff;font-family:Cairo,Arial,sans-serif;}@media print{.no-print{display:none;}}</style>
+</head><body>
+<button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#6366F1;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">🖨️ طباعة</button>
+${bodyContent}${extraHtml}
+</body></html>`);
+win.document.close();
+} catch (e) { alert(`خطأ: ${e.message}`); }
+}
+
+function JenniActionsPanel({ o }) {
+if (!o.jenniSent) return null;
+const step = (o.deliveryStep || '').toUpperCase();
+const actions = [];
+const btnStyle = (color, bgA) => ({
+display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+background: `rgba(${bgA})`, border: `1px solid ${color}40`,
+borderRadius: 9, color, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+});
+const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(step);
+const isReturned = step.startsWith('RTO');
+const isActive = !isDelivered && !isReturned;
+if (isActive) {
+actions.push(<button key="postpone" style={btnStyle('#F59E0B', '245,158,11,0.10')}
+onClick={() => openJenniActionModal(o, 'POSTPONED', 'تأجيل التوصيل')}>
+<Calendar size={12} /> تأجيل التوصيل
+</button>);
+actions.push(<button key="return" style={btnStyle('#EF4444', '239,68,68,0.08')}
+onClick={() => openJenniActionModal(o, 'RETURNED_WITH_AGENT', 'إرجاع الطلب')}>
+<XCircle size={12} /> إرجاع الطلب
+</button>);
+}
+if (isReturned) {
+actions.push(<button key="confirm_return" style={btnStyle('#EF4444', '239,68,68,0.08')}
+onClick={() => markOrderConverted(o)}>
+<XCircle size={12} /> تأكيد الإرجاع وأرشفة
+</button>);
+}
+if (isDelivered) {
+actions.push(<button key="archive" style={btnStyle('#10B981', '16,185,129,0.08')}
+onClick={() => markOrderConverted(o)}>
+<CheckCircle2 size={12} /> تأكيد الاستلام وأرشفة
+</button>);
+}
+return (
+<div className="aurora-jenni-actions">
+<div className="aurora-jenni-label">إجراءات شركة التوصيل:</div>
+{actions}
+<button key="barcode" style={btnStyle('#6366F1', '99,102,241,0.10')}
+onClick={() => printJenniBarcode(o)}>
+<Printer size={12} /> طباعة باركود الشحنة
+</button>
+</div>
+);
+}
+
+function triggerPrint(target, idsToMove) {
+setPrintTarget(target);
+setTimeout(() => {
+window.print();
+setPrintTarget(null);
+if (idsToMove?.length) markOrdersPrintedAndPrep(idsToMove);
+}, 60);
+}
+function handlePrintReady() {
+const ids = stageOrders.map((o) => o.id);
+if (ids.length === 0) { alert('لا توجد طلبات جاهزة'); return; }
+triggerPrint('ready', ids);
+}
+function handleReprintBatch(batchId, batchOrders) { triggerPrint(batchId, null); }
+async function moveToDelivery(o) {
+const sentOk = o.jenniSent || await sendOrderToJenni(o);
+if (!sentOk) return;
+const patch = { stage: 'delivery', delivery_status: 'sorting', status: 'pending' };
+setOrders((prev) => prev.map((x) => (x.id === o.id ? {
+...x, stage: 'delivery', deliveryStatus: 'sorting', jenniSent: true, status: 'pending',
+} : x)));
+setDetailOrder(null);
+try { await sbUpdate('alfhd_orders', o.id, patch); }
+catch (e) { console.error('move to delivery error:', e); }
+}
+
+const prepBatches = useMemo(() => groupByBatch(stageOrders), [stageOrders]);
+
+function StageStatusBadge({ o }) {
+if (section === 'delivery') {
+const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus] || DELIVERY_STATUS_CONFIG.sorting;
+return <div className="aurora-stage-badge" style={{ color: dcfg.color, background: `${dcfg.color}18` }}>{dcfg.label}</div>;
+}
+if (section === 'prep') return <div className="aurora-stage-badge" style={{ color: '#F59E0B', background: 'rgba(245,158,11,0.12)' }}>قيد التجهيز</div>;
+return <div className="aurora-stage-badge" style={{ color: '#6366F1', background: 'rgba(99,102,241,0.12)' }}>جديد</div>;
+}
+
+function renderOrderCard(o, index = 0) {
+const page = pages.find((p) => p.id === o.pageId);
+const isRejected = o.prepStatus === 'rejected';
+const stepU = (o.deliveryStep || '').toUpperCase();
+let stripColor = '#6366F1';
+if (o.converted) stripColor = '#10B981';
+else if (isRejected) stripColor = '#EF4444';
+else if (stepU.startsWith('RTO')) stripColor = '#EF4444';
+else if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) stripColor = '#10B981';
+else if (stepU) stripColor = '#F59E0B';
+return (
+<div key={o.id} className={`aurora-order-card ${isRejected ? 'rejected' : ''}`} style={{ animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}>
+<div className="aurora-order-strip" style={{ background: stripColor }} />
+{isRejected && (
+<div className="aurora-rejected-banner">
+<AlertCircle size={14} />
+<span>لم يُجهَّز من قبل المخزن — تحقق قبل الطباعة</span>
+</div>
+)}
+<div className="aurora-order-head">
+<div className="aurora-order-avatar">{o.customer?.[0] || '؟'}</div>
+<div className="aurora-order-head-info">
+<div className="aurora-order-customer">{o.customer}</div>
+<div className="aurora-order-page">{page?.avatar} {page?.name || 'بدون صفحة'}</div>
+</div>
+<StageStatusBadge o={o} />
+</div>
+{isRejected && o.prepReason && (
+<div className="aurora-reject-reason">
+<span className="aurora-reject-label">سبب المخزن:</span>
+<span>{o.prepReason}{o.prepByName ? ` — ${o.prepByName}` : ''}</span>
+</div>
+)}
+{o.reprepNote && (
+<div className="aurora-reprep-note">
+<AlertCircle size={13} />
+<span><strong>ملاحظة {o.reprepByName || 'المدير'}:</strong> {o.reprepNote}</span>
+</div>
+)}
+<div className="aurora-order-body">
+{o.orderType && <div className="aurora-order-row"><Package size={11} /><span>{o.orderType}</span></div>}
+{o.phone && <div className="aurora-order-row"><Phone size={11} /><span>{o.phone}</span></div>}
+{(o.governorateName || o.address) && <div className="aurora-order-row"><MapPin size={11} /><span>{[o.governorateName, o.area, o.address].filter(Boolean).join(' - ')}</span></div>}
+{o.items && <div className="aurora-order-items">{o.items}</div>}
+{section === 'prep' && (() => {
+const match = matchOrderToWarehouseProduct(o, warehouseProducts);
+if (!match) return (
+<div className="aurora-warehouse-warn">⚠️ لم يُعثر على منتج مطابق في المخزن</div>
+);
+const { product, confidence } = match;
+return (
+<div className={`aurora-warehouse-match ${confidence}`}>
+<div className="aurora-warehouse-match-title">📦 المنتج في المخزن {confidence === 'high' ? '✓' : '~'}</div>
+<div className="aurora-warehouse-match-name">{product.car_name} — {PRODUCT_TYPE_LABELS[product.type]}</div>
+{product.location && <div className="aurora-warehouse-match-loc">📍 الموقع: {product.location}</div>}
+<div className="aurora-warehouse-match-qty">المتبقي: {product.quantity} قطعة</div>
+</div>
+);
+})()}
+{o.jenniSent && (
+<div className="aurora-jenni-info">
+<div className="aurora-jenni-head">
+<Truck size={11} />
+<span>شركة التوصيل</span>
+{o.deliveryStatus && (() => {
+const dcfg = DELIVERY_STATUS_CONFIG[o.deliveryStatus];
+return dcfg ? (
+<span className="aurora-jenni-status" style={{ color: dcfg.color, background: `${dcfg.color}18` }}>{dcfg.label}</span>
+) : <span>{o.deliveryStatus}</span>;
+})()}
+</div>
+{o.deliveryNote && <div className="aurora-jenni-note">📝 {o.deliveryNote}</div>}
+{o.jenniTracking && <div className="aurora-jenni-track">تتبع: #{o.jenniTracking}</div>}
+{o.deliveryUpdatedAt && <div className="aurora-jenni-updated">آخر تحديث: {new Date(o.deliveryUpdatedAt).toLocaleString('ar-IQ')}</div>}
+<JenniActionsPanel o={o} />
+</div>
+)}
+</div>
+{o.jenniError && (
+<div className="aurora-jenni-error">
+<div className="aurora-jenni-error-body">
+<span>⚠️</span>
+<span>{o.jenniError}</span>
+</div>
+<button onClick={() => startEditOrder(o)} className="aurora-jenni-error-fix">
+<Edit3 size={11} /> إصلاح البيانات
+</button>
+</div>
+)}
+<div className="aurora-order-actions">
+<button onClick={() => setDetailOrder(o)} className="aurora-order-action-btn primary">
+<Eye size={13} /> <span>التفاصيل</span>
+</button>
+{section === 'delivery' && (
+o.jenniSent ? (
+<div className="aurora-order-status-readonly" style={{ color: STATUS_CONFIG[o.status]?.color || '#94A3B8', background: `${STATUS_CONFIG[o.status]?.color || '#94A3B8'}18` }}>
+<Truck size={11} />
+{STATUS_CONFIG[o.status]?.label || o.deliveryStepAr || 'جاري التحديث...'}
+</div>
+) : (
+<select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value)}
+className="aurora-order-status-select"
+style={{ color: STATUS_CONFIG[o.status]?.color, background: `${STATUS_CONFIG[o.status]?.color}18` }}>
+{Object.entries(STATUS_CONFIG).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
+</select>
+)
+)}
+{o.conversationId && (
+<button onClick={() => onViewConversation?.(o.conversationId)} className="aurora-order-action-btn">
+<MessageSquare size={13} />
+</button>
+)}
+</div>
+</div>
+);
+}
+
+const isReady = section === 'ready';
+const isPrep = section === 'prep';
+const isDelivery = section === 'delivery';
+
+return (
+<div className="aurora-view">
+<div className="aurora-view-header">
+<div>
+<h2 className="aurora-view-title">الطلبات</h2>
+<p className="aurora-view-subtitle">متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
+</div>
+<div className="aurora-view-actions">
+<div className="aurora-global-search">
+<Search size={13} />
+<input value={globalOrderSearch} onChange={(e) => setGlobalOrderSearch(e.target.value)} placeholder="بحث سريع..." />
+{globalOrderSearch.trim().length >= 2 && (
+<div className="aurora-global-results">
+{globalOrderResults.length === 0 ? (
+<div className="aurora-global-empty">لا توجد نتائج</div>
+) : globalOrderResults.map((o) => {
+const page = pages.find((p) => p.id === o.pageId);
+return (
+<button key={o.id} onClick={() => openOrderFromGlobalSearch(o)} className="aurora-global-result">
+<div className="aurora-global-result-info">
+<div className="aurora-global-result-title">{o.customer || 'بدون اسم'} <span>#{o.orderNo}</span></div>
+<div className="aurora-global-result-meta">{page?.name || 'بدون صفحة'} · {o.phone || 'بدون هاتف'}</div>
+</div>
+<OrderStagePill order={o} />
+</button>
+);
+})}
+</div>
+)}
+</div>
+<input type="file" accept="image/*" ref={ocrInputRef} onChange={handlePickOcrImage} style={{ display: 'none' }} />
+<button onClick={() => ocrInputRef.current?.click()} className="aurora-action-btn secondary" disabled={ocrLoading}>
+{ocrLoading ? <RefreshCw size={13} className="aurora-spin" /> : <Image size={13} />}
+{ocrLoading ? 'جارٍ الاستخراج...' : 'إضافة بصورة'}
+</button>
+<button onClick={startNewOrder} className="aurora-action-btn primary">
+<Plus size={14} /> طلب جديد
+</button>
+{isReady && (
+<button onClick={handlePrintReady} className="aurora-action-btn success">
+<Printer size={14} /> طباعة الكل ({stageOrders.length})
+</button>
+)}
+</div>
+</div>
+
+<div className="aurora-stats-row">
+<ClickableStat icon={Package} label="إجمالي الطلبات" value={stats.total} color="#6366F1"
+active={isDelivery && statusFilter === 'all'} onClick={() => { setSection('delivery'); setStatusFilter('all'); }} />
+<ClickableStat icon={Truck} label="قيد التوصيل" value={stats.pending} color="#6366F1"
+active={isDelivery && statusFilter === 'pending'} onClick={() => { setSection('delivery'); setStatusFilter('pending'); }} />
+<ClickableStat icon={CheckCircle2} label="مستلمة" value={stats.delivered} color="#10B981"
+active={isDelivery && statusFilter === 'delivered'} onClick={() => { setSection('delivery'); setStatusFilter('delivered'); }} />
+<ClickableStat icon={XCircle} label="راجعة" value={stats.returned} color="#EF4444"
+active={isDelivery && statusFilter === 'returned'} onClick={() => { setSection('delivery'); setStatusFilter('returned'); }} />
+</div>
+
+<div className="aurora-section-tabs">
+{ORDER_STAGES.map((st) => (
+<button key={st.id} onClick={() => { setSection(st.id); setStatusFilter('all'); }}
+className={`aurora-section-tab ${section === st.id ? 'active' : ''}`}>
+{st.label}
+<span className="aurora-tab-count">{stageCounts[st.id]}</span>
+</button>
+))}
+</div>
+
+<OrderFilters pages={pages} datePreset={datePreset} setDatePreset={setDatePreset}
+customMonth={customMonth} setCustomMonth={setCustomMonth}
+customYear={customYear} setCustomYear={setCustomYear}
+pageFilter={selectedPage} setPageFilter={setSelectedPage}
+search={search} setSearch={setSearch}
+searchPlaceholder="رقم الطلب، الاسم، الهاتف، أو نوع الطلب..." />
+
+{isDelivery && (
+<div className="aurora-chips">
+{['all', 'pending', 'delivered', 'returned'].map((s) => (
+<button key={s} onClick={() => setStatusFilter(s)} className={`aurora-chip ${statusFilter === s ? 'active' : ''}`}>
+{s === 'all' ? 'الكل' : STATUS_CONFIG[s].label}
+</button>
+))}
+</div>
+)}
+
+{isPrep ? (
+<div className="aurora-batches">
+{prepBatches.length === 0 ? (
+<div className="aurora-empty-state"><Package size={30} /><p>لا توجد طلبات قيد التجهيز</p></div>
+) : prepBatches.map((batch) => (
+<div key={batch.batchId} className="aurora-batch">
+<div className="aurora-batch-header">
+<div className="aurora-batch-info">
+<Printer size={13} />
+<span>دفعة — {batch.orders.length} طلب</span>
+{batch.printedAt && <span className="aurora-batch-time">{new Date(batch.printedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}</span>}
+</div>
+<button onClick={() => handleReprintBatch(batch.batchId, batch.orders)} className="aurora-action-btn ghost">
+<Printer size={13} /> إعادة طباعة
+</button>
+</div>
+<div className={`aurora-orders-grid ${printTarget === batch.batchId ? 'print-area' : ''}`}>
+{batch.orders.map(renderOrderCard)}
+</div>
+</div>
+))}
+</div>
+) : (
+<div className={`aurora-orders-grid ${printTarget === 'ready' ? 'print-area' : ''}`}>
+{stageOrders.length === 0 ? (
+<div className="aurora-empty-state">
+{isReady ? <Package size={30} /> : <Truck size={30} />}
+<p>{isReady ? 'لا توجد طلبات جاهزة للطباعة' : 'لا توجد طلبات لدى شركة التوصيل بعد'}</p>
+</div>
+) : stageOrders.map(renderOrderCard)}
+</div>
+)}
+
+{detailOrder && (
+<OrderDetailModal order={detailOrder} page={pages.find((p) => p.id === detailOrder.pageId)}
+section={section} onClose={() => setDetailOrder(null)}
+onEdit={() => startEditOrder(detailOrder)} onDelete={() => handleDelete(detailOrder)}
+onShare={() => handleShare(detailOrder)}
+onViewConversation={detailOrder.conversationId ? () => { onViewConversation?.(detailOrder.conversationId); setDetailOrder(null); } : null}
+onMoveToDelivery={null}
+onReprep={detailOrder.prepStatus === 'rejected' ? (note) => reprepOrder(detailOrder, note) : null}
+onContactCustomer={onContactCustomer} />
+)}
+
+{jenniAction && (
+<div className="aurora-modal-overlay" onClick={() => !jenniActionBusy && setJenniAction(null)}>
+<div className="aurora-modal small" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>{jenniAction.title}</h3>
+<button onClick={() => setJenniAction(null)}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+<div className="aurora-modal-sub">طلب #{jenniAction.order.orderNo} — {jenniAction.order.customer}</div>
+{jenniAction.action === 'POSTPONED' && (
+<div className="aurora-modal-section">
+<label>موعد إعادة المحاولة</label>
+<div className="aurora-date-options">
+{[{ id: 1, t: 'غداً' }, { id: 2, t: 'بعد يومين' }, { id: 3, t: 'بعد 3 أيام' }].map((d) => (
+<button key={d.id} onClick={() => setJenniActionDateId(d.id)}
+className={`aurora-date-option ${jenniActionDateId === d.id ? 'active' : ''}`}>{d.t}</button>
+))}
+</div>
+</div>
+)}
+<div className="aurora-modal-section">
+<label>{jenniAction.action === 'POSTPONED' ? 'سبب التأجيل' : 'سبب الإرجاع'} <span className="aurora-required">*</span></label>
+<textarea value={jenniActionReason} onChange={(e) => setJenniActionReason(e.target.value)}
+placeholder={jenniAction.action === 'POSTPONED' ? 'مثال: العميل غير متوفر' : 'مثال: رفض الاستلام'} rows={3} />
+</div>
+<div className="aurora-modal-footer">
+<button onClick={() => setJenniAction(null)} disabled={jenniActionBusy} className="aurora-btn ghost">إلغاء</button>
+<button onClick={confirmJenniAction} disabled={jenniActionBusy} className="aurora-btn primary">
+{jenniActionBusy ? 'جارٍ الإرسال...' : 'تأكيد وإرسال'}
+</button>
+</div>
+</div>
+</div>
+</div>
+)}
+
+{editingOrder && (
+<div className="aurora-modal-overlay" onClick={() => !saving && setEditingOrder(null)}>
+<div className="aurora-modal" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>{editingOrder.id ? 'تعديل الطلب' : 'إضافة طلب جديد'}</h3>
+<button onClick={() => setEditingOrder(null)}><X size={17} /></button>
+</div>
+<div className="aurora-jenni-banner">
+<Truck size={12} />
+الحقول المُعلَّمة بـ <span className="aurora-required">*</span> إجبارية من شركة التوصيل
+</div>
+<div className="aurora-modal-body">
+<div className="aurora-form-group">
+<label>الصفحة</label>
+<select value={editingOrder.pageId} onChange={(e) => setEditingOrder({ ...editingOrder, pageId: e.target.value })}>
+{pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+</select>
+</div>
+<div className="aurora-form-group">
+<label>اسم العميل <span className="aurora-required">*</span></label>
+<input value={editingOrder.customer} onChange={(e) => setEditingOrder({ ...editingOrder, customer: e.target.value })}
+className={!editingOrder.customer.trim() ? 'invalid' : ''} placeholder="اسم الزبون الكامل" />
+{!editingOrder.customer.trim() && <span className="aurora-field-error">⚠ مطلوب</span>}
+</div>
+<div className="aurora-form-group">
+<label>رقم الهاتف <span className="aurora-required">*</span> <span className="aurora-field-hint">07XXXXXXXXX</span></label>
+{(() => {
+const raw = String(editingOrder.phone || '').trim();
+const clean = raw ? normalizeIraqiPhone(raw) : '';
+const phoneOk = raw && clean.length === 11 && clean.startsWith('07');
+const phoneErr = raw && !phoneOk;
+return (
+<>
+<input value={editingOrder.phone} onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })}
+className={phoneErr ? 'invalid' : phoneOk ? 'valid' : 'invalid'} placeholder="07XXXXXXXXX" inputMode="numeric" />
+{!raw && <span className="aurora-field-error">⚠ مطلوب</span>}
+{phoneErr && <span className="aurora-field-error">⚠ صيغة خاطئة</span>}
+{phoneOk && <span className="aurora-field-success">✓ صالح لشركة التوصيل</span>}
+</>
+);
+})()}
+</div>
+<div className="aurora-form-group">
+<label>المحافظة <span className="aurora-required">*</span></label>
+{!editingOrder.governorateCode && editingOrder.address && (() => {
+const cleanAddr = (editingOrder.address || '').replace(/[*#@!]/g, ' ');
+const found = IRAQ_GOVERNORATES.find((g) => cleanAddr.includes(g.name) || cleanAddr.includes(g.name.replace(/^ال/, '')));
+return found ? (
+<button type="button" onClick={() => {
+const rest = cleanAddr.replace(found.name, '').replace(/^[\s\-،,]+/, '').trim();
+const parts = rest.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+setEditingOrder({
+...editingOrder, governorateCode: found.code, governorateName: found.name,
+area: editingOrder.area || parts[0] || '', address: parts.slice(1).join(' - ') || rest,
+});
+}} className="aurora-auto-extract">
+✨ استخراج "{found.name}" من العنوان تلقائياً
+</button>
+) : null;
+})()}
+<select value={editingOrder.governorateCode || ''}
+onChange={(e) => {
+const gov = IRAQ_GOVERNORATES.find((g) => g.code === e.target.value);
+setEditingOrder({ ...editingOrder, governorateCode: e.target.value, governorateName: gov?.name || '' });
+}}
+className={!editingOrder.governorateCode ? 'invalid' : ''}>
+<option value="">— اختر المحافظة —</option>
+{IRAQ_GOVERNORATES.map((g) => <option key={g.code} value={g.code}>{g.name} ({g.code})</option>)}
+</select>
+{!editingOrder.governorateCode && <span className="aurora-field-error">⚠ مطلوب</span>}
+</div>
+<div className="aurora-form-group">
+<label>المنطقة / المدينة <span className="aurora-required">*</span> <span className="aurora-field-hint">city لشركة التوصيل</span></label>
+<CityPicker govCode={editingOrder.governorateCode} value={editingOrder.area || ''}
+onChange={(val) => setEditingOrder({ ...editingOrder, area: val })}
+invalid={!String(editingOrder.area || '').trim()} />
+{!String(editingOrder.area || '').trim() && <span className="aurora-field-error">⚠ مطلوب</span>}
+</div>
+<div className="aurora-form-group">
+<label>المبلغ (د.ع) <span className="aurora-required">*</span></label>
+{(() => {
+const total = Number(editingOrder.total);
+const totalOk = total > 0;
+return (
+<>
+<input type="number" min="1" value={editingOrder.total}
+onChange={(e) => setEditingOrder({ ...editingOrder, total: e.target.value })}
+className={totalOk ? 'valid' : 'invalid'} placeholder="0" />
+{!totalOk && <span className="aurora-field-error">⚠ المبلغ يجب أن يكون أكبر من صفر</span>}
+</>
+);
+})()}
+</div>
+<div className="aurora-form-group">
+<label>العنوان التفصيلي <span className="aurora-hint">(اختياري)</span></label>
+<input value={editingOrder.address} onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })}
+placeholder="أقرب نقطة دالة، رقم الدار..." />
+</div>
+<div className="aurora-form-group">
+<label>عنوان الطلب — موقع التخزين <span className="aurora-hint">(يُطبع على الستيكر)</span></label>
+<input value={editingOrder.storageLocation || ''}
+onChange={(e) => setEditingOrder({ ...editingOrder, storageLocation: e.target.value })}
+placeholder="مثال: فرع A رف 3" />
+</div>
+<div className="aurora-form-group">
+<label>نوع الطلب / ملاحظة <span className="aurora-hint">(اختياري)</span></label>
+<input value={editingOrder.orderType} onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })}
+placeholder="مثال: أرضيات سيارة، ملابس..." />
+</div>
+<div className="aurora-form-group">
+<label>المنتجات / التفاصيل <span className="aurora-hint">(اختياري)</span></label>
+<textarea value={editingOrder.items} onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })}
+placeholder="وصف المنتجات والكميات" />
+</div>
+<div className="aurora-form-group">
+<label>ربط بمحادثة <span className="aurora-hint">(اختياري)</span></label>
+<select value={editingOrder.conversationId || ''}
+onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })}>
+<option value="">بدون ربط</option>
+{conversations.map((c) => <option key={c.id} value={c.id}>{c.customer}</option>)}
+</select>
+</div>
+{(() => {
+const errs = validateJenniFields(editingOrder);
+const ready = Object.keys(errs).length === 0;
+return (
+<div className={`aurora-jenni-status ${ready ? 'ready' : 'error'}`}>
+{ready ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+{ready ? '✓ جاهز للإرسال لشركة التوصيل' : `${Object.keys(errs).length} حقل ناقص`}
+</div>
+);
+})()}
+</div>
+<div className="aurora-modal-footer">
+<button onClick={() => setEditingOrder(null)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={handleSaveOrder} className="aurora-btn primary" disabled={saving}>
+{saving ? 'جارٍ الحفظ...' : 'حفظ الطلب'}
+</button>
+</div>
+</div>
+</div>
+)}
+</div>
+);
 }
 
 function ClickableStat({ icon: Icon, label, value, color, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{ ...styles.statCard, ...(active ? { borderColor: color + '66', background: `linear-gradient(180deg, ${color}14, #111725)` } : {}), cursor: 'pointer', textAlign: 'right', width: '100%' }} className="alfhd-stat-card">
-      <div style={{ ...styles.statIconWrap, background: `linear-gradient(135deg, ${color}22, ${color}0D)`, color, boxShadow: `0 4px 12px -4px ${color}55` }}>
-        <Icon size={19} />
-      </div>
-      <div>
-        <div style={styles.statValue}>{typeof value === 'number' && value > 999 ? value.toLocaleString() : value}</div>
-        <div style={styles.statLabel}>{label}</div>
-      </div>
-    </button>
-  );
+return (
+<button onClick={onClick} className={`aurora-stat-card clickable ${active ? 'active' : ''}`} style={{ '--accent': color }}>
+<div className="aurora-stat-icon"><Icon size={18} /></div>
+<div className="aurora-stat-info">
+<div className="aurora-stat-value">{typeof value === 'number' && value > 999 ? value.toLocaleString() : value}</div>
+<div className="aurora-stat-label">{label}</div>
+</div>
+</button>
+);
 }
 
 function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onShare, onViewConversation, onMoveToDelivery, onReprep, onContactCustomer }) {
-  const [copied, setCopied] = useState(false);
-  const o = order;
-  const [reprepMode, setReprepMode] = useState(false);
-  const [reprepNote, setReprepNote] = useState('');
-  const isRejected = o.prepStatus === 'rejected';
-  return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <h3 style={styles.modalTitle}>تفاصيل الطلب #{o.orderNo}</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={() => {
-                const info = [
-                  `طلب #${o.orderNo}`,
-                  o.customer ? `الاسم: ${o.customer}` : '',
-                  o.phone ? `الهاتف: ${o.phone}` : '',
-                  o.governorateName ? `المحافظة: ${o.governorateName}` : '',
-                  o.area ? `المنطقة: ${o.area}` : '',
-                  o.address ? `العنوان: ${o.address}` : '',
-                  o.orderType ? `نوع الطلب: ${o.orderType}` : '',
-                  o.items ? `المنتجات: ${o.items}` : '',
-                  o.total ? `المبلغ: ${Number(o.total).toLocaleString()} د.ع` : '',
-                ].filter(Boolean).join('\n');
-                try {
-                  navigator.clipboard.writeText(info);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                } catch (_e) { alert('تعذّر النسخ'); }
-              }}
-              title="نسخ معلومات الطلب"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 9, background: copied ? 'rgba(77,219,107,0.15)' : 'rgba(42,171,238,0.12)', border: `1px solid ${copied ? 'rgba(77,219,107,0.4)' : 'rgba(42,171,238,0.3)'}`, color: copied ? '#4DDB6B' : '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            >
-              {copied ? <><CheckCircle2 size={14} /> نُسخت</> : <><Copy size={14} /> نسخ</>}
-            </button>
-            <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
-          </div>
-        </div>
-        <div style={styles.modalBody}>
-          {isRejected && (
-            <div style={{ ...styles.rejectReasonBox, margin: 0 }}>
-              <span style={styles.rejectReasonLabel}>لم يُجهَّز{o.prepByName ? ` (المجهّز: ${o.prepByName})` : ''}:</span>
-              <span>{o.prepReason || 'بدون سبب محدد'}</span>
-            </div>
-          )}
-          {o.prepStatus === 'done' && o.prepByName && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px', background: 'rgba(77,219,107,0.08)', border: '1px solid rgba(77,219,107,0.2)', borderRadius: 10, marginBottom: 4 }}>
-              <CheckCircle2 size={15} color="#4DDB6B" />
-              <span style={{ fontSize: 12.5, color: '#EAF0FB' }}>تم التجهيز — <strong>موظف التجهيز: {o.prepByName}</strong></span>
-            </div>
-          )}
-          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العميل</span><span style={styles.detailGridValue}>{o.customer}</span></div>
-          {page && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الصفحة</span><span style={styles.detailGridValue}>{page.avatar} {page.name}</span></div>}
-          {o.orderType && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>نوع الطلب</span><span style={styles.detailGridValue}>{o.orderType}</span></div>}
-          {o.phone && (
-            <div style={styles.detailGridRow}>
-              <span style={styles.detailGridLabel}>الهاتف</span>
-              <span style={{ ...styles.detailGridValue, display: 'flex', alignItems: 'center', gap: 8, direction: 'ltr' }}>
-                <a
-                  href={`https://wa.me/964${normalizeIraqiPhoneStatic(o.phone).replace(/^0/, '')}`}
-                  target="_blank" rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  title="فتح محادثة واتساب"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 7, background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.35)', flexShrink: 0 }}
-                >
-                  <MessageCircle size={14} color="#25D366" />
-                </a>
-                <span>{o.phone}</span>
-              </span>
-            </div>
-          )}
-          {o.governorateName && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المحافظة</span><span style={styles.detailGridValue}>{o.governorateName}</span></div>}
-          {o.area && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المنطقة</span><span style={styles.detailGridValue}>{o.area}</span></div>}
-          {o.address && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>العنوان</span><span style={styles.detailGridValue}>{o.address}</span></div>}
-          {o.deliveryStepAr && <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>حالة الشركة</span><span style={{ ...styles.detailGridValue, color: '#60A5FA', fontWeight: 700 }}>{o.deliveryStepAr}</span></div>}
-          {o.items && (
-            <div style={{ ...styles.detailGridRow, flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
-              <span style={styles.detailGridLabel}>المنتجات</span>
-              <span style={{ ...styles.detailGridValue, whiteSpace: 'pre-wrap', textAlign: 'right' }}>{o.items}</span>
-            </div>
-          )}
-          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>المبلغ</span><span style={{ ...styles.detailGridValue, fontSize: 18 }}><span className="alfhd-amount-glow">{Number(o.total).toLocaleString()}</span> <span style={{ fontSize: 12, color: '#9FB0C3', fontWeight: 600 }}>د.ع</span></span></div>
-          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>التاريخ</span><span style={styles.detailGridValue}>{o.date}</span></div>
-          <div style={styles.detailGridRow}><span style={styles.detailGridLabel}>الرقم المرجعي</span><span style={{ ...styles.detailGridValue, fontFamily: 'monospace' }}>{o.fahdRef}</span></div>
-
-          {/* ── الخط الزمني لرحلة الشحنة عند شركة التوصيل ── */}
-          {Array.isArray(o.deliveryHistory) && o.deliveryHistory.length > 0 && (
-            <div style={{ ...styles.detailGridRow, flexDirection: 'column', alignItems: 'stretch', gap: 0, paddingTop: 10 }}>
-              <span style={{ ...styles.detailGridLabel, marginBottom: 10 }}>رحلة الشحنة</span>
-              <div style={{ position: 'relative', paddingRight: 4 }}>
-                {o.deliveryHistory.map((h, i) => {
-                  const isLast = i === o.deliveryHistory.length - 1;
-                  return (
-                    <div key={i} style={{ display: 'flex', gap: 10, position: 'relative', paddingBottom: isLast ? 0 : 16 }}>
-                      {/* نقطة وخط */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: isLast ? '#4DDB6B' : '#2AABEE', boxShadow: isLast ? '0 0 0 3px rgba(77,219,107,0.2)' : 'none', marginTop: 2 }} />
-                        {!isLast && <div style={{ width: 2, flex: 1, background: 'rgba(42,171,238,0.25)', marginTop: 2 }} />}
-                      </div>
-                      {/* المحتوى */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: isLast ? '#4DDB6B' : '#E7ECF3' }}>{h.step_ar || h.step}</div>
-                        {h.branch && <div style={{ fontSize: 11, color: '#9FB0C3', marginTop: 1 }}>{h.branch}</div>}
-                        {h.date && <div style={{ fontSize: 10.5, color: '#546880', marginTop: 1, fontFamily: 'monospace' }}>{h.date}</div>}
-                        {h.note && <div style={{ fontSize: 11, color: '#F0A868', marginTop: 2 }}>{h.note}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {reprepMode && (
-            <div style={styles.formGroup}>
-              <label style={styles.formLabel}>ملاحظة للمجهّز (اختياري)</label>
-              <textarea value={reprepNote} onChange={(e) => setReprepNote(e.target.value)} style={{ ...styles.formInput, minHeight: 70, resize: 'vertical' }} placeholder="مثال: المنتج وصل المخزن، جهّزه من فضلك" autoFocus />
-            </div>
-          )}
-        </div>
-        <div style={{ ...styles.modalFooter, flexWrap: 'wrap' }}>
-          {reprepMode ? (
-            <>
-              <button onClick={() => { setReprepMode(false); setReprepNote(''); }} style={styles.modalCancelBtn}>إلغاء</button>
-              <button onClick={() => onReprep?.(reprepNote.trim())} style={styles.modalSaveBtn}>تأكيد إعادة التجهيز</button>
-            </>
-          ) : (
-            <>
-              {onReprep && (
-                <button onClick={() => setReprepMode(true)} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4, background: 'linear-gradient(135deg,#F0A868,#E0833C)' }}>
-                  <RefreshCw size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> إعادة الطلب للتجهيز
-                </button>
-              )}
-              {onMoveToDelivery && (
-                <button onClick={onMoveToDelivery} style={{ ...styles.modalSaveBtn, flex: '1 1 100%', marginBottom: 4 }}>
-                  <Truck size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} /> نقل لشركة التوصيل
-                </button>
-              )}
-              <button onClick={onEdit} style={styles.detailActionBtn}><Edit3 size={14} /> تعديل</button>
-              <button onClick={onShare} style={styles.detailActionBtn}><Send size={14} /> تحويل</button>
-              {onViewConversation && <button onClick={onViewConversation} style={styles.detailActionBtn}><MessageSquare size={14} /> المحادثة</button>}
-              {!onViewConversation && o.phone && onContactCustomer && (
-                <button onClick={() => onContactCustomer(o.phone)} style={styles.detailActionBtn}><Phone size={14} /> الزبون</button>
-              )}
-              <button onClick={onDelete} style={{ ...styles.detailActionBtn, color: '#F45B69', borderColor: 'rgba(244,91,105,0.3)' }}><Trash2 size={14} /> حذف</button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+const o = order;
+const [reprepMode, setReprepMode] = useState(false);
+const [reprepNote, setReprepNote] = useState('');
+const isRejected = o.prepStatus === 'rejected';
+return (
+<div className="aurora-modal-overlay" onClick={onClose}>
+<div className="aurora-modal" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>تفاصيل الطلب #{o.orderNo}</h3>
+<button onClick={onClose}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+{isRejected && (
+<div className="aurora-reject-reason">
+<span className="aurora-reject-label">لم يُجهَّز{o.prepByName ? ` (المجهّز: ${o.prepByName})` : ''}:</span>
+<span>{o.prepReason || 'بدون سبب محدد'}</span>
+</div>
+)}
+{o.prepStatus === 'done' && o.prepByName && (
+<div className="aurora-prep-done">
+<CheckCircle2 size={14} />
+<span>تم التجهيز — <strong>موظف التجهيز: {o.prepByName}</strong></span>
+</div>
+)}
+<div className="aurora-detail-row"><span>العميل</span><span>{o.customer}</span></div>
+{page && <div className="aurora-detail-row"><span>الصفحة</span><span>{page.avatar} {page.name}</span></div>}
+{o.orderType && <div className="aurora-detail-row"><span>نوع الطلب</span><span>{o.orderType}</span></div>}
+{o.phone && <div className="aurora-detail-row"><span>الهاتف</span><span>{o.phone}</span></div>}
+{o.governorateName && <div className="aurora-detail-row"><span>المحافظة</span><span>{o.governorateName}</span></div>}
+{o.area && <div className="aurora-detail-row"><span>المنطقة</span><span>{o.area}</span></div>}
+{o.address && <div className="aurora-detail-row"><span>العنوان</span><span>{o.address}</span></div>}
+{o.deliveryStepAr && <div className="aurora-detail-row"><span>حالة الشركة</span><span className="aurora-accent">{o.deliveryStepAr}</span></div>}
+{o.items && (
+<div className="aurora-detail-row column">
+<span>المنتجات</span>
+<span className="aurora-pre">{o.items}</span>
+</div>
+)}
+<div className="aurora-detail-row"><span>المبلغ</span><span className="aurora-amount-lg"><span className="aurora-amount-glow">{Number(o.total).toLocaleString()}</span> <span>د.ع</span></span></div>
+<div className="aurora-detail-row"><span>التاريخ</span><span>{o.date}</span></div>
+<div className="aurora-detail-row"><span>الرقم المرجعي</span><span className="aurora-mono">{o.fahdRef}</span></div>
+{Array.isArray(o.deliveryHistory) && o.deliveryHistory.length > 0 && (
+<div className="aurora-detail-timeline">
+<span className="aurora-timeline-title">رحلة الشحنة</span>
+<div className="aurora-timeline">
+{o.deliveryHistory.map((h, i) => {
+const isLast = i === o.deliveryHistory.length - 1;
+return (
+<div key={i} className="aurora-timeline-item">
+<div className="aurora-timeline-dot-wrap">
+<div className={`aurora-timeline-dot ${isLast ? 'last' : ''}`} />
+{!isLast && <div className="aurora-timeline-line" />}
+</div>
+<div className="aurora-timeline-content">
+<div className={`aurora-timeline-step ${isLast ? 'last' : ''}`}>{h.step_ar || h.step}</div>
+{h.branch && <div className="aurora-timeline-branch">{h.branch}</div>}
+{h.date && <div className="aurora-timeline-date">{h.date}</div>}
+{h.note && <div className="aurora-timeline-note">{h.note}</div>}
+</div>
+</div>
+);
+})}
+</div>
+</div>
+)}
+{reprepMode && (
+<div className="aurora-form-group">
+<label>ملاحظة للمجهّز (اختياري)</label>
+<textarea value={reprepNote} onChange={(e) => setReprepNote(e.target.value)}
+placeholder="مثال: المنتج وصل المخزن، جهّزه من فضلك" autoFocus />
+</div>
+)}
+</div>
+<div className="aurora-modal-footer wrap">
+{reprepMode ? (
+<>
+<button onClick={() => { setReprepMode(false); setReprepNote(''); }} className="aurora-btn ghost">إلغاء</button>
+<button onClick={() => onReprep?.(reprepNote.trim())} className="aurora-btn primary">تأكيد إعادة التجهيز</button>
+</>
+) : (
+<>
+{onReprep && (
+<button onClick={() => setReprepMode(true)} className="aurora-btn warn full">
+<RefreshCw size={14} /> إعادة الطلب للتجهيز
+</button>
+)}
+{onMoveToDelivery && (
+<button onClick={onMoveToDelivery} className="aurora-btn primary full">
+<Truck size={14} /> نقل لشركة التوصيل
+</button>
+)}
+<button onClick={onEdit} className="aurora-btn ghost"><Edit3 size={13} /> تعديل</button>
+<button onClick={onShare} className="aurora-btn ghost"><Send size={13} /> تحويل</button>
+{onViewConversation && <button onClick={onViewConversation} className="aurora-btn ghost"><MessageSquare size={13} /> المحادثة</button>}
+{!onViewConversation && o.phone && onContactCustomer && (
+<button onClick={() => onContactCustomer(o.phone)} className="aurora-btn ghost"><Phone size={13} /> الزبون</button>
+)}
+<button onClick={onDelete} className="aurora-btn danger"><Trash2 size={13} /> حذف</button>
+</>
+)}
+</div>
+</div>
+</div>
+);
 }
 
 function StatCard({ icon: Icon, label, value, color }) {
-  return (
-    <div style={styles.statCard} className="alfhd-stat-card alfhd-fade-up">
-      <div style={{ ...styles.statIconWrap, background: `linear-gradient(135deg, ${color}22, ${color}0D)`, color, boxShadow: `0 4px 12px -4px ${color}55` }}>
-        <Icon size={19} />
-      </div>
-      <div>
-        <div style={styles.statValue}>{typeof value === 'number' && value > 999 ? value.toLocaleString() : value}</div>
-        <div style={styles.statLabel}>{label}</div>
-      </div>
-    </div>
-  );
+return (
+<div className="aurora-stat-card" style={{ '--accent': color }}>
+<div className="aurora-stat-icon"><Icon size={18} /></div>
+<div className="aurora-stat-info">
+<div className="aurora-stat-value">{typeof value === 'number' && value > 999 ? value.toLocaleString() : value}</div>
+<div className="aurora-stat-label">{label}</div>
+</div>
+</div>
+);
 }
 
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
 // عرض الإحصائيات
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
 function StatsView({ orders, pages, conversations, setOrders }) {
-  const [statsPage, setStatsPage] = useState('all');
-  const [timeFilter, setTimeFilter] = useState('all');
-  const [customYear, setCustomYear] = useState(new Date().getFullYear());
-  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+const [statsPage, setStatsPage] = useState('all');
+const [timeFilter, setTimeFilter] = useState('all');
+const [customYear, setCustomYear] = useState(new Date().getFullYear());
+const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+const years = [];
+for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
+function isInRange(dateStr) { return dateInRange(dateStr, timeFilter, customMonth, customYear); }
 
-  const years = [];
-  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
+const scopedOrders = useMemo(() => {
+return orders.filter((o) => {
+if (statsPage !== 'all' && o.pageId !== statsPage) return false;
+if (!isInRange(o.createdAt || o.date)) return false;
+return true;
+});
+}, [orders, statsPage, timeFilter, customYear, customMonth]);
 
-  function isInRange(dateStr) {
-    return dateInRange(dateStr, timeFilter, customMonth, customYear);
-  }
+const breakdown = useMemo(() => {
+const converted = scopedOrders.filter((o) => o.converted);
+const fromChat = scopedOrders.filter((o) => !o.converted && o.source === 'chat');
+const manual = scopedOrders.filter((o) => !o.converted && o.source !== 'chat');
+return { total: scopedOrders.length, converted: converted.length, fromChat: fromChat.length, manual: manual.length };
+}, [scopedOrders]);
 
-  // كل الإحصائيات تحترم فلتر الصفحة + فلتر الوقت
-  const scopedOrders = useMemo(() => {
-    return orders.filter((o) => {
-      if (statsPage !== 'all' && o.pageId !== statsPage) return false;
-      if (!isInRange(o.createdAt || o.date)) return false;
-      return true;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, statsPage, timeFilter, customYear, customMonth]);
+const overall = useMemo(() => {
+const delivered = scopedOrders.filter((o) => o.status === 'delivered');
+const pending = scopedOrders.filter((o) => o.status === 'pending');
+const returned = scopedOrders.filter((o) => o.status === 'returned');
+const revenue = delivered.reduce((s, o) => s + o.total, 0);
+const deliveryRate = scopedOrders.length ? Math.round((delivered.length / scopedOrders.length) * 100) : 0;
+const returnRate = scopedOrders.length ? Math.round((returned.length / scopedOrders.length) * 100) : 0;
+return { delivered: delivered.length, pending: pending.length, returned: returned.length, revenue, deliveryRate, returnRate };
+}, [scopedOrders]);
 
-  const breakdown = useMemo(() => {
-    const converted = scopedOrders.filter((o) => o.converted);
-    const fromChat = scopedOrders.filter((o) => !o.converted && o.source === 'chat');
-    const manual = scopedOrders.filter((o) => !o.converted && o.source !== 'chat');
-    return { total: scopedOrders.length, converted: converted.length, fromChat: fromChat.length, manual: manual.length };
-  }, [scopedOrders]);
+const perPage = useMemo(() => {
+const scope = statsPage === 'all' ? pages : pages.filter((p) => p.id === statsPage);
+return scope.map((p) => {
+const pOrders = scopedOrders.filter((o) => o.pageId === p.id);
+const pConvs = conversations.filter((c) => c.pageId === p.id);
+return {
+...p, orderCount: pOrders.length,
+revenue: pOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0),
+convCount: pConvs.length,
+};
+});
+}, [pages, scopedOrders, conversations, statsPage]);
 
-  const overall = useMemo(() => {
-    const delivered = scopedOrders.filter((o) => o.status === 'delivered');
-    const pending = scopedOrders.filter((o) => o.status === 'pending');
-    const returned = scopedOrders.filter((o) => o.status === 'returned');
-    const revenue = delivered.reduce((s, o) => s + o.total, 0);
-    const deliveryRate = scopedOrders.length ? Math.round((delivered.length / scopedOrders.length) * 100) : 0;
-    const returnRate = scopedOrders.length ? Math.round((returned.length / scopedOrders.length) * 100) : 0;
-    return { delivered: delivered.length, pending: pending.length, returned: returned.length, revenue, deliveryRate, returnRate };
-  }, [scopedOrders]);
+const maxRevenue = Math.max(...perPage.map((p) => p.revenue), 1);
 
-  const perPage = useMemo(() => {
-    const scope = statsPage === 'all' ? pages : pages.filter((p) => p.id === statsPage);
-    return scope.map((p) => {
-      const pOrders = scopedOrders.filter((o) => o.pageId === p.id);
-      const pConvs = conversations.filter((c) => c.pageId === p.id);
-      return {
-        ...p,
-        orderCount: pOrders.length,
-        revenue: pOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0),
-        convCount: pConvs.length,
-      };
-    });
-  }, [pages, scopedOrders, conversations, statsPage]);
+const summary = useMemo(() => {
+const booked = scopedOrders;
+const converted = scopedOrders.filter((o) => o.converted);
+const sentToCompany = scopedOrders.filter((o) => o.stage === 'delivery');
+const sortingC = sentToCompany.filter((o) => o.deliveryStatus === 'sorting' || (!o.deliveryStatus && o.status === 'pending'));
+const deliveredC = sentToCompany.filter((o) => o.status === 'delivered');
+const returnedC = sentToCompany.filter((o) => o.status === 'returned');
+const neglected = scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery');
+return {
+booked: booked.length, converted: converted.length, sentToCompany: sentToCompany.length,
+sorting: sortingC.length, delivered: deliveredC.length, returned: returnedC.length, neglected: neglected.length,
+};
+}, [scopedOrders]);
 
-  const maxRevenue = Math.max(...perPage.map((p) => p.revenue), 1);
+const bestSellers = useMemo(() => {
+const counts = {};
+scopedOrders.forEach((o) => {
+const key = (o.orderType || '').trim();
+if (!key) return;
+counts[key] = (counts[key] || 0) + 1;
+});
+return Object.entries(counts).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
+}, [scopedOrders]);
 
-  // ── بيانات قسم الخلاصة ──
-  const summary = useMemo(() => {
-    const booked = scopedOrders;
-    const converted = scopedOrders.filter((o) => o.converted);
-    const sentToCompany = scopedOrders.filter((o) => o.stage === 'delivery');
-    const sortingC = sentToCompany.filter((o) => o.deliveryStatus === 'sorting' || (!o.deliveryStatus && o.status === 'pending'));
-    const deliveredC = sentToCompany.filter((o) => o.status === 'delivered');
-    const returnedC = sentToCompany.filter((o) => o.status === 'returned');
-    const neglected = scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery');
-    return {
-      booked: booked.length,
-      converted: converted.length,
-      sentToCompany: sentToCompany.length,
-      sorting: sortingC.length,
-      delivered: deliveredC.length,
-      returned: returnedC.length,
-      neglected: neglected.length,
-    };
-  }, [scopedOrders]);
+const convertedOrders = useMemo(
+() => scopedOrders.filter((o) => o.converted).sort((a, b) => new Date(b.convertedAt || 0) - new Date(a.convertedAt || 0)),
+[scopedOrders]
+);
+const neglectedOrders = useMemo(
+() => scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery'),
+[scopedOrders]
+);
+const topAreas = useMemo(() => {
+const map = {};
+for (const o of scopedOrders) {
+const key = [o.governorateName, o.area].filter(Boolean).join(' - ') || 'غير محدد';
+if (!map[key]) map[key] = { name: key, count: 0, revenue: 0 };
+map[key].count++;
+if (o.status === 'delivered') map[key].revenue += o.total;
+}
+return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8);
+}, [scopedOrders]);
 
-  // ── الأكثر مبيعاً (حسب نوع السيارة/الطلب) ──
-  const bestSellers = useMemo(() => {
-    const counts = {};
-    scopedOrders.forEach((o) => {
-      const key = (o.orderType || '').trim();
-      if (!key) return;
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    return Object.entries(counts).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
-  }, [scopedOrders]);
+const [panel, setPanel] = useState(null);
 
-  const convertedOrders = useMemo(
-    () => scopedOrders.filter((o) => o.converted).sort((a, b) => new Date(b.convertedAt || 0) - new Date(a.convertedAt || 0)),
-    [scopedOrders]
-  );
+return (
+<div className="aurora-view">
+<div className="aurora-view-header">
+<div>
+<h2 className="aurora-view-title">الإحصائيات</h2>
+<p className="aurora-view-subtitle">نظرة شاملة على الأداء مع فلاتر دقيقة</p>
+</div>
+<div className="aurora-filter-select">
+<Facebook size={14} />
+<select value={statsPage} onChange={(e) => setStatsPage(e.target.value)}>
+<option value="all">كل الصفحات</option>
+{pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+</select>
+<ChevronDown size={13} />
+</div>
+</div>
 
-  const neglectedOrders = useMemo(
-    () => scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery'),
-    [scopedOrders]
-  );
+<div className="aurora-filters">
+<div className="aurora-filters-row">
+<div className="aurora-filter-select">
+<Calendar size={14} />
+<select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)}>
+{DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+</select>
+<ChevronDown size={13} />
+</div>
+{timeFilter === 'custom' && (
+<>
+<select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} className="aurora-compact-select">
+{AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+</select>
+<select value={customYear} onChange={(e) => setCustomYear(e.target.value)} className="aurora-compact-select">
+{years.map((y) => <option key={y} value={y}>{y}</option>)}
+</select>
+</>
+)}
+</div>
+</div>
 
-  // أفضل المناطق (الأكثر طلبات) — رؤية مفيدة للتاجر
-  const topAreas = useMemo(() => {
-    const map = {};
-    for (const o of scopedOrders) {
-      const key = [o.governorateName, o.area].filter(Boolean).join(' - ') || 'غير محدد';
-      if (!map[key]) map[key] = { name: key, count: 0, revenue: 0 };
-      map[key].count++;
-      if (o.status === 'delivered') map[key].revenue += o.total;
-    }
-    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8);
-  }, [scopedOrders]);
+<div className="aurora-stats-row">
+<StatCard icon={Package} label="إجمالي الطلبات" value={breakdown.total} color="#6366F1" />
+<StatCard icon={MessageSquare} label="من المحادثات" value={breakdown.fromChat} color="#8B5CF6" />
+<StatCard icon={Edit3} label="مضافة يدوياً" value={breakdown.manual} color="#10B981" />
+<StatCard icon={Send} label="طلبات محوّلة" value={breakdown.converted} color="#EC4899" />
+</div>
+<div className="aurora-stats-row">
+<StatCard icon={Truck} label="قيد التوصيل" value={overall.pending} color="#06B6D4" />
+<StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#10B981" />
+<StatCard icon={XCircle} label="نسبة الإرجاع" value={`${overall.returnRate}%`} color="#EF4444" />
+<StatCard icon={Sparkles} label="الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#F59E0B" />
+</div>
 
-  const [panel, setPanel] = useState(null); // null | 'summary' | 'bestSellers' | 'converted' | 'neglected'
+<div className="aurora-chart-card">
+<h3 className="aurora-chart-title">الإيرادات حسب الصفحة</h3>
+<div className="aurora-bar-chart">
+{perPage.map((p) => (
+<div key={p.id} className="aurora-bar-row">
+<div className="aurora-bar-label">
+<span>{p.avatar}</span>
+<span>{p.name}</span>
+</div>
+<div className="aurora-bar-track">
+<div className="aurora-bar-fill" style={{ width: `${(p.revenue / maxRevenue) * 100}%` }} />
+</div>
+<div className="aurora-bar-value">{p.revenue.toLocaleString()} د.ع</div>
+</div>
+))}
+</div>
+</div>
 
-  return (
-    <div style={styles.viewWrap}>
-      <div style={styles.viewHeader} className="alfhd-view-header">
-        <div>
-          <h2 style={styles.viewTitle}>الإحصائيات</h2>
-          <p style={styles.viewSubtitle}>نظرة شاملة على الأداء مع فلاتر دقيقة</p>
-        </div>
-        <div style={styles.pageSelectWrap}>
-          <Facebook size={15} color="#3B82F6" />
-          <select value={statsPage} onChange={(e) => setStatsPage(e.target.value)} style={styles.pageSelect}>
-            <option value="all">كل الصفحات</option>
-            {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <ChevronDown size={14} color="#5E6986" />
-        </div>
-      </div>
+<div className="aurora-stats-grid-2">
+<div className="aurora-chart-card">
+<h3 className="aurora-chart-title">توزيع حالات الطلبات</h3>
+<div className="aurora-donut-wrap">
+<DonutChart data={[
+{ label: 'مستلم', value: overall.delivered, color: '#10B981' },
+{ label: 'قيد التوصيل', value: overall.pending, color: '#6366F1' },
+{ label: 'راجع', value: overall.returned, color: '#EF4444' },
+]} />
+</div>
+</div>
+<div className="aurora-chart-card">
+<h3 className="aurora-chart-title">محادثات كل صفحة</h3>
+<div className="aurora-page-stats">
+{perPage.map((p) => (
+<div key={p.id} className="aurora-page-stat-row">
+<div className="aurora-page-stat-info">
+<span className="aurora-page-stat-avatar">{p.avatar}</span>
+<div>
+<div className="aurora-page-stat-name">{p.name}</div>
+<div className="aurora-page-stat-count">{p.orderCount} طلب</div>
+</div>
+</div>
+<div className="aurora-page-stat-badge">{p.convCount} محادثة</div>
+</div>
+))}
+</div>
+</div>
+</div>
 
-      <div style={styles.filtersWrap} className="alfhd-no-print">
-        <div style={styles.filterBottomRow}>
-          <div style={styles.pageSelectWrap}>
-            <Calendar size={15} color="#60A5FA" />
-            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={styles.pageSelect}>
-              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-            </select>
-            <ChevronDown size={14} color="#5E6986" />
-          </div>
-          {timeFilter === 'custom' && (
-            <>
-              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
-                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
-                {years.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </>
-          )}
-        </div>
-      </div>
+{topAreas.length > 0 && (
+<div className="aurora-chart-card">
+<h3 className="aurora-chart-title">أفضل المناطق</h3>
+<div className="aurora-top-areas">
+{topAreas.map((a, i) => (
+<div key={a.name} className="aurora-top-area-row">
+<div className="aurora-top-area-info">
+<span className={`aurora-top-area-rank ${i < 3 ? 'top' : ''}`}>{i + 1}</span>
+<span className="aurora-top-area-name">{a.name}</span>
+</div>
+<span className="aurora-top-area-count">{a.count} طلب</span>
+</div>
+))}
+</div>
+</div>
+)}
 
-      <div style={styles.statsRow} className="alfhd-stats-row">
-        <StatCard icon={Package} label="إجمالي الطلبات" value={breakdown.total} color="#3B82F6" />
-        <StatCard icon={MessageSquare} label="من المحادثات" value={breakdown.fromChat} color="#5B8DEF" />
-        <StatCard icon={Edit3} label="مضافة يدوياً" value={breakdown.manual} color="#4ADE80" />
-        <StatCard icon={Send} label="طلبات محوّلة" value={breakdown.converted} color="#A78BFA" />
-      </div>
+<div className="aurora-stats-bottom-btns">
+<button onClick={() => setPanel('bestSellers')} className="aurora-stats-btn ghost">
+<Sparkles size={14} /> الأكثر مبيعاً
+</button>
+<button onClick={() => setPanel('summary')} className="aurora-stats-btn primary">
+<BarChart3 size={15} /> الخلاصة الكاملة
+</button>
+</div>
 
-      <div style={styles.statsRow} className="alfhd-stats-row">
-        <StatCard icon={Truck} label="قيد التوصيل" value={overall.pending} color="#3B82F6" />
-        <StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#4ADE80" />
-        <StatCard icon={XCircle} label="نسبة الإرجاع" value={`${overall.returnRate}%`} color="#F45B69" />
-        <StatCard icon={Sparkles} label="الإيرادات" value={`${overall.revenue.toLocaleString()} د.ع`} color="#3B82F6" />
-      </div>
-
-      <div style={styles.chartCard}>
-        <h3 style={styles.chartTitle}>الإيرادات حسب الصفحة</h3>
-        <div style={styles.barChartArea}>
-          {perPage.map((p) => (
-            <div key={p.id} style={styles.barChartRow} className="alfhd-bar-chart-row">
-              <div style={styles.barChartLabel}>
-                <span>{p.avatar}</span>
-                <span>{p.name}</span>
-              </div>
-              <div style={styles.barChartTrack}>
-                <div style={{ ...styles.barChartFill, width: `${(p.revenue / maxRevenue) * 100}%` }} />
-              </div>
-              <div style={styles.barChartValue}>{p.revenue.toLocaleString()} د.ع</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={styles.statsGrid2} className="alfhd-stats-grid-2">
-        <div style={styles.chartCard}>
-          <h3 style={styles.chartTitle}>توزيع حالات الطلبات</h3>
-          <div style={styles.donutWrap}>
-            <DonutChart
-              data={[
-                { label: 'مستلم', value: overall.delivered, color: '#4ADE80' },
-                { label: 'قيد التوصيل', value: overall.pending, color: '#3B82F6' },
-                { label: 'راجع', value: overall.returned, color: '#F45B69' },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div style={styles.chartCard}>
-          <h3 style={styles.chartTitle}>محادثات كل صفحة</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
-            {perPage.map((p) => (
-              <div key={p.id} style={styles.pageStatRow}>
-                <div style={styles.pageStatInfo}>
-                  <span style={{ fontSize: 20 }}>{p.avatar}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#EAF0FB' }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: '#5E6986' }}>{p.orderCount} طلب</div>
-                  </div>
-                </div>
-                <div style={styles.pageStatBadge}>{p.convCount} محادثة</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* أفضل المناطق (الأكثر طلبات) */}
-        {topAreas.length > 0 && (
-          <div style={styles.chartCard}>
-            <h3 style={styles.chartTitle}>أفضل المناطق</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-              {topAreas.map((a, i) => (
-                <div key={a.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                      background: i < 3 ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.05)',
-                      color: i < 3 ? '#2AABEE' : '#9FB0C3', fontSize: 11, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>{i + 1}</span>
-                    <span style={{ fontSize: 12.5, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2AABEE', flexShrink: 0 }}>{a.count} طلب</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div style={styles.statsBottomBtns}>
-        <button onClick={() => setPanel('bestSellers')} style={styles.statsSmallBtn}>
-          <Sparkles size={15} /> الأكثر مبيعاً
-        </button>
-        <button onClick={() => setPanel('summary')} style={styles.statsSummaryBtn}>
-          <BarChart3 size={16} /> الخلاصة الكاملة
-        </button>
-      </div>
-
-      {panel === 'summary' && (
-        <StatsSummaryPanel
-          summary={summary}
-          onClose={() => setPanel(null)}
-          onOpenConverted={() => setPanel('converted')}
-          onOpenNeglected={() => setPanel('neglected')}
-        />
-      )}
-      {panel === 'bestSellers' && (
-        <BestSellersPanel data={bestSellers} onClose={() => setPanel(null)} />
-      )}
-      {panel === 'converted' && (
-        <ConvertedOrdersPanel orders={convertedOrders} pages={pages} onClose={() => setPanel('summary')} />
-      )}
-      {panel === 'neglected' && (
-        <NeglectedOrdersPanel orders={neglectedOrders} pages={pages} setOrders={setOrders} onClose={() => setPanel('summary')} />
-      )}
-    </div>
-  );
+{panel === 'summary' && (
+<StatsSummaryPanel summary={summary} onClose={() => setPanel(null)}
+onOpenConverted={() => setPanel('converted')} onOpenNeglected={() => setPanel('neglected')} />
+)}
+{panel === 'bestSellers' && <BestSellersPanel data={bestSellers} onClose={() => setPanel(null)} />}
+{panel === 'converted' && <ConvertedOrdersPanel orders={convertedOrders} pages={pages} onClose={() => setPanel('summary')} />}
+{panel === 'neglected' && <NeglectedOrdersPanel orders={neglectedOrders} pages={pages} setOrders={setOrders} onClose={() => setPanel('summary')} />}
+</div>
+);
 }
 
-// لوحة الخلاصة الكاملة
 function StatsSummaryPanel({ summary, onClose, onOpenConverted, onOpenNeglected }) {
-  const rows = [
-    { label: 'الطلبات المحجوزة', value: summary.booked, color: '#3B82F6' },
-    { label: 'الطلبات المحوّلة', value: summary.converted, color: '#A78BFA', onClick: onOpenConverted },
-    { label: 'أُرسلت لشركة التوصيل', value: summary.sentToCompany, color: '#60A5FA' },
-    { label: '— قيد التوصيل', value: summary.sorting, color: '#3B82F6', sub: true },
-    { label: '— مستلمة', value: summary.delivered, color: '#4ADE80', sub: true },
-    { label: '— راجعة', value: summary.returned, color: '#F45B69', sub: true },
-    { label: 'الطلبات المهملة', value: summary.neglected, color: '#F0A868', onClick: onOpenNeglected },
-  ];
-  return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <h3 style={styles.modalTitle}>الخلاصة الكاملة</h3>
-          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
-        </div>
-        <div style={styles.modalBody}>
-          {rows.map((r, i) => (
-            <div
-              key={i}
-              onClick={r.onClick}
-              style={{
-                ...styles.summaryRow,
-                ...(r.sub ? styles.summaryRowSub : {}),
-                ...(r.onClick ? { cursor: 'pointer' } : {}),
-              }}
-            >
-              <span style={{ ...styles.summaryRowLabel, color: r.sub ? '#8B96AD' : '#EAF0FB' }}>
-                {r.label}
-                {r.onClick && <ArrowUpRight size={13} style={{ marginRight: 4, display: 'inline', verticalAlign: 'middle', color: r.color }} />}
-              </span>
-              <span style={{ ...styles.summaryRowValue, color: r.color }}>{r.value}</span>
-            </div>
-          ))}
-          <p style={styles.summaryHint}>اضغط على "المحوّلة" أو "المهملة" لعرض تفاصيلها</p>
-        </div>
-      </div>
-    </div>
-  );
+const rows = [
+{ label: 'الطلبات المحجوزة', value: summary.booked, color: '#6366F1' },
+{ label: 'الطلبات المحوّلة', value: summary.converted, color: '#EC4899', onClick: onOpenConverted },
+{ label: 'أُرسلت لشركة التوصيل', value: summary.sentToCompany, color: '#06B6D4' },
+{ label: '— قيد التوصيل', value: summary.sorting, color: '#6366F1', sub: true },
+{ label: '— مستلمة', value: summary.delivered, color: '#10B981', sub: true },
+{ label: '— راجعة', value: summary.returned, color: '#EF4444', sub: true },
+{ label: 'الطلبات المهملة', value: summary.neglected, color: '#F59E0B', onClick: onOpenNeglected },
+];
+return (
+<div className="aurora-modal-overlay" onClick={onClose}>
+<div className="aurora-modal" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>الخلاصة الكاملة</h3>
+<button onClick={onClose}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+{rows.map((r, i) => (
+<div key={i} onClick={r.onClick} className={`aurora-summary-row ${r.sub ? 'sub' : ''} ${r.onClick ? 'clickable' : ''}`}>
+<span className="aurora-summary-label">{r.label}{r.onClick && <ArrowUpRight size={12} style={{ color: r.color }} />}</span>
+<span className="aurora-summary-value" style={{ color: r.color }}>{r.value}</span>
+</div>
+))}
+<p className="aurora-summary-hint">اضغط على "المحوّلة" أو "المهملة" لعرض تفاصيلها</p>
+</div>
+</div>
+</div>
+);
 }
 
-// لوحة الأكثر مبيعاً
 function BestSellersPanel({ data, onClose }) {
-  const max = Math.max(...data.map((d) => d.count), 1);
-  return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <h3 style={styles.modalTitle}>الأكثر مبيعاً</h3>
-          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
-        </div>
-        <div style={styles.modalBody}>
-          {data.length === 0 ? (
-            <div style={styles.emptyState}><Package size={28} color="#39425C" /><p>لا توجد بيانات كافية</p></div>
-          ) : data.map((d, i) => (
-            <div key={i} style={styles.bestSellerRow}>
-              <div style={styles.bestSellerRank}>{i + 1}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={styles.bestSellerType}>{d.type}</div>
-                <div style={styles.bestSellerTrack}>
-                  <div style={{ ...styles.bestSellerFill, width: `${(d.count / max) * 100}%` }} />
-                </div>
-              </div>
-              <div style={styles.bestSellerCount}>{d.count}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+const max = Math.max(...data.map((d) => d.count), 1);
+return (
+<div className="aurora-modal-overlay" onClick={onClose}>
+<div className="aurora-modal" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>الأكثر مبيعاً</h3>
+<button onClick={onClose}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+{data.length === 0 ? (
+<div className="aurora-empty-state"><Package size={26} /><p>لا توجد بيانات كافية</p></div>
+) : data.map((d, i) => (
+<div key={i} className="aurora-best-seller-row">
+<div className="aurora-best-seller-rank">{i + 1}</div>
+<div className="aurora-best-seller-info">
+<div className="aurora-best-seller-type">{d.type}</div>
+<div className="aurora-best-seller-track">
+<div className="aurora-best-seller-fill" style={{ width: `${(d.count / max) * 100}%` }} />
+</div>
+</div>
+<div className="aurora-best-seller-count">{d.count}</div>
+</div>
+))}
+</div>
+</div>
+</div>
+);
 }
 
-// لوحة الطلبات المحوّلة (مع بحث وفلتر)
 function ConvertedOrdersPanel({ orders, pages, onClose }) {
-  const [q, setQ] = useState('');
-  const shown = orders.filter((o) => {
-    if (!q) return true;
-    const s = q.trim().toLowerCase();
-    return [o.customer, o.orderNo, o.phone, o.orderType, o.convertedByName].filter(Boolean).join(' ').toLowerCase().includes(s);
-  });
-  return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={{ ...styles.modal, maxHeight: '85vh' }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <h3 style={styles.modalTitle}>الطلبات المحوّلة ({orders.length})</h3>
-          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
-        </div>
-        <div style={styles.modalBody}>
-          <div style={{ ...styles.searchBox, marginBottom: 14 }}>
-            <Search size={15} color="#5E6986" />
-            <input placeholder="بحث بالاسم، الرقم، الهاتف، أو المدير..." value={q} onChange={(e) => setQ(e.target.value)} style={styles.searchInput} />
-          </div>
-          {shown.length === 0 ? (
-            <div style={styles.emptyState}><Send size={28} color="#39425C" /><p>لا توجد طلبات محوّلة</p></div>
-          ) : shown.map((o) => {
-            const page = pages.find((p) => p.id === o.pageId);
-            return (
-              <div key={o.id} style={styles.convertedRow}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
-                  {o.orderType && <div style={styles.convertedSub}>{o.orderType}</div>}
-                  <div style={styles.convertedMeta}>
-                    {page && <span>{page.avatar} {page.name}</span>}
-                    {o.convertedByName && <span> · حوّله: {o.convertedByName}</span>}
-                    {o.convertedAt && <span> · {new Date(o.convertedAt).toLocaleDateString('ar-IQ')}</span>}
-                  </div>
-                </div>
-                <div style={styles.convertedTotal}>{Number(o.total).toLocaleString()} د.ع</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+const [q, setQ] = useState('');
+const shown = orders.filter((o) => {
+if (!q) return true;
+const s = q.trim().toLowerCase();
+return [o.customer, o.orderNo, o.phone, o.orderType, o.convertedByName].filter(Boolean).join(' ').toLowerCase().includes(s);
+});
+return (
+<div className="aurora-modal-overlay" onClick={onClose}>
+<div className="aurora-modal tall" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>الطلبات المحوّلة ({orders.length})</h3>
+<button onClick={onClose}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+<div className="aurora-search-box">
+<Search size={14} />
+<input placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} />
+</div>
+{shown.length === 0 ? (
+<div className="aurora-empty-state"><Send size={26} /><p>لا توجد طلبات محوّلة</p></div>
+) : shown.map((o) => {
+const page = pages.find((p) => p.id === o.pageId);
+return (
+<div key={o.id} className="aurora-converted-row">
+<div className="aurora-converted-info">
+<div className="aurora-converted-customer">{o.customer} <span>#{o.orderNo}</span></div>
+{o.orderType && <div className="aurora-converted-sub">{o.orderType}</div>}
+<div className="aurora-converted-meta">
+{page && <span>{page.avatar} {page.name}</span>}
+{o.convertedByName && <span> · حوّله: {o.convertedByName}</span>}
+{o.convertedAt && <span> · {new Date(o.convertedAt).toLocaleDateString('ar-IQ')}</span>}
+</div>
+</div>
+<div className="aurora-converted-total">{Number(o.total).toLocaleString()} د.ع</div>
+</div>
+);
+})}
+</div>
+</div>
+</div>
+);
 }
 
-// لوحة الطلبات المهملة (تحديد متعدد + إعادة طباعة)
 function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
-  const [selected, setSelected] = useState(new Set());
-  const [q, setQ] = useState('');
-  const shown = orders.filter((o) => {
-    if (!q) return true;
-    const s = q.trim().toLowerCase();
-    return [o.customer, o.orderNo, o.phone, o.orderType, o.address].filter(Boolean).join(' ').toLowerCase().includes(s);
-  });
-
-  function toggle(id) {
-    setSelected((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
-  }
-
-  async function reprintSelected() {
-    const ids = [...selected];
-    if (ids.length === 0) { alert('حدّد طلباً واحداً على الأقل'); return; }
-    const selectedOrders = orders.filter((o) => ids.includes(o.id));
-    const valid = selectedOrders.filter((o) => o.orderNo || o.jenniShipmentId);
-    if (valid.length === 0) { alert('لا توجد طلبات صالحة للطباعة من شركة التوصيل'); return; }
-    try {
-      const shipmentIds = valid.map((o) => o.jenniShipmentId).filter(Boolean);
-      const shipmentNumbers = valid.map((o) => String(o.orderNo)).filter(Boolean);
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/jenni-stickers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
-        body: JSON.stringify(shipmentIds.length ? { shipment_ids: shipmentIds } : { shipment_numbers: shipmentNumbers }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.success) { alert(`تعذّر جلب الباركود: ${data.error || 'غير متاح'}`); return; }
-      let body = '';
-      if (data.type === 'pdf_base64' && data.data) body = `<embed src="data:application/pdf;base64,${data.data}" type="application/pdf" width="100%" height="600px" />`;
-      else if (data.type === 'url' && data.url) body = `<iframe src="${data.url}" width="100%" height="600px" style="border:none;"></iframe>`;
-      else { alert('الباركود غير متاح'); return; }
-      const win = window.open('', '_blank');
-      if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب'); return; }
-      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>إعادة طباعة</title><style>body{margin:0;padding:14px;font-family:Cairo,Arial}@media print{.np{display:none}}</style></head><body><button class="np" onclick="window.print()" style="padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length}</button>${body}</body></html>`);
-      win.document.close();
-    } catch (e) { alert(`خطأ: ${e.message}`); }
-    setSelected(new Set());
-  }
-
-  return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={{ ...styles.modal, maxHeight: '85vh' }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <h3 style={styles.modalTitle}>الطلبات المهملة ({orders.length})</h3>
-          <button onClick={onClose} style={styles.modalClose}><X size={18} /></button>
-        </div>
-        <div style={styles.modalBody}>
-          <p style={styles.summaryHint}>طلبات طُبعت لكن لم تُحوّل ولم تُرسل لشركة التوصيل. حدّد ما تريد وأعد طباعته.</p>
-          <div style={{ ...styles.searchBox, marginBottom: 12 }}>
-            <Search size={15} color="#5E6986" />
-            <input placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} style={styles.searchInput} />
-          </div>
-          {shown.length === 0 ? (
-            <div style={styles.emptyState}><Package size={28} color="#39425C" /><p>لا توجد طلبات مهملة</p></div>
-          ) : shown.map((o) => {
-            const page = pages.find((p) => p.id === o.pageId);
-            const isSel = selected.has(o.id);
-            return (
-              <div key={o.id} onClick={() => toggle(o.id)} style={{ ...styles.neglectedRow, ...(isSel ? styles.neglectedRowSel : {}) }}>
-                <div style={{ ...styles.neglectedCheck, ...(isSel ? styles.neglectedCheckOn : {}) }}>
-                  {isSel && <CheckCircle2 size={14} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
-                  {o.orderType && <div style={styles.convertedSub}>{o.orderType}</div>}
-                  {page && <div style={styles.convertedMeta}>{page.avatar} {page.name}</div>}
-                </div>
-                <div style={styles.convertedTotal}>{Number(o.total).toLocaleString()} د.ع</div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={styles.modalFooter}>
-          <button onClick={onClose} style={styles.modalCancelBtn}>إغلاق</button>
-          <button onClick={reprintSelected} style={styles.modalSaveBtn}>
-            <Printer size={15} style={{ marginLeft: 6, display: 'inline', verticalAlign: 'middle' }} />
-            إعادة طباعة ({selected.size})
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+const [selected, setSelected] = useState(new Set());
+const [q, setQ] = useState('');
+const shown = orders.filter((o) => {
+if (!q) return true;
+const s = q.trim().toLowerCase();
+return [o.customer, o.orderNo, o.phone, o.orderType, o.address].filter(Boolean).join(' ').toLowerCase().includes(s);
+});
+function toggle(id) {
+setSelected((prev) => {
+const n = new Set(prev);
+if (n.has(id)) n.delete(id); else n.add(id);
+return n;
+});
+}
+async function reprintSelected() {
+const ids = [...selected];
+if (ids.length === 0) { alert('حدّد طلباً واحداً على الأقل'); return; }
+const batchId = `batch-${Date.now()}`;
+const printedAt = new Date().toISOString();
+setOrders((prev) => prev.map((o) => (
+ids.includes(o.id) ? { ...o, printed: true, printBatchId: batchId, printedAt, stage: 'prep' } : o
+)));
+try {
+await Promise.all(ids.map((id) => sbUpdate('alfhd_orders', id, {
+printed: true, print_batch_id: batchId, printed_at: printedAt, stage: 'prep',
+})));
+} catch (e) { console.error('reprint neglected error:', e); }
+setTimeout(() => window.print(), 80);
+setSelected(new Set());
+}
+return (
+<div className="aurora-modal-overlay" onClick={onClose}>
+<div className="aurora-modal tall" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>الطلبات المهملة ({orders.length})</h3>
+<button onClick={onClose}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+<p className="aurora-summary-hint">طلبات طُبعت لكن لم تُحوّل. حدّد ما تريد وأعد طباعته.</p>
+<div className="aurora-search-box">
+<Search size={14} />
+<input placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} />
+</div>
+{shown.length === 0 ? (
+<div className="aurora-empty-state"><Package size={26} /><p>لا توجد طلبات مهملة</p></div>
+) : shown.map((o) => {
+const page = pages.find((p) => p.id === o.pageId);
+const isSel = selected.has(o.id);
+return (
+<div key={o.id} onClick={() => toggle(o.id)} className={`aurora-neglected-row ${isSel ? 'selected' : ''}`}>
+<div className={`aurora-neglected-check ${isSel ? 'on' : ''}`}>
+{isSel && <CheckCircle2 size={13} />}
+</div>
+<div className="aurora-neglected-info">
+<div className="aurora-converted-customer">{o.customer} <span>#{o.orderNo}</span></div>
+{o.orderType && <div className="aurora-converted-sub">{o.orderType}</div>}
+{page && <div className="aurora-converted-meta">{page.avatar} {page.name}</div>}
+</div>
+<div className="aurora-converted-total">{Number(o.total).toLocaleString()} د.ع</div>
+</div>
+);
+})}
+</div>
+<div className="aurora-modal-footer">
+<button onClick={onClose} className="aurora-btn ghost">إغلاق</button>
+<button onClick={reprintSelected} className="aurora-btn primary">
+<Printer size={14} /> إعادة طباعة ({selected.size})
+</button>
+</div>
+</div>
+</div>
+);
 }
 
 function DonutChart({ data }) {
-  const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  let cumulative = 0;
-  const radius = 60;
-  const circumference = 2 * Math.PI * radius;
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-      <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r={radius} fill="none" stroke="#222C42" strokeWidth="18" />
-        {data.map((d, i) => {
-          const fraction = d.value / total;
-          const dash = fraction * circumference;
-          const offset = -cumulative * circumference;
-          cumulative += fraction;
-          return (
-            <circle
-              key={i}
-              cx="80" cy="80" r={radius}
-              fill="none"
-              stroke={d.color}
-              strokeWidth="18"
-              strokeDasharray={`${dash} ${circumference - dash}`}
-              strokeDashoffset={offset}
-              transform="rotate(-90 80 80)"
-              strokeLinecap="round"
-            />
-          );
-        })}
-        <text x="80" y="76" textAnchor="middle" fontSize="22" fontWeight="700" fill="#EAF0FB">{total}</text>
-        <text x="80" y="94" textAnchor="middle" fontSize="11" fill="#5E6986">طلب</text>
-      </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: d.color }} />
-            <span style={{ fontSize: 12, color: '#8B96AD' }}>{d.label}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#EAF0FB' }}>{d.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+const total = data.reduce((s, d) => s + d.value, 0) || 1;
+let cumulative = 0;
+const radius = 60;
+const circumference = 2 * Math.PI * radius;
+return (
+<div className="aurora-donut">
+<svg width="160" height="160" viewBox="0 0 160 160">
+<circle cx="80" cy="80" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="18" />
+{data.map((d, i) => {
+const fraction = d.value / total;
+const dash = fraction * circumference;
+const offset = -cumulative * circumference;
+cumulative += fraction;
+return (
+<circle key={i} cx="80" cy="80" r={radius} fill="none" stroke={d.color} strokeWidth="18"
+strokeDasharray={`${dash} ${circumference - dash}`} strokeDashoffset={offset}
+transform="rotate(-90 80 80)" strokeLinecap="round" />
+);
+})}
+<text x="80" y="76" textAnchor="middle" fontSize="22" fontWeight="700" fill="#F8FAFC">{total}</text>
+<text x="80" y="94" textAnchor="middle" fontSize="11" fill="#94A3B8">طلب</text>
+</svg>
+<div className="aurora-donut-legend">
+{data.map((d, i) => (
+<div key={i} className="aurora-donut-legend-item">
+<div className="aurora-donut-legend-dot" style={{ background: d.color }} />
+<span>{d.label}</span>
+<span className="aurora-donut-legend-value">{d.value}</span>
+</div>
+))}
+</div>
+</div>
+);
 }
 
-// ──────────────────────────────────────────────
-// عرض الصفحات المرتبطة
-// ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// عرض الصفحات
+// ══════════════════════════════════════════════════════════════
 function PagesView({ pages, setPages }) {
-  const [exchanging, setExchanging] = useState(false);
-  const [fbError, setFbError] = useState('');
-  const [fbCandidates, setFbCandidates] = useState(null); // صفحات فيسبوك التي جاءت من OAuth بانتظار اختيار المستخدم
-  const [subscribingId, setSubscribingId] = useState(null);
+const [exchanging, setExchanging] = useState(false);
+const [fbError, setFbError] = useState('');
+const [fbCandidates, setFbCandidates] = useState(null);
+const [subscribingId, setSubscribingId] = useState(null);
 
-  // عند تحميل الصفحة: تحقق إن كان الرابط يحوي ?code= (يعني فيسبوك رجّعنا بعد الموافقة)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const fbErrorParam = params.get('error_description') || params.get('error');
+useEffect(() => {
+const params = new URLSearchParams(window.location.search);
+const code = params.get('code');
+const fbErrorParam = params.get('error_description') || params.get('error');
+if (fbErrorParam) {
+setFbError(decodeURIComponent(fbErrorParam));
+window.history.replaceState({}, '', window.location.pathname);
+return;
+}
+if (code) {
+window.history.replaceState({}, '', window.location.pathname);
+exchangeCodeForPages(code);
+}
+}, []);
 
-    if (fbErrorParam) {
-      setFbError(decodeURIComponent(fbErrorParam));
-      window.history.replaceState({}, '', window.location.pathname);
-      return;
-    }
+const exchangeCodeForPages = async (code) => {
+setExchanging(true); setFbError('');
+try {
+const res = await fetch(FB_EXCHANGE_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify({ code, redirectUri: FB_REDIRECT_URI }),
+});
+const data = await res.json();
+if (!res.ok || data.error) throw new Error(data.error || 'فشل الاتصال بفيسبوك');
+if (!data.pages || data.pages.length === 0) {
+setFbError('لم يتم العثور على أي صفحة فيسبوك مرتبطة بحسابك.');
+return;
+}
+setFbCandidates(data.pages);
+} catch (e) {
+console.error('FB exchange failed:', e);
+setFbError(e.message || 'حدث خطأ غير متوقع');
+} finally { setExchanging(false); }
+};
 
-    if (code) {
-      // نظّف الرابط فوراً حتى لا يُعاد استخدام نفس الكود عند تحديث الصفحة
-      window.history.replaceState({}, '', window.location.pathname);
-      exchangeCodeForPages(code);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+const confirmAddPage = async (candidate) => {
+const emojis = ['🦅', '👔', '🛍️', '📱', '🏪', '✨', '🎯', '💎'];
+const avatar = emojis[pages.length % emojis.length];
+try {
+const [created] = await sbInsert('alfhd_pages', {
+name: candidate.name, avatar, source: 'facebook', connected: true,
+fb_page_id: candidate.fb_page_id, page_access_token: candidate.page_access_token,
+});
+setPages((prev) => [...prev, mapPageFromDb(created)]);
+setFbCandidates((prev) => prev.filter((c) => c.fb_page_id !== candidate.fb_page_id));
+await subscribePage(created.id);
+} catch (e) {
+console.error('Failed to add page:', e);
+alert('تعذّر حفظ الصفحة');
+}
+};
 
-  const exchangeCodeForPages = async (code) => {
-    setExchanging(true);
-    setFbError('');
-    try {
-      const res = await fetch(FB_EXCHANGE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'apikey': SUPABASE_KEY,
-        },
-        body: JSON.stringify({ code, redirectUri: FB_REDIRECT_URI }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'فشل الاتصال بفيسبوك');
-      }
-      if (!data.pages || data.pages.length === 0) {
-        setFbError('لم يتم العثور على أي صفحة فيسبوك مرتبطة بحسابك. تأكد أنك مدير لصفحة فيسبوك واحدة على الأقل ووافقت على الصلاحيات المطلوبة.');
-        return;
-      }
-      setFbCandidates(data.pages);
-    } catch (e) {
-      console.error('FB exchange failed:', e);
-      setFbError(e.message || 'حدث خطأ غير متوقع أثناء الربط مع فيسبوك');
-    } finally {
-      setExchanging(false);
-    }
-  };
+const removePage = async (id) => {
+setPages((prev) => prev.filter((p) => p.id !== id));
+try { await sbDelete('alfhd_pages', id); }
+catch (e) { console.error('Failed to delete page:', e); }
+};
 
-  const confirmAddPage = async (candidate) => {
-    const emojis = ['🦅', '👔', '🛍️', '📱', '🏪', '✨', '🎯', '💎'];
-    const avatar = emojis[pages.length % emojis.length];
-    try {
-      const [created] = await sbInsert('alfhd_pages', {
-        name: candidate.name,
-        avatar,
-        source: 'facebook',
-        connected: true,
-        fb_page_id: candidate.fb_page_id,
-        page_access_token: candidate.page_access_token,
-      });
-      setPages((prev) => [...prev, mapPageFromDb(created)]);
-      setFbCandidates((prev) => prev.filter((c) => c.fb_page_id !== candidate.fb_page_id));
-      // تفعيل استقبال الرسائل تلقائياً فور ربط الصفحة، بدون انتظار ضغطة زر إضافية
-      await subscribePage(created.id);
-    } catch (e) {
-      console.error('Failed to add page:', e);
-      alert('تعذّر حفظ الصفحة، حاول مجدداً');
-    }
-  };
+const [waSettingsPage, setWaSettingsPage] = useState(null);
+const [waPhoneInput, setWaPhoneInput] = useState('');
+const [waTokenInput, setWaTokenInput] = useState('');
+const [savingWa, setSavingWa] = useState(false);
 
-  const removePage = async (id) => {
-    setPages((prev) => prev.filter((p) => p.id !== id));
-    try {
-      await sbDelete('alfhd_pages', id);
-    } catch (e) {
-      console.error('Failed to delete page:', e);
-    }
-  };
-
-  // ── ربط واتساب للصفحة عبر كود الربط (Pairing Code) ──
-  const [waSettingsPage, setWaSettingsPage] = useState(null);
-  const [waPhoneInput, setWaPhoneInput] = useState('');
-  const [savingWa, setSavingWa] = useState(false);
-  const [waPairCode, setWaPairCode] = useState('');       // الكود المعروض للمستخدم
-  const [waPairStatus, setWaPairStatus] = useState('');   // رسالة الحالة
-  const waPollRef = React.useRef(null);
-
-  // اطلب كود الربط من الـ Bridge
-  async function requestWaPairing() {
-    if (!waSettingsPage) return;
-    const phone = arabicToEnglishDigits(waPhoneInput).replace(/[^0-9]/g, '');
-    if (phone.length < 10) { alert('أدخل رقم هاتف صحيح مع رمز الدولة (مثال: 9647701234567)'); return; }
-    setSavingWa(true);
-    setWaPairCode('');
-    setWaPairStatus('جارٍ توليد كود الربط...');
-    try {
-      const res = await fetch(`${WA_BRIDGE_URL}/pair`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageId: waSettingsPage.id, phone }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (data.alreadyConnected) {
-        await markWaConnected(waSettingsPage.id, phone);
-        setWaPairStatus('✅ واتساب مربوط بالفعل!');
-        return;
-      }
-      if (data.pairingCode) {
-        setWaPairCode(data.pairingCode);
-        setWaPairStatus('أدخل هذا الكود في واتساب خلال دقيقتين');
-        startWaStatusPolling(waSettingsPage.id, phone);
-      } else {
-        setWaPairStatus(`تعذّر توليد الكود: ${data.error || 'حاول مجدداً'}`);
-      }
-    } catch (e) {
-      setWaPairStatus(`خطأ بالاتصال: ${e.message}`);
-    } finally {
-      setSavingWa(false);
-    }
-  }
-
-  // راقب حالة الربط حتى يكتمل
-  function startWaStatusPolling(pageId, phone) {
-    if (waPollRef.current) clearInterval(waPollRef.current);
-    let tries = 0;
-    waPollRef.current = setInterval(async () => {
-      tries++;
-      if (tries > 60) { clearInterval(waPollRef.current); setWaPairStatus('انتهت المهلة، حاول مجدداً'); return; }
-      try {
-        const r = await fetch(`${WA_BRIDGE_URL}/status/${pageId}`);
-        const d = await r.json().catch(() => ({}));
-        if (d.connected) {
-          clearInterval(waPollRef.current);
-          await markWaConnected(pageId, d.phone || phone);
-          setWaPairCode('');
-          setWaPairStatus('✅ تم الربط بنجاح!');
-          setTimeout(() => { setWaSettingsPage(null); setWaPairStatus(''); }, 1500);
-        }
-      } catch (_e) { /* تجاهل */ }
-    }, 2000);
-  }
-
-  async function markWaConnected(pageId, phone) {
-    try {
-      await sbUpdate('alfhd_pages', pageId, { wa_phone: phone, wa_connected: true });
-    } catch (_e) { /* العمود قد لا يكون موجوداً، لا يؤثر على الربط الفعلي */ }
-    setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhone: phone, waConnected: true } : p));
-  }
-
-  React.useEffect(() => () => { if (waPollRef.current) clearInterval(waPollRef.current); }, []);
-
-  async function removeWaSettings(pageId) {
-    if (!window.confirm('هل تريد إلغاء ربط واتساب من هذه الصفحة؟')) return;
-    try {
-      await fetch(`${WA_BRIDGE_URL}/unpair`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageId }),
-      });
-    } catch (_e) { /* تجاهل */ }
-    try { await sbUpdate('alfhd_pages', pageId, { wa_phone: null, wa_connected: false }); } catch (_e) {}
-    setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhone: null, waConnected: false } : p));
-  }
-
-  const subscribePage = async (pageId) => {
-    setSubscribingId(pageId);
-    try {
-      const res = await fetch(FB_SUBSCRIBE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'apikey': SUPABASE_KEY,
-        },
-        body: JSON.stringify({ pageId }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'فشل تفعيل استقبال الرسائل');
-      }
-      alert('تم تفعيل استقبال الرسائل الحقيقية لهذه الصفحة بنجاح ✅');
-    } catch (e) {
-      console.error('Subscribe failed:', e);
-      alert('تعذّر تفعيل استقبال الرسائل: ' + (e.message || ''));
-    } finally {
-      setSubscribingId(null);
-    }
-  };
-
-  return (
-    <div style={styles.viewWrap}>
-      <div style={styles.viewHeader} className="alfhd-view-header">
-        <div>
-          <h2 style={styles.viewTitle}>الصفحات المرتبطة</h2>
-          <p style={styles.viewSubtitle}>صفحات فيسبوك المرتبطة بنظام AlFhd لإدارة المحادثات والطلبات</p>
-        </div>
-        <button
-          onClick={startFacebookLogin}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 18px',
-            background: 'linear-gradient(135deg,#1877F2,#0D5FBF)',
-            border: 'none', borderRadius: 12,
-            color: '#fff', fontSize: 13, fontWeight: 700,
-            boxShadow: '0 4px 16px rgba(24,119,242,0.4)',
-            transition: 'all 0.2s ease',
-          }}
-          disabled={exchanging}
-        >
-          <Facebook size={17} />
-          {exchanging ? 'جارٍ الاتصال...' : 'ربط صفحة جديدة'}
-        </button>
-      </div>
-
-      {fbError && (
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-          marginBottom: 16, padding: '12px 14px',
-          background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.22)',
-          borderRadius: 12, color: '#F25050', fontSize: 13, lineHeight: 1.6,
-        }}>
-          <XCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>{fbError}</span>
-        </div>
-      )}
-
-      {exchanging && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-          padding: '12px 14px',
-          background: 'rgba(42,171,238,0.07)', border: '1px solid rgba(42,171,238,0.18)',
-          borderRadius: 12, color: '#2AABEE', fontSize: 13,
-        }}>
-          <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-          جارٍ التحقق من حسابك على فيسبوك وجلب صفحاتك...
-        </div>
-      )}
-
-      {/* صفحات مرشحة للربط */}
-      {fbCandidates && fbCandidates.length > 0 && (
-        <div style={{
-          marginBottom: 20, background: 'linear-gradient(145deg,#17212B,#1A2736)',
-          border: '1px solid rgba(42,171,238,0.22)', borderRadius: 14, padding: 16,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7 }}>
-            <Facebook size={15} color="#2AABEE" />
-            اختر الصفحة للربط
-          </div>
-          {fbCandidates.map((c) => (
-            <div key={c.fb_page_id} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              {c.avatar
-                ? <img src={c.avatar} alt="" onError={(e)=>{e.target.style.display='none';}} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Facebook size={20} color="#fff" /></div>
-              }
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#F5F5F5' }}>{c.name}</div>
-                <div style={{ fontSize: 10.5, color: '#546880', marginTop: 2 }}>ID: {c.fb_page_id}</div>
-              </div>
-              <button
-                onClick={() => confirmAddPage(c)}
-                style={{
-                  padding: '7px 14px', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)',
-                  border: 'none', borderRadius: 9, color: '#fff', fontSize: 12, fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(24,119,242,0.35)', flexShrink: 0,
-                }}
-              >
-                ربط
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* الصفحات المرتبطة — تصميم جديد فخم */}
-      {pages.length === 0 ? (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 16, padding: '60px 20px',
-          background: 'linear-gradient(145deg,#17212B,#1A2736)',
-          border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
-        }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(24,119,242,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Facebook size={32} color="#1877F2" />
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#8B9AB3', marginBottom: 6 }}>لا توجد صفحات مرتبطة</div>
-            <div style={{ fontSize: 12, color: '#546880' }}>اضغط "ربط صفحة جديدة" لبدء ربط صفحاتك</div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16 }} className="alfhd-pages-grid">
-          {pages.map((p) => (
-            <div key={p.id} style={{
-              position: 'relative', overflow: 'hidden',
-              background: 'linear-gradient(145deg,#17212B,#1A2736)',
-              border: p.connected ? '1px solid rgba(29,209,107,0.22)' : '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 16,
-              boxShadow: p.connected
-                ? '0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(29,209,107,0.08)'
-                : '0 4px 20px rgba(0,0,0,0.5)',
-              transition: 'all 0.25s ease',
-            }}>
-              {/* شريط علوي ملوّن */}
-              <div style={{
-                position: 'absolute', top: 0, right: 0, left: 0, height: 3,
-                background: p.connected
-                  ? 'linear-gradient(90deg,transparent,#1DDB6B,transparent)'
-                  : 'linear-gradient(90deg,transparent,#1877F2,transparent)',
-                opacity: 0.8,
-              }} />
-
-              {/* رأس الكرت */}
-              <div style={{ padding: '18px 16px 14px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                {/* أفاتار الصفحة */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{
-                    width: 56, height: 56, borderRadius: 16,
-                    background: 'linear-gradient(135deg,#1877F2,#0D5FBF)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 26, border: '2px solid rgba(24,119,242,0.3)',
-                    boxShadow: '0 4px 12px rgba(24,119,242,0.3)',
-                  }}>
-                    {p.avatar && p.avatar !== '📄' ? p.avatar : <Facebook size={28} color="#fff" />}
-                  </div>
-                  {/* نقطة الاتصال */}
-                  <div className={p.connected ? 'alfhd-pulse' : ''} style={{
-                    position: 'absolute', bottom: -2, left: -2,
-                    width: 16, height: 16, borderRadius: '50%',
-                    background: p.connected ? '#1DDB6B' : '#546880',
-                    border: '2.5px solid #17212B',
-                  }} />
-                </div>
-
-                {/* معلومات الصفحة */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.name}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#546880' }}>
-                    <Facebook size={10} color="#1877F2" />
-                    <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{p.fbPageId ? p.fbPageId.slice(0, 16) + '...' : 'معرّف غير متاح'}</span>
-                  </div>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5,
-                    padding: '3px 9px', borderRadius: 20,
-                    background: p.connected ? 'rgba(29,219,107,0.12)' : 'rgba(84,104,128,0.15)',
-                    fontSize: 10.5, fontWeight: 700,
-                    color: p.connected ? '#1DDB6B' : '#8B9AB3',
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
-                    {p.connected ? 'متصلة' : 'غير متصلة'}
-                  </div>
-                </div>
-
-                {/* زر الحذف */}
-                <button
-                  onClick={() => removePage(p.id)}
-                  title="حذف الصفحة"
-                  style={{
-                    width: 32, height: 32, borderRadius: 10,
-                    background: 'rgba(242,80,80,0.08)',
-                    border: '1px solid rgba(242,80,80,0.15)',
-                    color: '#F25050', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', flexShrink: 0,
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-
-              {/* فاصل */}
-              <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0 16px' }} />
-
-              {/* تذييل الكرت */}
-              <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <button
-                  onClick={() => subscribePage(p.id)}
-                  disabled={subscribingId === p.id}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    padding: '9px',
-                    background: p.connected ? 'rgba(29,219,107,0.08)' : 'rgba(42,171,238,0.08)',
-                    border: p.connected ? '1px solid rgba(29,219,107,0.22)' : '1px solid rgba(42,171,238,0.22)',
-                    borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                    color: p.connected ? '#1DDB6B' : '#2AABEE',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {subscribingId === p.id
-                    ? <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التفعيل...</>
-                    : <><CheckCircle2 size={13} /> {p.connected ? 'تحديث ربط ماسنجر' : 'تفعيل ربط ماسنجر'}</>
-                  }
-                </button>
-
-                {/* زر واتساب */}
-                <button
-                  onClick={() => {
-                    setWaSettingsPage(p);
-                    setWaPhoneInput(p.waPhoneNumberId || '');
-                    setWaTokenInput(p.waToken || '');
-                  }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    padding: '9px',
-                    background: p.waConnected ? 'rgba(37,211,102,0.08)' : 'rgba(255,255,255,0.04)',
-                    border: p.waConnected ? '1px solid rgba(37,211,102,0.30)' : '1px solid rgba(255,255,255,0.10)',
-                    borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                    color: p.waConnected ? '#25D366' : '#8B9AB3',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  {p.waConnected ? 'واتساب مربوط ✓' : 'ربط واتساب'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── موديل إعدادات واتساب ── */}
-      {waSettingsPage && (
-        <div style={styles.modalOverlay} onClick={() => { setWaSettingsPage(null); setWaPairCode(''); setWaPairStatus(''); }}>
-          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>
-                <span style={{ color: '#25D366', marginLeft: 6 }}>●</span>
-                ربط واتساب — {waSettingsPage.name}
-              </h3>
-              <button onClick={() => { setWaSettingsPage(null); setWaPairCode(''); setWaPairStatus(''); }} style={styles.modalClose}><X size={18} /></button>
-            </div>
-            <div style={styles.modalBody}>
-              {/* إذا مربوط مسبقاً */}
-              {waSettingsPage.waConnected ? (
-                <>
-                  <div style={{ background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.25)', borderRadius: 12, padding: '16px', textAlign: 'center', marginBottom: 14 }}>
-                    <div style={{ fontSize: 32, marginBottom: 6 }}>✅</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#25D366' }}>واتساب مربوط بنجاح</div>
-                    {waSettingsPage.waPhone && <div style={{ fontSize: 12, color: '#9FB0C3', marginTop: 4, direction: 'ltr' }}>+{waSettingsPage.waPhone}</div>}
-                  </div>
-                  <button onClick={() => { removeWaSettings(waSettingsPage.id); setWaSettingsPage(null); }}
-                    style={{ width: '100%', padding: '11px', background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', borderRadius: 10, color: '#F25050', fontSize: 13, fontWeight: 700 }}>
-                    إلغاء ربط واتساب
-                  </button>
-                </>
-              ) : waPairCode ? (
-                /* عرض كود الربط */
-                <>
-                  <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.2)', borderRadius: 12, padding: '18px', textAlign: 'center', marginBottom: 14 }}>
-                    <div style={{ fontSize: 12, color: '#9FB0C3', marginBottom: 10 }}>أدخل هذا الكود في واتساب على هاتفك</div>
-                    <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: 6, color: '#25D366', fontFamily: 'monospace', direction: 'ltr' }}>
-                      {waPairCode}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#9FB0C3', lineHeight: 1.9, background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ fontWeight: 700, color: '#EAF0F7', marginBottom: 6 }}>الخطوات على هاتفك:</div>
-                    <div>١. افتح واتساب ← الإعدادات</div>
-                    <div>٢. الأجهزة المرتبطة ← ربط جهاز</div>
-                    <div>٣. اضغط "الربط برقم الهاتف بدلاً من ذلك"</div>
-                    <div>٤. أدخل الكود أعلاه</div>
-                  </div>
-                  {waPairStatus && <div style={{ fontSize: 12, color: '#2AABEE', textAlign: 'center', marginTop: 12, fontWeight: 600 }}>{waPairStatus}</div>}
-                </>
-              ) : (
-                /* إدخال الرقم */
-                <>
-                  <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.20)', borderRadius: 10, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: '#25D366', lineHeight: 1.7 }}>
-                    أدخل رقم واتساب الخاص بهذه الصفحة مع رمز الدولة، وسيظهر لك كود تُدخله في تطبيق واتساب لربط الصفحة.
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      رقم واتساب (مع رمز الدولة) <span style={{ color: '#F25050', fontWeight: 800 }}>*</span>
-                    </label>
-                    <input value={waPhoneInput} onChange={(e) => setWaPhoneInput(arabicToEnglishDigits(e.target.value))}
-                      style={{ ...styles.formInput, fontFamily: 'monospace', direction: 'ltr' }}
-                      placeholder="مثال: 9647701234567" inputMode="numeric" />
-                  </div>
-                  {waPairStatus && <div style={{ fontSize: 12, color: '#F0A868', textAlign: 'center', marginTop: 8 }}>{waPairStatus}</div>}
-                </>
-              )}
-            </div>
-            {!waSettingsPage.waConnected && !waPairCode && (
-              <div style={styles.modalFooter}>
-                <button onClick={() => setWaSettingsPage(null)} style={styles.modalCancelBtn}>إلغاء</button>
-                <button onClick={requestWaPairing} disabled={savingWa}
-                  style={{ ...styles.modalSaveBtn, background: 'linear-gradient(135deg,#25D366,#128C7E)' }}>
-                  {savingWa ? 'جارٍ التوليد...' : 'توليد كود الربط'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+async function saveWaSettings() {
+if (!waSettingsPage) return;
+if (!waPhoneInput.trim()) { alert('أدخل Phone Number ID'); return; }
+if (!waTokenInput.trim()) { alert('أدخل WhatsApp Token'); return; }
+setSavingWa(true);
+try {
+await sbUpdate('alfhd_pages', waSettingsPage.id, {
+wa_phone_number_id: waPhoneInput.trim(), wa_token: waTokenInput.trim(),
+});
+setPages((prev) => prev.map((p) => p.id === waSettingsPage.id ? {
+...p, waPhoneNumberId: waPhoneInput.trim(), waToken: waTokenInput.trim(), waConnected: true,
+} : p));
+setWaSettingsPage(null);
+alert('✅ تم ربط واتساب بنجاح!');
+} catch (e) { alert('فشل الحفظ: ' + e.message); }
+finally { setSavingWa(false); }
 }
 
-// ──────────────────────────────────────────────
-// عرض إدارة المستخدمين
-// ──────────────────────────────────────────────
+async function removeWaSettings(pageId) {
+if (!window.confirm('هل تريد إلغاء ربط واتساب؟')) return;
+try {
+await sbUpdate('alfhd_pages', pageId, { wa_phone_number_id: null, wa_token: null });
+setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhoneNumberId: null, waToken: null, waConnected: false } : p));
+} catch (e) { alert('فشل: ' + e.message); }
+}
+
+const subscribePage = async (pageId) => {
+setSubscribingId(pageId);
+try {
+const res = await fetch(FB_SUBSCRIBE_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY },
+body: JSON.stringify({ pageId }),
+});
+const data = await res.json();
+if (!res.ok || data.error) throw new Error(data.error || 'فشل تفعيل استقبال الرسائل');
+alert('تم تفعيل استقبال الرسائل الحقيقية بنجاح ✅');
+} catch (e) {
+console.error('Subscribe failed:', e);
+alert('تعذّر تفعيل استقبال الرسائل: ' + (e.message || ''));
+} finally { setSubscribingId(null); }
+};
+
+return (
+<div className="aurora-view">
+<div className="aurora-view-header">
+<div>
+<h2 className="aurora-view-title">الصفحات المرتبطة</h2>
+<p className="aurora-view-subtitle">صفحات فيسبوك المرتبطة بنظام AlFhd</p>
+</div>
+<button onClick={startFacebookLogin} className="aurora-action-btn fb" disabled={exchanging}>
+<Facebook size={16} />
+{exchanging ? 'جارٍ الاتصال...' : 'ربط صفحة جديدة'}
+</button>
+</div>
+
+{fbError && (
+<div className="aurora-alert error">
+<XCircle size={17} />
+<span>{fbError}</span>
+</div>
+)}
+
+{exchanging && (
+<div className="aurora-alert info">
+<RefreshCw size={15} className="aurora-spin" />
+جارٍ التحقق من حسابك على فيسبوك وجلب صفحاتك...
+</div>
+)}
+
+{fbCandidates && fbCandidates.length > 0 && (
+<div className="aurora-candidates">
+<div className="aurora-candidates-title">
+<Facebook size={14} /> اختر الصفحة للربط
+</div>
+{fbCandidates.map((c) => (
+<div key={c.fb_page_id} className="aurora-candidate-row">
+{c.avatar
+? <img src={c.avatar} alt="" className="aurora-candidate-avatar" />
+: <div className="aurora-candidate-avatar fb"><Facebook size={19} /></div>
+}
+<div className="aurora-candidate-info">
+<div className="aurora-candidate-name">{c.name}</div>
+<div className="aurora-candidate-id">ID: {c.fb_page_id}</div>
+</div>
+<button onClick={() => confirmAddPage(c)} className="aurora-btn primary small">ربط</button>
+</div>
+))}
+</div>
+)}
+
+{pages.length === 0 ? (
+<div className="aurora-empty-state large">
+<div className="aurora-empty-icon fb"><Facebook size={30} /></div>
+<div className="aurora-empty-title">لا توجد صفحات مرتبطة</div>
+<div className="aurora-empty-sub">اضغط "ربط صفحة جديدة" لبدء ربط صفحاتك</div>
+</div>
+) : (
+<div className="aurora-pages-grid">
+{pages.map((p) => (
+<div key={p.id} className={`aurora-page-card ${p.connected ? 'connected' : ''}`}>
+<div className="aurora-page-card-top" />
+<div className="aurora-page-card-header">
+<div className="aurora-page-avatar-wrap">
+<div className="aurora-page-avatar">
+{p.avatar && p.avatar !== '📄' ? p.avatar : <Facebook size={26} />}
+</div>
+<div className={`aurora-page-status-dot ${p.connected ? 'on' : ''}`} />
+</div>
+<div className="aurora-page-info">
+<div className="aurora-page-name">{p.name}</div>
+<div className="aurora-page-id">
+<Facebook size={9} />
+<span>{p.fbPageId ? p.fbPageId.slice(0, 16) + '...' : 'معرّف غير متاح'}</span>
+</div>
+<div className={`aurora-page-status-pill ${p.connected ? 'on' : ''}`}>
+<span className="aurora-page-status-dot-small" />
+{p.connected ? 'متصلة' : 'غير متصلة'}
+</div>
+</div>
+<button onClick={() => removePage(p.id)} title="حذف" className="aurora-icon-btn danger">
+<Trash2 size={13} />
+</button>
+</div>
+<div className="aurora-page-card-divider" />
+<div className="aurora-page-card-actions">
+<button onClick={() => subscribePage(p.id)} disabled={subscribingId === p.id}
+className={`aurora-page-action-btn ${p.connected ? 'success' : 'primary'}`}>
+{subscribingId === p.id
+? <><RefreshCw size={12} className="aurora-spin" /> جارٍ التفعيل...</>
+: <><CheckCircle2 size={12} /> {p.connected ? 'تحديث ربط ماسنجر' : 'تفعيل ربط ماسنجر'}</>
+}
+</button>
+<button onClick={() => {
+setWaSettingsPage(p);
+setWaPhoneInput(p.waPhoneNumberId || '');
+setWaTokenInput(p.waToken || '');
+}} className={`aurora-page-action-btn wa ${p.waConnected ? 'on' : ''}`}>
+<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+{p.waConnected ? 'واتساب مربوط ✓' : 'ربط واتساب'}
+</button>
+</div>
+</div>
+))}
+</div>
+)}
+
+{waSettingsPage && (
+<div className="aurora-modal-overlay" onClick={() => setWaSettingsPage(null)}>
+<div className="aurora-modal" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3><span className="aurora-wa-dot">●</span> ربط واتساب — {waSettingsPage.name}</h3>
+<button onClick={() => setWaSettingsPage(null)}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+<div className="aurora-wa-help">
+<div className="aurora-wa-help-title">كيف أحصل على هذه المعلومات؟</div>
+<div>١. افتح developers.facebook.com ← تطبيقك ALfhd-app</div>
+<div>٢. واتساب ← إعداد واجهة API</div>
+<div>٣. انسخ <b>معرف رقم الهاتف</b> و<b>رمز الوصول</b></div>
+</div>
+<div className="aurora-form-group">
+<label>Phone Number ID <span className="aurora-required">*</span></label>
+<input value={waPhoneInput} onChange={(e) => setWaPhoneInput(e.target.value)}
+className="aurora-mono" placeholder="مثال: 1187286511134496" />
+</div>
+<div className="aurora-form-group">
+<label>رمز الوصول (Access Token) <span className="aurora-required">*</span></label>
+<textarea value={waTokenInput} onChange={(e) => setWaTokenInput(e.target.value)}
+className="aurora-mono" placeholder="EAAOXwA1p2Z..." />
+</div>
+<div className="aurora-form-group">
+<label>Webhook URL للواتساب</label>
+<div className="aurora-webhook-row">
+<input readOnly value={`${SUPABASE_URL}/functions/v1/wa-webhook`} className="aurora-mono" />
+<button onClick={() => navigator.clipboard?.writeText(`${SUPABASE_URL}/functions/v1/wa-webhook`)}
+className="aurora-btn ghost small">نسخ</button>
+</div>
+</div>
+{waSettingsPage.waConnected && (
+<button onClick={() => { removeWaSettings(waSettingsPage.id); setWaSettingsPage(null); }}
+className="aurora-btn danger full">إلغاء ربط واتساب</button>
+)}
+</div>
+<div className="aurora-modal-footer">
+<button onClick={() => setWaSettingsPage(null)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={saveWaSettings} disabled={savingWa} className="aurora-btn wa">
+{savingWa ? 'جارٍ الحفظ...' : '✓ حفظ وربط واتساب'}
+</button>
+</div>
+</div>
+</div>
+)}
+</div>
+);
+}
+
+// ══════════════════════════════════════════════════════════════
+// عرض الإدارة
+// ══════════════════════════════════════════════════════════════
 const PERMISSIONS_LIST = [
-  { id: 'conversations', label: 'عرض المحادثات' },
-  { id: 'orders_view', label: 'عرض الطلبات' },
-  { id: 'orders_edit', label: 'تعديل حالة الطلبات' },
-  { id: 'stats', label: 'عرض الإحصائيات' },
-  { id: 'pages_manage', label: 'إدارة الصفحات' },
-  { id: 'users_manage', label: 'إدارة المستخدمين' },
+{ id: 'conversations', label: 'عرض المحادثات' },
+{ id: 'orders_view', label: 'عرض الطلبات' },
+{ id: 'orders_edit', label: 'تعديل حالة الطلبات' },
+{ id: 'stats', label: 'عرض الإحصائيات' },
+{ id: 'pages_manage', label: 'إدارة الصفحات' },
+{ id: 'users_manage', label: 'إدارة المستخدمين' },
 ];
 
 function AdminView({ users, setUsers, orders, conversations, onViewConversation, onContactWhatsApp }) {
-  const [adminTab, setAdminTab] = useState('managers'); // managers | warehouse | fulfillment
-  const [showAdd, setShowAdd] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState('');
+const [adminTab, setAdminTab] = useState('managers');
+const [showAdd, setShowAdd] = useState(false);
+const [editingUser, setEditingUser] = useState(null);
+const [form, setForm] = useState({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+const [saving, setSaving] = useState(false);
+const [formError, setFormError] = useState('');
+const managers = users.filter((u) => u.role === 'admin' || u.role === 'manager');
+const warehouse = users.filter((u) => u.role === 'warehouse');
 
-  const managers = users.filter((u) => u.role === 'admin' || u.role === 'manager');
-  const warehouse = users.filter((u) => u.role === 'warehouse');
+const openAddManager = () => {
+setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '' });
+setEditingUser(null); setFormError(''); setShowAdd(true);
+};
+const openAddWarehouse = () => {
+setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '' });
+setEditingUser(null); setFormError(''); setShowAdd(true);
+};
+const openEdit = (user) => {
+setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '' });
+setEditingUser(user); setFormError(''); setShowAdd(true);
+};
+const togglePermission = (permId) => {
+setForm((prev) => ({
+...prev,
+permissions: prev.permissions.includes(permId) ? prev.permissions.filter((p) => p !== permId) : [...prev.permissions, permId],
+}));
+};
+const saveUser = async () => {
+if (!form.name.trim() || saving) return;
+const code = form.code.trim();
+if (!/^\d{4}$/.test(code)) { setFormError('رمز الدخول يجب أن يكون 4 أرقام'); return; }
+const codeTaken = users.some((u) => u.code === code && u.id !== editingUser?.id);
+if (codeTaken) { setFormError('هذا الرمز مستخدم من قبل'); return; }
+setSaving(true); setFormError('');
+try {
+const payload = {
+name: form.name.trim(), code, role: form.role,
+permissions: form.role === 'admin' ? ['all'] : form.permissions,
+job_title: form.jobTitle || null, whatsapp: form.whatsapp || null,
+};
+if (editingUser) {
+const [updated] = await sbUpdate('alfhd_users', editingUser.id, payload);
+setUsers((prev) => prev.map((u) => u.id === editingUser.id ? mapUserFromDb(updated) : u));
+} else {
+const [created] = await sbInsert('alfhd_users', { ...payload, active: true });
+setUsers((prev) => [...prev, mapUserFromDb(created)]);
+}
+setShowAdd(false);
+} catch (e) {
+console.error('save user error:', e);
+setFormError('خطأ: ' + e.message);
+} finally { setSaving(false); }
+};
+const toggleActive = async (id) => {
+const target = users.find((u) => u.id === id);
+if (!target) return;
+const newActive = !target.active;
+setUsers((prev) => prev.map((u) => u.id === id ? { ...u, active: newActive } : u));
+try { await sbUpdate('alfhd_users', id, { active: newActive }); } catch (e) { console.error(e); }
+};
+const deleteUser = async (id) => {
+if (!window.confirm('حذف هذا الموظف نهائياً؟')) return;
+setUsers((prev) => prev.filter((u) => u.id !== id));
+try { await sbDelete('alfhd_users', id); } catch (e) { console.error(e); }
+};
 
-  const openAddManager = () => {
-    setForm({ name: '', code: '', role: 'manager', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
-    setEditingUser(null); setFormError(''); setShowAdd(true);
-  };
-  const openAddWarehouse = () => {
-    setForm({ name: '', code: '', role: 'warehouse', permissions: [], jobTitle: '', whatsapp: '', isolated: false });
-    setEditingUser(null); setFormError(''); setShowAdd(true);
-  };
-  const openEdit = (user) => {
-    setForm({ name: user.name, code: user.code, role: user.role, permissions: user.permissions || [], jobTitle: user.jobTitle || '', whatsapp: user.whatsapp || '', isolated: !!user.workspaceId });
-    setEditingUser(user); setFormError(''); setShowAdd(true);
-  };
+const fulfillmentOrders = useMemo(() => {
+return orders.filter((o) => o.prepStatus === 'done' || o.prepStatus === 'rejected')
+.sort((a, b) => new Date(b.prepAt || 0) - new Date(a.prepAt || 0));
+}, [orders]);
 
-  const togglePermission = (permId) => {
-    setForm((prev) => ({
-      ...prev,
-      permissions: prev.permissions.includes(permId) ? prev.permissions.filter((p) => p !== permId) : [...prev.permissions, permId],
-    }));
-  };
+const ADMIN_TABS = [
+{ id: 'managers', label: 'المدراء', icon: ShieldCheck },
+{ id: 'warehouse', label: 'موظفي التجهيز', icon: Package },
+{ id: 'fulfillment', label: 'متابعة التجهيز', icon: CheckCircle2 },
+];
 
-  const saveUser = async () => {
-    if (!form.name.trim() || saving) return;
-    const code = form.code.trim();
-    if (!/^\d{4}$/.test(code)) { setFormError('رمز الدخول يجب أن يكون 4 أرقام'); return; }
+function UserCard({ u, isWarehouse }) {
+return (
+<div className={`aurora-user-card ${u.active ? '' : 'inactive'}`}>
+<div className="aurora-user-card-top">
+<div className={`aurora-user-card-avatar ${u.role === 'admin' ? 'admin' : ''}`}>
+{u.name[0]}
+</div>
+<div className="aurora-user-card-info">
+<div className="aurora-user-card-name">{u.name}</div>
+<div className="aurora-user-card-role">
+{u.role === 'admin' ? <><ShieldCheck size={11} color="#10B981" /> مدير عام</>
+: u.role === 'warehouse' ? <><Package size={11} color="#F59E0B" /> {u.jobTitle || 'موظف تجهيز'}</>
+: <><Shield size={11} color="#6366F1" /> مدير ({(u.permissions || []).length} صلاحية)</>}
+</div>
+</div>
+<div className={`aurora-active-dot ${u.active ? 'on' : ''}`} />
+</div>
+<div className="aurora-user-card-meta">
+<span className="aurora-code-tag">الرمز: {u.code}</span>
+{isWarehouse && u.whatsapp && <span className="aurora-code-tag">واتساب: {u.whatsapp}</span>}
+</div>
+{u.role === 'manager' && (u.permissions || []).length > 0 && (
+<div className="aurora-user-perms">
+{u.permissions.map((pId) => {
+const perm = PERMISSIONS_LIST.find((p) => p.id === pId);
+return perm ? <span key={pId} className="aurora-perm-tag">{perm.label}</span> : null;
+})}
+</div>
+)}
+<div className="aurora-user-card-actions">
+<button onClick={() => openEdit(u)} className="aurora-user-action-btn"><Edit3 size={12} /> تعديل</button>
+<button onClick={() => toggleActive(u.id)} className="aurora-user-action-btn">
+{u.active ? <EyeOff size={12} /> : <Eye size={12} />} {u.active ? 'تعطيل' : 'تفعيل'}
+</button>
+{u.role !== 'admin' && (
+<button onClick={() => deleteUser(u.id)} className="aurora-user-action-btn danger"><Trash2 size={12} /> حذف</button>
+)}
+</div>
+</div>
+);
+}
 
-    const codeTaken = users.some((u) => u.code === code && u.id !== editingUser?.id);
-    if (codeTaken) { setFormError('هذا الرمز مستخدم من قبل'); return; }
+return (
+<div className="aurora-view">
+<div className="aurora-view-header">
+<div>
+<h2 className="aurora-view-title">الإدارة العامة</h2>
+<p className="aurora-view-subtitle">المدراء، موظفو المخزن، ومتابعة تجهيز الطلبات</p>
+</div>
+{adminTab === 'managers' && <button onClick={openAddManager} className="aurora-action-btn primary"><UserPlus size={15} /> إضافة مدير</button>}
+{adminTab === 'warehouse' && <button onClick={openAddWarehouse} className="aurora-action-btn primary"><UserPlus size={15} /> إضافة موظف تجهيز</button>}
+</div>
 
-    setSaving(true); setFormError('');
-    try {
-      const payload = {
-        name: form.name.trim(), code, role: form.role,
-        permissions: form.role === 'admin' ? ['all'] : form.permissions,
-        job_title: form.jobTitle || null, whatsapp: form.whatsapp || null,
-      };
-      if (editingUser) {
-        // عند التعديل: لا نغيّر workspace_id الموجود (لتفادي فقدان بيانات مساحته)
-        const [updated] = await sbUpdate('alfhd_users', editingUser.id, payload);
-        setUsers((prev) => prev.map((u) => u.id === editingUser.id ? mapUserFromDb(updated) : u));
-      } else {
-        const [created] = await sbInsert('alfhd_users', { ...payload, active: true });
-        // مساحة مستقلة: workspace_id = معرّف المستخدم نفسه (تُحفظ بعد الإنشاء للحصول على id)
-        if (form.isolated && created?.id) {
-          try {
-            const [withWs] = await sbUpdate('alfhd_users', created.id, { workspace_id: created.id });
-            setUsers((prev) => [...prev, mapUserFromDb(withWs || created)]);
-          } catch (_e) { setUsers((prev) => [...prev, mapUserFromDb(created)]); }
-        } else {
-          setUsers((prev) => [...prev, mapUserFromDb(created)]);
-        }
-      }
-      setShowAdd(false);
-    } catch (e) {
-      console.error('save user error:', e);
-      setFormError('خطأ: ' + e.message);
-    } finally { setSaving(false); }
-  };
+<div className="aurora-section-tabs">
+{ADMIN_TABS.map((t) => {
+const Icon = t.icon;
+return (
+<button key={t.id} onClick={() => setAdminTab(t.id)} className={`aurora-section-tab ${adminTab === t.id ? 'active' : ''}`}>
+<Icon size={13} /> {t.label}
+</button>
+);
+})}
+</div>
 
-  const toggleActive = async (id) => {
-    const target = users.find((u) => u.id === id);
-    if (!target) return;
-    const newActive = !target.active;
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, active: newActive } : u));
-    try { await sbUpdate('alfhd_users', id, { active: newActive }); } catch (e) { console.error(e); }
-  };
+{adminTab === 'managers' && (
+<div className="aurora-users-grid">{managers.map((u) => <UserCard key={u.id} u={u} />)}</div>
+)}
+{adminTab === 'warehouse' && (
+warehouse.length === 0 ? (
+<div className="aurora-empty-state"><Package size={30} /><p>لا يوجد موظفو تجهيز بعد</p></div>
+) : (
+<div className="aurora-users-grid">{warehouse.map((u) => <UserCard key={u.id} u={u} isWarehouse />)}</div>
+)
+)}
+{adminTab === 'fulfillment' && (
+<FulfillmentList orders={fulfillmentOrders} users={users} onViewConversation={onViewConversation} onContactWhatsApp={onContactWhatsApp} />
+)}
 
-  const deleteUser = async (id) => {
-    if (!window.confirm('حذف هذا الموظف نهائياً؟')) return;
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    try { await sbDelete('alfhd_users', id); } catch (e) { console.error(e); }
-  };
-
-  // طلبات التجهيز: المجهّزة والمرفوضة
-  const fulfillmentOrders = useMemo(() => {
-    return orders.filter((o) => o.prepStatus === 'done' || o.prepStatus === 'rejected')
-      .sort((a, b) => new Date(b.prepAt || 0) - new Date(a.prepAt || 0));
-  }, [orders]);
-
-  const ADMIN_TABS = [
-    { id: 'managers', label: 'المدراء', icon: ShieldCheck },
-    { id: 'warehouse', label: 'موظفي التجهيز', icon: Package },
-    { id: 'fulfillment', label: 'متابعة التجهيز', icon: CheckCircle2 },
-  ];
-
-  function UserCard({ u, isWarehouse }) {
-    return (
-      <div style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }} className="alfhd-order-card">
-        <div style={styles.userCardTop}>
-          <div style={{ ...styles.userCardAvatar, background: u.role === 'admin' ? 'linear-gradient(135deg,#60A5FA,#1D4ED8)' : '#222C42', color: u.role === 'admin' ? '#fff' : '#3B82F6' }}>
-            {u.name[0]}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={styles.userCardName}>{u.name}</div>
-            <div style={styles.userCardRole}>
-              {u.role === 'admin' ? <><ShieldCheck size={12} color="#4ADE80" /> مدير عام</>
-                : u.role === 'warehouse' ? <><Package size={12} color="#F0A868" /> {u.jobTitle || 'موظف تجهيز'}</>
-                : <><Shield size={12} color="#3B82F6" /> مدير ({(u.permissions || []).length} صلاحية)</>}
-            </div>
-          </div>
-          <div style={{ ...styles.activeDot, background: u.active ? '#4ADE80' : '#5E6986' }} />
-        </div>
-
-        <div style={styles.userCardMetaRow}>
-          <span style={styles.userCodeTag}>الرمز: {u.code}</span>
-          {isWarehouse && u.whatsapp && <span style={styles.userCodeTag}>واتساب: {u.whatsapp}</span>}
-        </div>
-
-        {u.role === 'manager' && (u.permissions || []).length > 0 && (
-          <div style={styles.userPermsList}>
-            {u.permissions.map((pId) => {
-              const perm = PERMISSIONS_LIST.find((p) => p.id === pId);
-              return perm ? <span key={pId} style={styles.permTag}>{perm.label}</span> : null;
-            })}
-          </div>
-        )}
-
-        <div style={styles.userCardActions}>
-          <button onClick={() => openEdit(u)} style={styles.userActionBtn}><Edit3 size={13} /> تعديل</button>
-          <button onClick={() => toggleActive(u.id)} style={styles.userActionBtn}>
-            {u.active ? <EyeOff size={13} /> : <Eye size={13} />} {u.active ? 'تعطيل' : 'تفعيل'}
-          </button>
-          {u.role !== 'admin' && (
-            <button onClick={() => deleteUser(u.id)} style={{ ...styles.userActionBtn, color: '#F45B69' }}><Trash2 size={13} /> حذف</button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={styles.viewWrap}>
-      <div style={styles.viewHeader} className="alfhd-view-header">
-        <div>
-          <h2 style={styles.viewTitle}>الإدارة العامة</h2>
-          <p style={styles.viewSubtitle}>المدراء، موظفو المخزن، ومتابعة تجهيز الطلبات</p>
-        </div>
-        {adminTab === 'managers' && <button onClick={openAddManager} style={styles.addBtn}><UserPlus size={16} /> إضافة مدير</button>}
-        {adminTab === 'warehouse' && <button onClick={openAddWarehouse} style={styles.addBtn}><UserPlus size={16} /> إضافة موظف تجهيز</button>}
-      </div>
-
-      <div style={styles.sectionTabs}>
-        {ADMIN_TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ ...styles.sectionTab, ...(adminTab === t.id ? styles.sectionTabActive : {}) }}>
-              <Icon size={14} /> {t.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {adminTab === 'managers' && (
-        <div style={styles.usersGrid} className="alfhd-users-grid">
-          {managers.map((u) => <UserCard key={u.id} u={u} />)}
-        </div>
-      )}
-
-      {adminTab === 'warehouse' && (
-        warehouse.length === 0 ? (
-          <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا يوجد موظفو تجهيز بعد</p></div>
-        ) : (
-          <div style={styles.usersGrid} className="alfhd-users-grid">
-            {warehouse.map((u) => <UserCard key={u.id} u={u} isWarehouse />)}
-          </div>
-        )
-      )}
-
-      {adminTab === 'fulfillment' && (
-        <FulfillmentList orders={fulfillmentOrders} users={users} onViewConversation={onViewConversation} onContactWhatsApp={onContactWhatsApp} />
-      )}
-
-      {showAdd && (
-        <div style={styles.modalOverlay} onClick={() => setShowAdd(false)}>
-          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>
-                {editingUser ? 'تعديل' : (form.role === 'warehouse' ? 'إضافة موظف تجهيز' : 'إضافة مدير')}
-              </h3>
-              <button onClick={() => setShowAdd(false)} style={styles.modalClose}><X size={18} /></button>
-            </div>
-            <div style={styles.modalBody}>
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>الاسم</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={styles.formInput} placeholder="اسم الموظف" />
-              </div>
-
-              {form.role === 'warehouse' && (
-                <>
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>المسمى الوظيفي</label>
-                    <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} style={styles.formInput} placeholder="مثال: مسؤول تجهيز" />
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>رقم واتساب</label>
-                    <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: arabicToEnglishDigits(e.target.value) })} style={styles.formInput} placeholder="07XXXXXXXXX" />
-                  </div>
-                </>
-              )}
-
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>رمز الدخول (4 أرقام)</label>
-                <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} style={styles.formInput} placeholder="1234" inputMode="numeric" />
-              </div>
-
-              {form.role !== 'warehouse' && (
-                <>
-                  <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>نوع المدير</label>
-                    <div style={styles.roleToggle}>
-                      <button onClick={() => setForm({ ...form, role: 'admin' })} style={{ ...styles.roleBtn, ...(form.role === 'admin' ? styles.roleBtnActive : {}) }}>
-                        <ShieldCheck size={14} /> مدير عام
-                      </button>
-                      <button onClick={() => setForm({ ...form, role: 'manager' })} style={{ ...styles.roleBtn, ...(form.role === 'manager' ? styles.roleBtnActive : {}) }}>
-                        <Shield size={14} /> صلاحية محددة
-                      </button>
-                    </div>
-                  </div>
-
-                  {form.role === 'manager' && (
-                    <div style={styles.formGroup}>
-                      <label style={styles.formLabel}>الصلاحيات</label>
-                      <div style={styles.permsGrid}>
-                        {PERMISSIONS_LIST.map((perm) => (
-                          <label key={perm.id} style={styles.permCheckRow}>
-                            <input type="checkbox" checked={form.permissions.includes(perm.id)} onChange={() => togglePermission(perm.id)} style={styles.checkbox} />
-                            <span>{perm.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {form.role === 'warehouse' && (
-                <div style={styles.warehouseNote}>
-                  <AlertCircle size={14} color="#F0A868" />
-                  <span>موظف التجهيز يرى فقط الطلبات المثبتة من كل الصفحات، ويعلّمها "تم التجهيز" أو "لم يتم" بدون صلاحية تعديل أو حذف.</span>
-                </div>
-              )}
-
-              {/* خيار المساحة المستقلة — فقط عند إضافة موظف جديد (غير التجهيز) */}
-              {!editingUser && form.role !== 'warehouse' && (
-                <div style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 12, padding: '12px 14px' }}>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={form.isolated} onChange={(e) => setForm({ ...form, isolated: e.target.checked })} style={{ ...styles.checkbox, marginTop: 2 }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#A78BFA' }}>مساحة مستقلة خاصة 🔒</div>
-                      <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3, lineHeight: 1.7 }}>
-                        يحصل هذا الموظف على مساحة معزولة تماماً: صفحاته ومخزنه وطلباته ومحادثاته خاصة به فقط، لا يراها أحد ولا يرى بيانات الآخرين. يبدأ من الصفر ويشتغل بحرية كاملة.
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              )}
-              {!editingUser && form.isolated && form.role !== 'warehouse' && (
-                <div style={{ fontSize: 11, color: '#F0A868', padding: '0 4px', lineHeight: 1.6 }}>
-                  ⚠️ لا يمكن تغيير هذا الخيار بعد الإنشاء.
-                </div>
-              )}
-
-              {formError && <p style={{ color: '#F45B69', fontSize: 12, margin: 0 }}>{formError}</p>}
-            </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setShowAdd(false)} style={styles.modalCancelBtn}>إلغاء</button>
-              <button onClick={saveUser} style={styles.modalSaveBtn} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+{showAdd && (
+<div className="aurora-modal-overlay" onClick={() => setShowAdd(false)}>
+<div className="aurora-modal" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>{editingUser ? 'تعديل' : (form.role === 'warehouse' ? 'إضافة موظف تجهيز' : 'إضافة مدير')}</h3>
+<button onClick={() => setShowAdd(false)}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+<div className="aurora-form-group">
+<label>الاسم</label>
+<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم الموظف" />
+</div>
+{form.role === 'warehouse' && (
+<>
+<div className="aurora-form-group">
+<label>المسمى الوظيفي</label>
+<input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} placeholder="مثال: مسؤول تجهيز" />
+</div>
+<div className="aurora-form-group">
+<label>رقم واتساب</label>
+<input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="07XXXXXXXXX" />
+</div>
+</>
+)}
+<div className="aurora-form-group">
+<label>رمز الدخول (4 أرقام)</label>
+<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="1234" inputMode="numeric" />
+</div>
+{form.role !== 'warehouse' && (
+<>
+<div className="aurora-form-group">
+<label>نوع المدير</label>
+<div className="aurora-role-toggle">
+<button onClick={() => setForm({ ...form, role: 'admin' })} className={`aurora-role-btn ${form.role === 'admin' ? 'active' : ''}`}>
+<ShieldCheck size={13} /> مدير عام
+</button>
+<button onClick={() => setForm({ ...form, role: 'manager' })} className={`aurora-role-btn ${form.role === 'manager' ? 'active' : ''}`}>
+<Shield size={13} /> صلاحية محددة
+</button>
+</div>
+</div>
+{form.role === 'manager' && (
+<div className="aurora-form-group">
+<label>الصلاحيات</label>
+<div className="aurora-perms-grid">
+{PERMISSIONS_LIST.map((perm) => (
+<label key={perm.id} className="aurora-perm-check">
+<input type="checkbox" checked={form.permissions.includes(perm.id)} onChange={() => togglePermission(perm.id)} />
+<span>{perm.label}</span>
+</label>
+))}
+</div>
+</div>
+)}
+</>
+)}
+{form.role === 'warehouse' && (
+<div className="aurora-warehouse-note">
+<AlertCircle size={13} color="#F59E0B" />
+<span>موظف التجهيز يرى فقط الطلبات المثبتة، ويعلّمها "تم التجهيز" أو "لم يتم" بدون صلاحية تعديل أو حذف.</span>
+</div>
+)}
+{formError && <p className="aurora-error">{formError}</p>}
+</div>
+<div className="aurora-modal-footer">
+<button onClick={() => setShowAdd(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={saveUser} className="aurora-btn primary" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ'}</button>
+</div>
+</div>
+</div>
+)}
+</div>
+);
 }
 
 function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp }) {
-  const [filter, setFilter] = useState('all'); // all | done | rejected
-  const [timeFilter, setTimeFilter] = useState('all');
-  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
-  const [customYear, setCustomYear] = useState(new Date().getFullYear());
-  const years = [];
-  for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
-
-  function inTime(dateStr) {
-    return dateInRange(dateStr, timeFilter, customMonth, customYear);
-  }
-
-  const shown = orders.filter((o) => (filter === 'all' || o.prepStatus === filter) && inTime(o.prepAt));
-
-
-  if (orders.length === 0) {
-    return <div style={styles.emptyState}><CheckCircle2 size={32} color="#39425C" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
-  }
-
-  return (
-    <div>
-      <div style={styles.filterChips} className="alfhd-no-print">
-        {[['all', 'الكل'], ['done', 'تم التجهيز'], ['rejected', 'لم يتم']].map(([id, label]) => (
-          <button key={id} onClick={() => setFilter(id)} style={{ ...styles.chip, ...(filter === id ? styles.chipActive : {}) }}>{label}</button>
-        ))}
-      </div>
-      <div style={{ ...styles.filtersWrap, marginTop: 10 }} className="alfhd-no-print">
-        <div style={styles.filterBottomRow}>
-          <div style={styles.pageSelectWrap}>
-            <Calendar size={15} color="#60A5FA" />
-            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={styles.pageSelect}>
-              {DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-            </select>
-            <ChevronDown size={14} color="#5E6986" />
-          </div>
-          {timeFilter === 'custom' && (
-            <>
-              <select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} style={styles.customDateSelectCompact}>
-                {AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-              <select value={customYear} onChange={(e) => setCustomYear(e.target.value)} style={styles.customDateSelectCompact}>
-                {years.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div style={{ ...styles.ordersGrid, marginTop: 14 }}>
-        {shown.map((o) => {
-          const prepUser = users.find((u) => u.id === o.prepBy);
-          const isDone = o.prepStatus === 'done';
-          const prepTime = o.prepAt ? new Date(o.prepAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' }) : null;
-          return (
-            <div
-              key={o.id}
-              style={{ ...styles.orderCard, ...(isDone ? {} : styles.rejectedCard) }}
-              className="alfhd-order-card"
-            >
-              {!isDone && (
-                <div style={styles.rejectedBanner}>
-                  <AlertCircle size={16} />
-                  <span>طلب لم يُجهَّز — يحتاج متابعة عاجلة</span>
-                </div>
-              )}
-
-              <div style={styles.orderTicketHead}>
-                <div style={{ ...styles.orderTicketAvatar, background: isDone ? 'rgba(74,222,128,0.15)' : 'rgba(244,91,105,0.18)', color: isDone ? '#4ADE80' : '#F45B69', border: 'none' }}>
-                  {isDone ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.orderCardCustomer}>{o.customer} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
-                  <div style={styles.orderTicketPage}>المجهّز: {o.prepByName || prepUser?.name || 'غير معروف'}</div>
-                </div>
-                <div style={{ ...styles.orderStatusPill, color: isDone ? '#4ADE80' : '#F45B69', background: isDone ? 'rgba(74,222,128,0.12)' : 'rgba(244,91,105,0.16)' }}>
-                  {isDone ? 'تم التجهيز' : 'لم يتم'}
-                </div>
-              </div>
-
-              {prepTime && (
-                <div style={styles.prepTimeRow}>
-                  <Calendar size={12} color="#5E6986" />
-                  <span>{isDone ? 'وقت التجهيز' : 'وقت الرفض'}: {prepTime}</span>
-                </div>
-              )}
-
-              {!isDone && o.prepReason && (
-                <div style={styles.rejectReasonBox}>
-                  <span style={styles.rejectReasonLabel}>سبب عدم التجهيز:</span>
-                  <span>{o.prepReason}</span>
-                </div>
-              )}
-
-              {o.items && <div style={{ ...styles.orderTicketItems, margin: '0 16px 12px' }}>{o.items}</div>}
-
-              {!isDone && (
-                <div style={styles.orderCardActions}>
-                  {prepUser?.whatsapp && (
-                    <button onClick={() => onContactWhatsApp?.(prepUser.whatsapp)} style={styles.orderActionBtn} title="اتصال بالمجهّز عبر واتساب">
-                      <Phone size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>المجهّز</span>
-                    </button>
-                  )}
-                  {o.conversationId ? (
-                    <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="مراسلة الزبون">
-                      <MessageSquare size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>الزبون</span>
-                    </button>
-                  ) : o.phone ? (
-                    <button onClick={() => onContactWhatsApp?.(o.phone)} style={styles.orderActionBtn} title="الاتصال بالزبون">
-                      <Phone size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>الزبون</span>
-                    </button>
-                  ) : null}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-    </div>
-  );
+const [filter, setFilter] = useState('all');
+const [timeFilter, setTimeFilter] = useState('all');
+const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+const [customYear, setCustomYear] = useState(new Date().getFullYear());
+const years = [];
+for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
+function inTime(dateStr) { return dateInRange(dateStr, timeFilter, customMonth, customYear); }
+const shown = orders.filter((o) => (filter === 'all' || o.prepStatus === filter) && inTime(o.prepAt));
+if (orders.length === 0) {
+return <div className="aurora-empty-state"><CheckCircle2 size={30} /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
+}
+return (
+<div>
+<div className="aurora-chips">
+{[['all', 'الكل'], ['done', 'تم التجهيز'], ['rejected', 'لم يتم']].map(([id, label]) => (
+<button key={id} onClick={() => setFilter(id)} className={`aurora-chip ${filter === id ? 'active' : ''}`}>{label}</button>
+))}
+</div>
+<div className="aurora-filters" style={{ marginTop: 10 }}>
+<div className="aurora-filters-row">
+<div className="aurora-filter-select">
+<Calendar size={14} />
+<select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)}>
+{DATE_PRESETS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+</select>
+<ChevronDown size={13} />
+</div>
+{timeFilter === 'custom' && (
+<>
+<select value={customMonth} onChange={(e) => setCustomMonth(e.target.value)} className="aurora-compact-select">
+{AR_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+</select>
+<select value={customYear} onChange={(e) => setCustomYear(e.target.value)} className="aurora-compact-select">
+{years.map((y) => <option key={y} value={y}>{y}</option>)}
+</select>
+</>
+)}
+</div>
+</div>
+<div className="aurora-orders-grid" style={{ marginTop: 14 }}>
+{shown.map((o) => {
+const prepUser = users.find((u) => u.id === o.prepBy);
+const isDone = o.prepStatus === 'done';
+const prepTime = o.prepAt ? new Date(o.prepAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' }) : null;
+return (
+<div key={o.id} className={`aurora-order-card ${isDone ? '' : 'rejected'}`}>
+{!isDone && (
+<div className="aurora-rejected-banner">
+<AlertCircle size={14} />
+<span>طلب لم يُجهَّز — يحتاج متابعة عاجلة</span>
+</div>
+)}
+<div className="aurora-order-head">
+<div className={`aurora-order-avatar ${isDone ? 'done' : 'rej'}`}>
+{isDone ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+</div>
+<div className="aurora-order-head-info">
+<div className="aurora-order-customer">{o.customer} <span>#{o.orderNo}</span></div>
+<div className="aurora-order-page">المجهّز: {o.prepByName || prepUser?.name || 'غير معروف'}</div>
+</div>
+<div className="aurora-stage-badge" style={{ color: isDone ? '#10B981' : '#EF4444', background: isDone ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.16)' }}>
+{isDone ? 'تم التجهيز' : 'لم يتم'}
+</div>
+</div>
+{prepTime && (
+<div className="aurora-prep-time">
+<Calendar size={11} />
+<span>{isDone ? 'وقت التجهيز' : 'وقت الرفض'}: {prepTime}</span>
+</div>
+)}
+{!isDone && o.prepReason && (
+<div className="aurora-reject-reason">
+<span className="aurora-reject-label">سبب عدم التجهيز:</span>
+<span>{o.prepReason}</span>
+</div>
+)}
+{o.items && <div className="aurora-order-items">{o.items}</div>}
+{!isDone && (
+<div className="aurora-order-actions">
+{prepUser?.whatsapp && (
+<button onClick={() => onContactWhatsApp?.(prepUser.whatsapp)} className="aurora-order-action-btn">
+<Phone size={13} /> <span>المجهّز</span>
+</button>
+)}
+{o.conversationId ? (
+<button onClick={() => onViewConversation?.(o.conversationId)} className="aurora-order-action-btn">
+<MessageSquare size={13} /> <span>الزبون</span>
+</button>
+) : o.phone ? (
+<button onClick={() => onContactWhatsApp?.(o.phone)} className="aurora-order-action-btn">
+<Phone size={13} /> <span>الزبون</span>
+</button>
+) : null}
+</div>
+)}
+</div>
+);
+})}
+</div>
+</div>
+);
 }
 
-// واجهة موظف التجهيز المبسطة — يرى الطلبات المثبتة بدون سعر، ويعلّمها تم/لم يتم
+// ══════════════════════════════════════════════════════════════
+// واجهة موظف التجهيز
+// ══════════════════════════════════════════════════════════════
 function PrepWorkerView({ currentUser, onLogout }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [rejectTarget, setRejectTarget] = useState(null); // الطلب الجاري رفضه
-  const [rejectReason, setRejectReason] = useState('');
-  const [busyId, setBusyId] = useState(null);
-  const knownIdsRef = React.useRef(new Set());
+const [orders, setOrders] = useState([]);
+const [loading, setLoading] = useState(true);
+const [rejectTarget, setRejectTarget] = useState(null);
+const [rejectReason, setRejectReason] = useState('');
+const [busyId, setBusyId] = useState(null);
+const knownIdsRef = React.useRef(new Set());
 
-  // جلب الطلبات المثبتة التي تحتاج تجهيز (غير مُجهّزة بعد)
-  const loadOrders = useCallback(async () => {
-    try {
-      const rows = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc&limit=300');
-      if (!rows) return;
-      let mapped = rows.map(mapOrderFromDb)
-        .filter((o) => o.converted !== true && o.stage !== 'delivery' && o.prepStatus !== 'done');
-      // حماية: أزِل أي طلبات مكررة (نفس source_message_id أو نفس id) من العرض
-      const seenIds = new Set();
-      const seenMsg = new Set();
-      mapped = mapped.filter((o) => {
-        if (seenIds.has(o.id)) return false;
-        seenIds.add(o.id);
-        if (o.sourceMessageId) {
-          if (seenMsg.has(o.sourceMessageId)) return false;
-          seenMsg.add(o.sourceMessageId);
-        }
-        return true;
-      });
-      // إشعار صوتي عند وصول طلب جديد للتجهيز
-      if (knownIdsRef.current.size > 0) {
-        const isNew = mapped.some((o) => !knownIdsRef.current.has(o.id) && o.prepStatus !== 'rejected');
-        if (isNew) { try { playNotificationSound(); } catch (_e) { /* تجاهل */ } }
-      }
-      knownIdsRef.current = new Set(mapped.map((o) => o.id));
-      setOrders(mapped);
-    } catch (e) {
-      console.error('prep load error:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+const loadOrders = useCallback(async () => {
+try {
+const rows = await sbSelect('alfhd_orders', '&order=created_at.desc&limit=300');
+if (!rows) return;
+const mapped = rows.map(mapOrderFromDb)
+.filter((o) => o.converted !== true && o.stage !== 'delivery' && o.prepStatus !== 'done');
+if (knownIdsRef.current.size > 0) {
+const isNew = mapped.some((o) => !knownIdsRef.current.has(o.id) && o.prepStatus !== 'rejected');
+if (isNew) { try { playNotificationSound(); } catch (_e) {} }
+}
+knownIdsRef.current = new Set(mapped.map((o) => o.id));
+setOrders(mapped);
+} catch (e) { console.error('prep load error:', e); }
+finally { setLoading(false); }
+}, []);
 
-  useEffect(() => {
-    loadOrders();
-    const interval = setInterval(loadOrders, 12000);
-    return () => clearInterval(interval);
-  }, [loadOrders]);
+useEffect(() => {
+loadOrders();
+const interval = setInterval(loadOrders, 12000);
+return () => clearInterval(interval);
+}, [loadOrders]);
 
-  async function markDone(o) {
-    setBusyId(o.id);
-    const patch = { prep_status: 'done', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
-    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
-    setOrders((prev) => prev.filter((x) => x.id !== o.id));
-    setBusyId(null);
-  }
-
-  // استلام الطلب: يعلّمه "قيد التجهيز" باسم الموظف ليراه الباقون
-  async function claimOrder(o) {
-    // إن كان مستلماً من موظف آخر، لا نسمح بالاستلام (إلا إن كان نفس الموظف)
-    if (o.prepStatus === 'claiming' && o.prepBy && o.prepBy !== currentUser.id) {
-      return; // محجوز من غيره
-    }
-    // إن كان مستلماً مني، ألغِ الاستلام (toggle)
-    const isMine = o.prepStatus === 'claiming' && o.prepBy === currentUser.id;
-    const patch = isMine
-      ? { prep_status: null, prep_by: null, prep_by_name: null, prep_at: null }
-      : { prep_status: 'claiming', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
-    // تحديث فوري بالواجهة
-    setOrders((prev) => prev.map((x) => x.id === o.id ? {
-      ...x,
-      prepStatus: patch.prep_status,
-      prepBy: patch.prep_by,
-      prepByName: patch.prep_by_name,
-    } : x));
-    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
-  }
-
-  async function confirmReject() {
-    if (!rejectTarget) return;
-    const o = rejectTarget;
-    setBusyId(o.id);
-    const patch = {
-      prep_status: 'rejected', prep_by: currentUser.id, prep_by_name: currentUser.name,
-      prep_at: new Date().toISOString(), prep_reason: rejectReason.trim() || null,
-    };
-    try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
-    setOrders((prev) => prev.filter((x) => x.id !== o.id));
-    setRejectTarget(null);
-    setRejectReason('');
-    setBusyId(null);
-  }
-
-  // الطلبات المعروضة: المثبتة وغير المرفوضة (الجديدة تحتاج تجهيز)
-  const pending = orders.filter((o) => o.prepStatus !== 'rejected');
-
-  return (
-    <ErrorBoundary>
-    <>
-      <GlobalStyles />
-      <div style={styles.appWrap} className="alfhd-app-wrap">
-        <main style={{ ...styles.mainArea, marginRight: 0, width: '100%' }} className="alfhd-main-area">
-          {/* هيدر المجهّز */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(23,33,43,0.6)', backdropFilter: 'blur(10px)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(240,168,104,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Package size={18} color="#F0A868" />
-              </div>
-              <div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: '#F5F5F5' }}>التجهيز</div>
-                <div style={{ fontSize: 11, color: '#9FB0C3' }}>{currentUser.name}</div>
-              </div>
-            </div>
-            <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 10, color: '#E53935', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-              <LogOut size={14} /> خروج
-            </button>
-          </div>
-
-          {/* عدّاد الطلبات */}
-          <div style={{ padding: '12px 16px 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#EAF0FB' }}>طلبات بحاجة للتجهيز</span>
-            <span style={{ minWidth: 22, height: 22, padding: '0 7px', borderRadius: 11, background: pending.length ? 'rgba(240,168,104,0.18)' : 'rgba(255,255,255,0.05)', color: pending.length ? '#F0A868' : '#546880', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pending.length}</span>
-          </div>
-
-          <div style={{ padding: '8px 16px 24px', overflowY: 'auto', flex: 1 }}>
-            {loading && <div style={styles.emptyState}><Package size={30} color="#39425C" /><p>جارٍ التحميل...</p></div>}
-            {!loading && pending.length === 0 && (
-              <div style={styles.emptyState}><CheckCircle2 size={34} color="#4DDB6B" /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
-            )}
-            <div style={styles.ordersGrid}>
-              {pending.map((o, i) => {
-                const claimed = o.prepStatus === 'claiming';
-                const claimedByMe = claimed && o.prepBy === currentUser.id;
-                const claimedByOther = claimed && o.prepBy && o.prepBy !== currentUser.id;
-                // لون الشريط العلوي حسب الحالة
-                const topColor = claimedByMe ? '#2AABEE' : claimedByOther ? '#A78BFA' : '#F0A868';
-                return (
-                <div key={o.id} style={{
-                  ...styles.orderCard,
-                  animationDelay: `${Math.min(i * 0.04, 0.4)}s`,
-                  opacity: claimedByOther ? 0.72 : 1,
-                  border: claimedByMe ? '1.5px solid rgba(42,171,238,0.5)' : claimedByOther ? '1px solid rgba(167,139,250,0.3)' : undefined,
-                  background: claimedByMe ? 'rgba(42,171,238,0.04)' : claimedByOther ? 'rgba(167,139,250,0.03)' : undefined,
-                }} className="alfhd-order-card alfhd-card-enter">
-                  <div style={{ height: 3, background: topColor, width: '100%' }} />
-                  <div style={{ padding: 14 }}>
-                    {/* شارة قيد التجهيز من قبل موظف */}
-                    {claimed && (
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
-                        padding: '7px 11px', borderRadius: 9,
-                        background: claimedByMe ? 'rgba(42,171,238,0.12)' : 'rgba(167,139,250,0.12)',
-                        border: `1px solid ${claimedByMe ? 'rgba(42,171,238,0.3)' : 'rgba(167,139,250,0.3)'}`,
-                      }}>
-                        <Package size={13} color={claimedByMe ? '#2AABEE' : '#A78BFA'} />
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: claimedByMe ? '#2AABEE' : '#A78BFA' }}>
-                          {claimedByMe ? '🔧 قيد التجهيز عندك' : `🔒 قيد التجهيز من قبل ${o.prepByName || 'موظف آخر'}`}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* رأس الطلب — الضغط عليه يستلم/يلغي الاستلام */}
-                    <div
-                      onClick={() => !claimedByOther && claimOrder(o)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: claimedByOther ? 'not-allowed' : 'pointer' }}
-                    >
-                      <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Package size={19} color="#2AABEE" />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11.5, color: '#5E6986' }}>#{o.orderNo}</span></div>
-                        <div style={{ fontSize: 11.5, color: '#9FB0C3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
-                      </div>
-                      {!claimed && (
-                        <div style={{ fontSize: 10, color: '#546880', fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>اضغط<br/>للاستلام</div>
-                      )}
-                    </div>
-
-                    {/* المنتجات (بدون سعر) */}
-                    {o.items && (
-                      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
-                        <div style={{ fontSize: 10.5, color: '#546880', fontWeight: 700, marginBottom: 4 }}>المنتجات المطلوبة</div>
-                        <div style={{ fontSize: 13, color: '#EAF0FB', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{o.items}</div>
-                      </div>
-                    )}
-                    {o.orderType && (
-                      <div style={{ fontSize: 12, color: '#9FB0C3', marginBottom: 12 }}>نوع الطلب: <span style={{ color: '#EAF0FB', fontWeight: 600 }}>{o.orderType}</span></div>
-                    )}
-
-                    {/* رسالة المدير إن أرجع الطلب */}
-                    {o.reprepNote && (
-                      <div style={{ background: 'rgba(240,168,104,0.1)', border: '1px solid rgba(240,168,104,0.25)', borderRadius: 10, padding: '9px 12px', marginBottom: 12 }}>
-                        <div style={{ fontSize: 10.5, color: '#F0A868', fontWeight: 700, marginBottom: 2 }}>⚠️ رسالة من المدير</div>
-                        <div style={{ fontSize: 12.5, color: '#EAF0FB' }}>{o.reprepNote}</div>
-                      </div>
-                    )}
-
-                    {/* أزرار تم / لم يتم — معطّلة إن كان الطلب محجوزاً من موظف آخر */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => markDone(o)} disabled={busyId === o.id || claimedByOther}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: (busyId === o.id || claimedByOther) ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        <CheckCircle2 size={16} /> تم التجهيز
-                      </button>
-                      <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id || claimedByOther}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', color: '#F25050', fontSize: 13.5, fontWeight: 800, cursor: claimedByOther ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        <XCircle size={16} /> لم يتم
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* نافذة سبب الرفض (اختياري) */}
-      {rejectTarget && (
-        <div style={styles.modalOverlay} onClick={() => !busyId && setRejectTarget(null)}>
-          <div style={{ ...styles.modal, maxWidth: 400 }} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>لم يتم التجهيز</h3>
-              <button onClick={() => setRejectTarget(null)} style={styles.modalClose}><X size={18} /></button>
-            </div>
-            <div style={{ padding: '4px 17px 17px' }}>
-              <div style={{ fontSize: 12.5, color: '#9FB0C3', marginBottom: 12 }}>
-                طلب #{rejectTarget.orderNo} — {rejectTarget.customer}
-              </div>
-              <label style={{ fontSize: 12, color: '#E7ECF3', fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                السبب <span style={{ color: '#546880', fontWeight: 400 }}>(اختياري)</span>
-              </label>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="مثال: المنتج غير متوفر، نقص بالمخزون..."
-                rows={3}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 9, background: '#242F3D', border: '1.5px solid rgba(242,80,80,0.25)', color: '#E7ECF3', fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }}
-              />
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={() => setRejectTarget(null)} disabled={!!busyId}
-                  style={{ flex: 1, padding: '11px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#9FB0C3', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  رجوع
-                </button>
-                <button onClick={confirmReject} disabled={!!busyId}
-                  style={{ flex: 2, padding: '11px', borderRadius: 9, background: busyId ? '#7a2a2a' : '#F25050', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: busyId ? 'wait' : 'pointer' }}>
-                  {busyId ? 'جارٍ الإرسال...' : 'تأكيد — لم يتم التجهيز'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-    </ErrorBoundary>
-  );
+async function markDone(o) {
+setBusyId(o.id);
+const patch = { prep_status: 'done', prep_by: currentUser.id, prep_by_name: currentUser.name, prep_at: new Date().toISOString() };
+try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
+setOrders((prev) => prev.filter((x) => x.id !== o.id));
+setBusyId(null);
 }
 
-// ──────────────────────────────────────────────
-// التطبيق الرئيسي
-// ──────────────────────────────────────────────
+async function confirmReject() {
+if (!rejectTarget) return;
+const o = rejectTarget;
+setBusyId(o.id);
+const patch = {
+prep_status: 'rejected', prep_by: currentUser.id, prep_by_name: currentUser.name,
+prep_at: new Date().toISOString(), prep_reason: rejectReason.trim() || null,
+};
+try { await sbUpdate('alfhd_orders', o.id, patch); } catch (e) { console.error(e); }
+setOrders((prev) => prev.filter((x) => x.id !== o.id));
+setRejectTarget(null); setRejectReason(''); setBusyId(null);
+}
+
+const pending = orders.filter((o) => o.prepStatus !== 'rejected');
+
+return (
+<ErrorBoundary>
+<>
+<GlobalStyles />
+<div className="aurora-app">
+<main className="aurora-main full">
+<div className="aurora-prep-header">
+<div className="aurora-prep-brand">
+<div className="aurora-prep-icon"><Package size={17} /></div>
+<div>
+<div className="aurora-prep-title">التجهيز</div>
+<div className="aurora-prep-name">{currentUser.name}</div>
+</div>
+</div>
+<button onClick={onLogout} className="aurora-btn danger small">
+<LogOut size={13} /> خروج
+</button>
+</div>
+<div className="aurora-prep-counter">
+<span>طلبات بحاجة للتجهيز</span>
+<span className={`aurora-prep-count ${pending.length ? 'has' : ''}`}>{pending.length}</span>
+</div>
+<div className="aurora-prep-content">
+{loading && <div className="aurora-empty-state"><Package size={28} /><p>جارٍ التحميل...</p></div>}
+{!loading && pending.length === 0 && (
+<div className="aurora-empty-state success"><CheckCircle2 size={32} /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
+)}
+<div className="aurora-orders-grid">
+{pending.map((o, i) => (
+<div key={o.id} className="aurora-order-card prep" style={{ animationDelay: `${Math.min(i * 0.04, 0.4)}s` }}>
+<div className="aurora-order-strip" style={{ background: '#F59E0B' }} />
+<div className="aurora-prep-card-body">
+<div className="aurora-prep-card-head">
+<div className="aurora-prep-card-icon"><Package size={18} /></div>
+<div className="aurora-prep-card-info">
+<div className="aurora-prep-card-customer">{o.customer || 'زبون'} <span>#{o.orderNo}</span></div>
+<div className="aurora-prep-card-loc">{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
+</div>
+</div>
+{o.items && (
+<div className="aurora-prep-items">
+<div className="aurora-prep-items-label">المنتجات المطلوبة</div>
+<div>{o.items}</div>
+</div>
+)}
+{o.orderType && (
+<div className="aurora-prep-type">نوع الطلب: <span>{o.orderType}</span></div>
+)}
+{o.reprepNote && (
+<div className="aurora-prep-note">
+<div className="aurora-prep-note-title">⚠️ رسالة من المدير</div>
+<div>{o.reprepNote}</div>
+</div>
+)}
+<div className="aurora-prep-actions">
+<button onClick={() => markDone(o)} disabled={busyId === o.id} className="aurora-prep-btn done">
+<CheckCircle2 size={15} /> تم التجهيز
+</button>
+<button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id} className="aurora-prep-btn reject">
+<XCircle size={15} /> لم يتم
+</button>
+</div>
+</div>
+</div>
+))}
+</div>
+</div>
+</main>
+</div>
+{rejectTarget && (
+<div className="aurora-modal-overlay" onClick={() => !busyId && setRejectTarget(null)}>
+<div className="aurora-modal small" onClick={(e) => e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>لم يتم التجهيز</h3>
+<button onClick={() => setRejectTarget(null)}><X size={17} /></button>
+</div>
+<div className="aurora-modal-body">
+<div className="aurora-modal-sub">طلب #{rejectTarget.orderNo} — {rejectTarget.customer}</div>
+<div className="aurora-form-group">
+<label>السبب <span className="aurora-hint">(اختياري)</span></label>
+<textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+placeholder="مثال: المنتج غير متوفر" rows={3} />
+</div>
+<div className="aurora-modal-footer">
+<button onClick={() => setRejectTarget(null)} disabled={!!busyId} className="aurora-btn ghost">رجوع</button>
+<button onClick={confirmReject} disabled={!!busyId} className="aurora-btn danger">
+{busyId ? 'جارٍ الإرسال...' : 'تأكيد — لم يتم'}
+</button>
+</div>
+</div>
+</div>
+</div>
+)}
+</>
+</ErrorBoundary>
+);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ErrorBoundary
+// ══════════════════════════════════════════════════════════════
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(e) { return { error: e }; }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ padding: 30, background: '#0E1621', color: '#F5F5F5', minHeight: '100vh', fontFamily: 'Cairo, sans-serif', direction: 'rtl' }}>
-          <div style={{ background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', borderRadius: 12, padding: 20, maxWidth: 600, margin: '40px auto' }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#F25050', marginBottom: 12 }}>⚠️ خطأ في التطبيق</div>
-            <div style={{ fontSize: 13, color: '#F0A868', marginBottom: 8, fontFamily: 'monospace', direction: 'ltr' }}>
-              {this.state.error?.message}
-            </div>
-            <div style={{ fontSize: 11, color: '#546880', fontFamily: 'monospace', direction: 'ltr', whiteSpace: 'pre-wrap' }}>
-              {this.state.error?.stack?.slice(0, 500)}
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+constructor(props) { super(props); this.state = { error: null }; }
+static getDerivedStateFromError(e) { return { error: e }; }
+render() {
+if (this.state.error) {
+return (
+<div className="aurora-error-screen">
+<div className="aurora-error-card">
+<div className="aurora-error-title">⚠️ خطأ في التطبيق</div>
+<div className="aurora-error-msg">{this.state.error?.message}</div>
+<div className="aurora-error-stack">{this.state.error?.stack?.slice(0, 500)}</div>
+</div>
+</div>
+);
+}
+return this.props.children;
+}
 }
 
-export default function AlFhdApp() {
-  const [activeView, setActiveView] = useState('conversations');
-  const [pendingOpenConvId, setPendingOpenConvId] = useState(null);
-  const [pendingNewOrderFromConv, setPendingNewOrderFromConv] = useState(null);
-  const [pendingOpenOrderId, setPendingOpenOrderId] = useState(null);
-
-  const goToConversation = useCallback((convId) => {
-    setPendingOpenConvId(convId);
-    setActiveView('conversations');
-  }, []);
-
-  const goToNewOrderFromConversation = useCallback((conv) => {
-    setPendingNewOrderFromConv(conv);
-    setActiveView('orders');
-  }, []);
-
-  const goToOrderDetails = useCallback((order) => {
-    setPendingOpenOrderId(order.id);
-    setActiveView('orders');
-  }, []);
-
-
-  const [pages, setPages] = useState([]);
-  const [conversations, setConversations] = useState([]);
-  const [orders, setOrders] = useState([]);
-  // مركز الإشعارات: { id, type, title, body, orderNo, time, read }
-  const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  // مرجع حيّ لأحدث قيمة من orders — يحل مشكلة stale closure في refreshOrders
-  const ordersRef = React.useRef([]);
-  useEffect(() => { ordersRef.current = orders; }, [orders]);
-  // ── المخزن ──
-  const [warehouseProducts, setWarehouseProducts] = useState([]);
-  // مرجع حيّ لمنتجات المخزن — يمنع stale closure عند الاستدعاء من refreshOrders
-  const warehouseProductsRef = React.useRef([]);
-  const recordedSalesRef = React.useRef(null); // حماية ضد تسجيل بيعة المخزن مرتين
-  useEffect(() => { warehouseProductsRef.current = warehouseProducts; }, [warehouseProducts]);
-
-  // ── تسجيل بيعة في المخزن تلقائياً ──
-  async function recordWarehouseSale(order) {
-    try {
-      // حماية ضد التسجيل المزدوج: تحقق إن لم تُسجّل بيعة لهذا الطلب سابقاً
-      if (!recordedSalesRef.current) recordedSalesRef.current = new Set();
-      if (recordedSalesRef.current.has(order.id)) return;
-      recordedSalesRef.current.add(order.id);
-
-      // ابحث عن أفضل منتج مطابق
-      const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
-      if (!match) {
-        console.warn('⚠️ لم يُعثر على منتج مطابق في المخزن للطلب:', order.orderNo);
-        return;
-      }
-
-      const { product, confidence } = match;
-      // لا نخصم من المخزن إذا كانت الثقة منخفضة (قد يكون منتج خطأ)
-      if (confidence === 'low') {
-        console.warn('⚠️ ثقة المطابقة منخفضة — لن يُخصم من المخزن:', order.orderNo);
-        return;
-      }
-      console.log(`✅ مطابقة المخزن: ${product.car_name} (${PRODUCT_TYPE_LABELS[product.type]}) — ثقة: ${confidence}`);
-
-      // تسجيل البيعة في المخزن
-      await sbInsert('wh_sales', {
-        product_id:    product.id,
-        product_name:  `${product.car_name} — ${PRODUCT_TYPE_LABELS[product.type]}`,
-        quantity:      1,
-        price_iqd:     Number(order.total) || 0,
-        total_iqd:     Number(order.total) || 0,
-        customer_name: order.customer || '',
-        date:          new Date().toISOString().slice(0, 10),
-        notes:         `طلب #${order.orderNo} — مطابقة ${confidence === 'high' ? 'عالية' : confidence === 'medium' ? 'متوسطة' : 'منخفضة'}`,
-        created_at:    new Date().toISOString(),
-      });
-
-      // تخفيض الكمية من المخزن
-      const newQty = Math.max(0, (product.quantity || 0) - 1);
-      await sbUpdate('wh_products', product.id, { quantity: newQty });
-
-      // تحديث الـ state
-      setWarehouseProducts(prev => prev.map(p =>
-        p.id === product.id ? { ...p, quantity: newQty } : p
-      ));
-
-      console.log(`📦 مخزن: ${product.car_name} → ${product.quantity} → ${newQty}`);
-    } catch (e) {
-      console.error('warehouse sale error:', e);
-    }
-  }
-
-  // ── إرجاع بيعة للمخزن تلقائياً ──
-  async function returnToWarehouse(order) {
-    try {
-      const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
-      if (!match) return;
-
-      const { product } = match;
-      const newQty = (product.quantity || 0) + 1;
-      await sbUpdate('wh_products', product.id, { quantity: newQty });
-      setWarehouseProducts(prev => prev.map(p =>
-        p.id === product.id ? { ...p, quantity: newQty } : p
-      ));
-      console.log(`↩️ إرجاع للمخزن: ${product.car_name} → ${newQty}`);
-    } catch (e) {
-      console.error('warehouse return error:', e);
-    }
-  }
-  const [users, setUsers] = useState([]);
-  const [storageReady, setStorageReady] = useState(false);
-
-  // تحميل منتجات المخزن — بعد تعريف storageReady
-  useEffect(() => {
-    async function loadWarehouseProducts() {
-      try {
-        const res = await sbSelect('wh_products', wsFilter() + '&order=car_name.asc');
-        if (res) setWarehouseProducts(res);
-      } catch (e) { console.warn('warehouse load error:', e); }
-    }
-    if (storageReady) loadWarehouseProducts();
-  }, [storageReady]);
-
-  // ── حالة تسجيل الدخول ── يُستعاد فوراً من localStorage بدون انتظار Supabase
-  const [authedUser, setAuthedUser] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
-      if (saved?.userId && saved?.userData) return saved.userData;
-    } catch (_) {}
-    return null;
-  });
-  const [appLoading, setAppLoading] = useState(!(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session')));
-
-  // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
-  const convSignatureRef = React.useRef('');
-  // عبارات التحويل — تُستخدم هنا وفي ConversationsView
-  const HANDOFF_TRIGGERS_GLOBAL = [
-    'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
-    'transferred this chat', 'transfer this chat',
-    'Your AI agent transferred',
-    'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
-    'نحولك للموظف', 'تحويل المحادثة',
-    'handoff', 'hand off',
-  ];
-
-  const refreshConversations = useCallback(async () => {
-    try {
-      const dbConversations = await sbSelect(
-        'alfhd_conversations',
-        wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc'
-      );
-      if (dbConversations) {
-        const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
-        if (sig !== convSignatureRef.current) {
-          convSignatureRef.current = sig;
-          const mapped = dbConversations.map(mapConversationFromDb);
-          setConversations(mapped);
-
-          // ── كشف تحويل تلقائي من آخر رسالة ──
-          const toHandoff = mapped.filter((c) => {
-            if (c.tab === 'handoff') return false; // مكانه الصح أصلاً
-            const msg = (c.lastMsg || '').toLowerCase();
-            return HANDOFF_TRIGGERS_GLOBAL.some((t) => msg.includes(t.toLowerCase()));
-          });
-          if (toHandoff.length > 0) {
-            setConversations((prev) => prev.map((c) => (
-              toHandoff.find((h) => h.id === c.id) ? { ...c, tab: 'handoff' } : c
-            )));
-            // حفظ في قاعدة البيانات
-            toHandoff.forEach(async (c) => {
-              try { await sbUpdate('alfhd_conversations', c.id, { tab: 'handoff' }); } catch (_e) { /* تجاهل */ }
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Supabase conversations load error:', e);
-    }
-  }, []);
-
-  const knownOrderIdsRef = React.useRef(null);
-  const orderSignatureRef = React.useRef('');
-  const rejectedIdsRef = React.useRef(null);
-  // ── إضافة إشعار لمركز الإشعارات (مع صوت وإشعار متصفح) ──
-  const pushNotif = useCallback((notif) => {
-    const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      time: new Date().toISOString(),
-      read: false,
-      ...notif,
-    };
-    setNotifications((prev) => [entry, ...prev].slice(0, 50));
-    // صوت حسب النوع
-    try { notif.type === 'returned' ? playAlarmSound() : playNotificationSound(); } catch (_e) { /* تجاهل */ }
-    // إشعار المتصفح (إن كان مسموحاً)
-    try {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification(notif.title, { body: notif.body });
-      }
-    } catch (_e) { /* تجاهل */ }
-  }, []);
-
-  const refreshOrders = useCallback(async () => {
-    try {
-      const dbOrders = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc');
-      if (!dbOrders) return;
-      const mapped = dbOrders.map(mapOrderFromDb);
-      // كشف طلب جديد مثبّت من المحادثات لتشغيل صوت الإشعار
-      if (knownOrderIdsRef.current) {
-        const newChatOrder = mapped.find((o) => o.source === 'chat' && !knownOrderIdsRef.current.has(o.id));
-        if (newChatOrder) playNotificationSound();
-      }
-      knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
-
-      // كشف طلب رفضه المجهّز حديثاً — صوت إنذار + إشعار للمدير
-      const rejectedNow = new Set(mapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
-      if (rejectedIdsRef.current) {
-        const newlyRejectedOrders = mapped.filter((o) => o.prepStatus === 'rejected' && !rejectedIdsRef.current.has(o.id));
-        if (newlyRejectedOrders.length > 0) {
-          playAlarmSound();
-          for (const ro of newlyRejectedOrders) {
-            pushNotif({
-              type: 'returned',
-              title: '⚠️ طلب لم يُجهَّز',
-              body: `طلب #${ro.orderNo} — ${ro.customer || ''} — المجهّز: ${ro.prepByName || 'غير معروف'}${ro.prepReason ? ' — السبب: ' + ro.prepReason : ''}`,
-              orderNo: ro.orderNo,
-            });
-          }
-        }
-      }
-      rejectedIdsRef.current = rejectedNow;
-
-      // حدّث الحالة فقط إذا تغيّر شيء فعلاً
-      const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}:${o.jenni_sent}:${o.jenni_shipment_id}:${o.jenni_tracking}:${o.delivery_status}:${o.delivery_step}:${o.delivery_step_ar}:${o.delivery_note}:${o.delivery_updated_at}`).join('|');
-      if (sig !== orderSignatureRef.current) {
-        orderSignatureRef.current = sig;
-
-        // ── كشف التغييرات الجديدة في حالة التوصيل ──
-        const prevOrders = ordersRef.current;
-        for (const newOrder of mapped) {
-          const prev = prevOrders.find(o => o.id === newOrder.id);
-          if (!prev) continue;
-
-          const prevStatus = prev.deliveryStatus;
-          const newStatus  = newOrder.deliveryStatus;
-
-          // DELIVERED → تسجيل بيعة في المخزن وتخفيض الكمية
-          if (newStatus === 'DELIVERED' && prevStatus !== 'DELIVERED') {
-            console.log(`🎉 طلب #${newOrder.orderNo} مستلم — تسجيل في المخزن...`);
-            recordWarehouseSale(newOrder);
-            pushNotif({
-              type: 'delivered',
-              title: 'تم تسليم طلب 🎉',
-              body: `طلب #${newOrder.orderNo} — ${newOrder.customer || ''} (${Number(newOrder.total).toLocaleString()} د.ع)`,
-              orderNo: newOrder.orderNo,
-            });
-          }
-
-          // RETURNED → إرجاع للمخزن
-          if ((newStatus === 'RETURNED_TO_MERCHANT' || newStatus === 'returned') &&
-              prevStatus !== 'RETURNED_TO_MERCHANT' && prevStatus !== 'returned') {
-            console.log(`↩️ طلب #${newOrder.orderNo} راجع — إرجاع للمخزن...`);
-            returnToWarehouse(newOrder);
-            pushNotif({
-              type: 'returned',
-              title: '⚠️ طلب راجع — انتبه',
-              body: `طلب #${newOrder.orderNo} — ${newOrder.customer || ''}${newOrder.deliveryNote ? ' — ' + newOrder.deliveryNote : ''}`,
-              orderNo: newOrder.orderNo,
-            });
-          }
-        }
-
-        setOrders(mapped);
-      }
-    } catch (e) {
-      console.error('orders refresh error:', e);
-    }
-  }, [pushNotif]);
-
-  // طلب إذن إشعارات المتصفح مرة واحدة
-  useEffect(() => {
-    try {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        Notification.requestPermission().catch(() => {});
-      }
-    } catch (_e) { /* تجاهل */ }
-  }, []);
-
-  useEffect(() => {
-    if (!storageReady) return undefined;
-    let interval = null;
-    const start = () => {
-      if (interval) return;
-      interval = setInterval(() => {
-        if (!document.hidden) refreshOrders();
-      }, 12000);
-    };
-    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
-    start();
-    // أوقف عند إخفاء التبويب، واستأنف عند العودة مع تحديث فوري
-    const onVis = () => { if (document.hidden) stop(); else { refreshOrders(); start(); } };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
-  }, [storageReady, refreshOrders]);
-
-  // ── مزامنة حالة الشحنات من جيني تلقائياً (كل دقيقة) ──
-  // تجلب الحالة الفعلية وتنقل الطلبات لقسم "لدى شركة التوصيل" عند استلام المندوب
-  useEffect(() => {
-    if (!storageReady) return undefined;
-    const syncJenni = async () => {
-      if (document.hidden) return;
-      try {
-        await fetch(JENNI_SYNC_FUNCTION_URL, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
-          body: '{}',
-        });
-        // بعد المزامنة، حدّث الطلبات محلياً لإظهار الحالة الجديدة
-        await refreshOrders();
-      } catch (_e) { /* تجاهل، المحاولة القادمة ستعيد */ }
-    };
-    syncJenni(); // مزامنة فورية عند الفتح
-    let interval = setInterval(syncJenni, 60000); // كل دقيقة
-    const onVis = () => { if (!document.hidden) syncJenni(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVis); };
-  }, [storageReady, refreshOrders]);
-
-  // تحميل البيانات الحقيقية من Supabase (لا يمنع عرض الواجهة أبداً)
-  useEffect(() => {
-    (async () => {
-      try {
-        const [dbPages, dbOrders, dbUsers] = await Promise.all([
-          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at,workspace_id', wsFilter() + '&order=created_at.asc'),
-          sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc'),
-          sbSelect('alfhd_users', '&order=created_at.asc'),
-        ]);
-
-        if (dbPages?.length) setPages(dbPages.map(mapPageFromDb));
-        if (dbOrders?.length) setOrders(dbOrders.map(mapOrderFromDb));
-        if (dbUsers?.length) setUsers(dbUsers.map(mapUserFromDb));
-
-        await refreshConversations();
-      } catch (e) {
-        console.error('Supabase init load error:', e);
-      } finally {
-        setStorageReady(true);
-      }
-    })();
-  }, [refreshConversations]);
-
-  // سحب فعّال للرسائل الجديدة من فيسبوك مباشرة كل 7 ثواني طالما التطبيق مفتوح
-  // (يحدّث المحادثات أيضاً، فلا حاجة لمؤقّت منفصل)
-  const pollFacebookNow = useCallback(async () => {
-    try {
-      await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
-    } catch (e) {
-      console.error('active poll error:', e);
-    } finally {
-      refreshConversations();
-    }
-  }, [refreshConversations]);
-
-  useEffect(() => {
-    if (!storageReady) return undefined;
-    pollFacebookNow();
-    let interval = null;
-    const start = () => {
-      if (interval) return;
-      interval = setInterval(() => {
-        if (!document.hidden) pollFacebookNow();
-      }, 8000);
-    };
-    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
-    start();
-    const onVis = () => { if (document.hidden) stop(); else { pollFacebookNow(); start(); } };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
-  }, [storageReady, pollFacebookNow]);
-
-  // بعد تحميل Supabase: حدّث بيانات المستخدم المسجّل (صلاحيات جديدة إلخ) وأوقف شاشة التحميل
-  useEffect(() => {
-    if (!storageReady) return;
-    setAppLoading(false);
-    try {
-      const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
-      if (saved?.userId) {
-        const found = users.find((u) => u.id === saved.userId && u.active);
-        if (found) {
-          setCurrentWorkspace(found?.workspaceId || null);
-          setAuthedUser(found);
-          const store = localStorage.getItem('alfhd_session') ? localStorage : sessionStorage;
-          store.setItem('alfhd_session', JSON.stringify({ userId: found.id, userData: found }));
-        } else if (authedUser) {
-          // المستخدم محذوف أو معطّل في قاعدة البيانات
-          setAuthedUser(null);
-          localStorage.removeItem('alfhd_session');
-          sessionStorage.removeItem('alfhd_session');
-        }
-      }
-    } catch (e) { /* ignore */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageReady]);
-
-  const handleLogin = (user, rememberMe = true) => {
-    ensureAudioReady();
-    setCurrentWorkspace(user?.workspaceId || null); // عزل بيانات المساحة المستقلة
-    setAuthedUser(user);
-    setAppLoading(false);
-    try {
-      const payload = JSON.stringify({ userId: user.id, userData: user });
-      localStorage.removeItem('alfhd_session');
-      sessionStorage.removeItem('alfhd_session');
-      (rememberMe ? localStorage : sessionStorage).setItem('alfhd_session', payload);
-    } catch (e) { /* ignore */ }
-  };
-
-  const handleLogout = () => {
-    setAuthedUser(null);
-    try {
-      localStorage.removeItem('alfhd_session');
-      sessionStorage.removeItem('alfhd_session');
-    } catch (e) { /* ignore */ }
-  };
-
-  const hasPermission = (permId) => {
-    if (!authedUser) return false;
-    if (authedUser.role === 'admin') return true;
-    return authedUser.permissions?.includes(permId);
-  };
-
-  // فتح واتساب برقم عراقي منسّق
-  const contactWhatsApp = useCallback((rawPhone) => {
-    if (!rawPhone) { alert('لا يوجد رقم متاح'); return; }
-    let digits = String(rawPhone).replace(/[^0-9]/g, '');
-    if (digits.startsWith('00')) digits = digits.slice(2);
-    else if (digits.startsWith('0')) digits = '964' + digits.slice(1);
-    else if (!digits.startsWith('964')) digits = '964' + digits;
-    window.open(`https://wa.me/${digits}`, '_blank');
-  }, []);
-
-  // ── شاشة التحميل الأولية (تظهر فقط عند أول تشغيل بدون جلسة محفوظة) ──
-  if (appLoading && !authedUser) {
-    return (
-      <>
-        <GlobalStyles />
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080B14', flexDirection: 'column', gap: 16 }}>
-          <FahdLogo size={52} />
-          <div style={{ color: '#3B82F6', fontSize: 13, animation: 'spin 1s linear infinite', display: 'inline-block' }}>
-            <RefreshCw size={20} />
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // ── شاشة الدخول ──
-  if (!authedUser) {
-    return (
-      <>
-        <GlobalStyles />
-        <LoginScreen users={users} onLogin={handleLogin} />
-      </>
-    );
-  }
-
-  // ── واجهة موظف المخزن المبسطة (لا يرى بقية التطبيق) ──
-  // موظف التجهيز: واجهة مخصّصة (طلبات بدون سعر + تم/لم يتم)
-  if (authedUser.role === 'warehouse') {
-    return <PrepWorkerView currentUser={authedUser} onLogout={handleLogout} />;
-  }
-
-  return (
-    <ErrorBoundary>
-    <>
-      <GlobalStyles />
-      {/* ── جرس الإشعارات العائم (أسفل يمين — فوق شريط التنقل، لا يعارض شيء) ── */}
-      <div style={{ position: 'fixed', bottom: 76, right: 14, zIndex: 90 }} className="alfhd-no-print">
-        <button
-          onClick={() => {
-            setShowNotifications((v) => !v);
-            if (!showNotifications) setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-          }}
-          style={{
-            position: 'relative', width: 42, height: 42, borderRadius: '50%',
-            background: 'rgba(23,33,43,0.95)', border: '1px solid rgba(42,171,238,0.3)',
-            color: '#E7ECF3', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-            animation: notifications.some((n) => !n.read) ? 'alfhdBellGlow 1.6s var(--ease-tg) infinite' : 'none',
-            backdropFilter: 'blur(10px)',
-          }}
-          title="الإشعارات"
-        >
-          <Bell size={19} />
-          {notifications.some((n) => !n.read) && (
-            <span style={{
-              position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, padding: '0 4px',
-              borderRadius: 8, background: '#F25050', color: '#fff', fontSize: 10, fontWeight: 800,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{notifications.filter((n) => !n.read).length}</span>
-          )}
-        </button>
-
-        {showNotifications && (
-          <div style={{
-            position: 'absolute', bottom: 52, right: 0, width: 320, maxHeight: 420, overflowY: 'auto',
-            background: '#17212B', border: '1px solid rgba(42,171,238,0.25)', borderRadius: 14,
-            boxShadow: '0 12px 36px rgba(0,0,0,0.6)', padding: 8,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px 10px' }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#E7ECF3' }}>الإشعارات</span>
-              {notifications.length > 0 && (
-                <button onClick={() => setNotifications([])}
-                  style={{ fontSize: 11, color: '#546880', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  مسح الكل
-                </button>
-              )}
-            </div>
-            {notifications.length === 0 && (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: '#546880', fontSize: 12.5 }}>
-                لا إشعارات
-              </div>
-            )}
-            {notifications.map((n) => (
-              <div key={n.id} style={{
-                padding: '10px 12px', marginBottom: 5, borderRadius: 10,
-                background: n.type === 'returned' ? 'rgba(242,80,80,0.08)' : 'rgba(77,219,107,0.06)',
-                border: `1px solid ${n.type === 'returned' ? 'rgba(242,80,80,0.2)' : 'rgba(77,219,107,0.15)'}`,
-              }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: n.type === 'returned' ? '#F25050' : '#4DDB6B' }}>{n.title}</div>
-                <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3, lineHeight: 1.5 }}>{n.body}</div>
-                <div style={{ fontSize: 10, color: '#546880', marginTop: 3 }}>{new Date(n.time).toLocaleString('ar')}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={styles.appWrap} className="alfhd-app-wrap">
-        <Sidebar
-          activeView={activeView}
-          setActiveView={setActiveView}
-          onLogout={handleLogout}
-          currentUser={authedUser}
-          pages={pages}
-        />
-        <main
-          style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { overflow: 'hidden', display: 'flex', flexDirection: 'column' } : {}) }}
-          className={`alfhd-main-area${activeView === 'conversations' ? ' alfhd-main-conv' : ''}`}
-        >
-          {activeView === 'conversations' && (
-            <ConversationsView
-              conversations={conversations}
-              pages={pages}
-              orders={orders}
-              setConversations={setConversations}
-              pendingOpenConvId={pendingOpenConvId}
-              clearPendingOpenConvId={() => setPendingOpenConvId(null)}
-              onCreateOrderFromConv={goToNewOrderFromConversation}
-              onOpenOrderDetails={goToOrderDetails}
-            />
-          )}
-          {activeView === 'orders' && (
-            <OrdersView
-              orders={orders}
-              pages={pages}
-              setOrders={setOrders}
-              conversations={conversations}
-              setConversations={setConversations}
-              pendingOpenOrderId={pendingOpenOrderId}
-              clearPendingOpenOrderId={() => setPendingOpenOrderId(null)}
-              onViewConversation={goToConversation}
-              pendingNewOrderFromConv={pendingNewOrderFromConv}
-              clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
-              currentUser={authedUser}
-              warehouseProducts={warehouseProducts}
-            />
-          )}
-          {activeView === 'stats' && (
-            <StatsView orders={orders} pages={pages} conversations={conversations} setOrders={setOrders} />
-          )}
-          {activeView === 'users' && (authedUser.role === 'admin' || (authedUser.permissions || []).includes('users_manage')) && (
-            <AdminView
-              users={users}
-              setUsers={setUsers}
-              orders={orders}
-              conversations={conversations}
-              onViewConversation={goToConversation}
-              onContactWhatsApp={contactWhatsApp}
-            />
-          )}
-          {activeView === 'pages' && (
-            <PagesView pages={pages} setPages={setPages} />
-          )}
-          {activeView === 'warehouse' && (authedUser.role === 'admin' || authedUser.role === 'manager') && (
-            <WarehouseView />
-          )}
-        </main>
-      </div>
-    </>
-    </ErrorBoundary>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════
-// WarehouseView — نظام إدارة المخزن الكامل (مدمج في الموقع)
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// WarehouseView (نفس المنطق الأصلي)
+// ══════════════════════════════════════════════════════════════
 const WH_PRODUCT_TYPES = [
-  { id: 'mother_dosah', label: 'أم الدوسة', icon: '🪣', color: '#3B82F6' },
-  { id: 'rubble_hodi',  label: 'ربل حوضي',  icon: '📦', color: '#8B5CF6' },
-  { id: 'leather',      label: 'جلد',        icon: '✨', color: '#F59E0B' },
+{ id: 'mother_dosah', label: 'أم الدوسة', icon: '🪣', color: '#6366F1' },
+{ id: 'rubble_hodi', label: 'ربل حوضي', icon: '📦', color: '#8B5CF6' },
+{ id: 'leather', label: 'جلد', icon: '✨', color: '#F59E0B' },
 ];
 const WH_DEBT_TYPES = [
-  { id: 'supplier', label: 'موزع جملة', color: '#F45B69' },
-  { id: 'rent',     label: 'إيجار',     color: '#F0A868' },
-  { id: 'salary',   label: 'راتب',      color: '#A78BFA' },
-  { id: 'expense',  label: 'مصاريف',    color: '#60A5FA' },
-  { id: 'other',    label: 'أخرى',      color: '#546880' },
+{ id: 'supplier', label: 'موزع جملة', color: '#EF4444' },
+{ id: 'rent', label: 'إيجار', color: '#F59E0B' },
+{ id: 'salary', label: 'راتب', color: '#8B5CF6' },
+{ id: 'expense', label: 'مصاريف', color: '#06B6D4' },
+{ id: 'other', label: 'أخرى', color: '#64748B' },
 ];
 const LOW_STOCK = 3;
 function whFmt(n) { return `${(Number(n)||0).toLocaleString()} د.ع`; }
@@ -6876,1836 +3735,5836 @@ function whToday() { return new Date().toISOString().slice(0,10); }
 function whDaysUntil(d) { return d ? Math.ceil((new Date(d)-new Date())/86400000) : null; }
 
 function WhModal({ title, onClose, children }) {
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.72)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:16 }} onClick={onClose}>
-      <div style={{ background:'linear-gradient(145deg,#17212B,#1A2736)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:16, width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.7)' }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 18px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-          <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#F5F5F5' }}>{title}</h3>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'#546880', cursor:'pointer' }}><X size={18}/></button>
-        </div>
-        <div style={{ padding:'16px 18px' }}>{children}</div>
-      </div>
-    </div>
-  );
+return (
+<div className="aurora-modal-overlay" onClick={onClose}>
+<div className="aurora-modal" onClick={e=>e.stopPropagation()}>
+<div className="aurora-modal-header">
+<h3>{title}</h3>
+<button onClick={onClose}><X size={17}/></button>
+</div>
+<div className="aurora-modal-body">{children}</div>
+</div>
+</div>
+);
 }
 function WhField({ label, required, children }) {
-  return (
-    <div style={{ marginBottom:14 }}>
-      <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#8B9AB3', marginBottom:5 }}>{label}{required&&<span style={{color:'#F25050'}}> *</span>}</label>
-      {children}
-    </div>
-  );
+return (
+<div className="aurora-form-group">
+<label>{label}{required && <span className="aurora-required"> *</span>}</label>
+{children}
+</div>
+);
 }
-const whInp = { width:'100%', background:'#242F3D', border:'1px solid rgba(255,255,255,0.07)', borderRadius:9, color:'#F5F5F5', fontSize:13, padding:'9px 12px', outline:'none', boxSizing:'border-box', fontFamily:'Cairo,sans-serif' };
 
-// لوحة التحكم
 function WhDashboard({ products, sales, debts, suppliers }) {
-  const low = products.filter(p=>p.quantity<=LOW_STOCK);
-  const stockVal = products.reduce((s,p)=>s+(p.quantity*(p.cost_iqd||0)),0);
-  const todayRev = sales.filter(s=>s.date===whToday()).reduce((s,x)=>s+x.total_iqd,0);
-  const monthRev = sales.filter(s=>s.date?.slice(0,7)===whToday().slice(0,7)).reduce((s,x)=>s+x.total_iqd,0);
-  const totalDebt = debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
-  const urgent = debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7);
-  const stats = [
-    {l:'مبيعات اليوم', v:whFmt(todayRev), c:'#4DDB6B', I:TrendingUp},
-    {l:'مبيعات الشهر', v:whFmt(monthRev), c:'#2AABEE', I:BarChart3},
-    {l:'رصيد المخزن',  v:whFmt(stockVal), c:'#A78BFA', I:Warehouse},
-    {l:'إجمالي الديون',v:whFmt(totalDebt),c:'#F25050', I:CreditCard},
-    {l:'أصناف المنتجات',v:products.length, c:'#F0A868', I:Package},
-    {l:'موزعون',       v:suppliers.length, c:'#2AABEE', I:Truck},
-  ];
-  return (
-    <div>
-      {(low.length>0||urgent.length>0)&&(
-        <div style={{background:'rgba(242,80,80,0.06)',border:'1px solid rgba(242,80,80,0.25)',borderRadius:12,padding:14,marginBottom:16}}>
-          <div style={{color:'#F25050',fontWeight:800,marginBottom:8,display:'flex',alignItems:'center',gap:6}}><AlertCircle size={15}/>تنبيهات</div>
-          {low.length>0&&<div style={{fontSize:12,color:'#F0A868',marginBottom:4}}>⚠️ {low.length} منتج أقل من {LOW_STOCK} قطع: {low.slice(0,3).map(p=>p.car_name).join('، ')}</div>}
-          {urgent.length>0&&<div style={{fontSize:12,color:'#F25050'}}>🔴 {urgent.length} دين يستحق خلال 7 أيام</div>}
-        </div>
-      )}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:12,marginBottom:18}}>
-        {stats.map(s=>(
-          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:'13px 15px',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
-            <s.I size={18} color={s.c} style={{marginBottom:8}}/>
-            <div style={{fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-      {low.length>0&&(
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:13,padding:14,marginBottom:14}}>
-          <div style={{fontSize:13,fontWeight:800,color:'#F25050',marginBottom:10}}>منتجات تحتاج تزويد</div>
-          {low.map(p=>(
-            <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'rgba(242,80,80,0.06)',borderRadius:9,marginBottom:6,border:'1px solid rgba(242,80,80,0.15)'}}>
-              <div>
-                <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}</div>
-                {p.location&&<div style={{fontSize:11,color:'#546880'}}>📍 {p.location}</div>}
-              </div>
-              <div style={{fontSize:22,fontWeight:800,color:p.quantity===0?'#F25050':'#F0A868'}}>{p.quantity}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:14}}>
-        <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:10}}>آخر المبيعات</div>
-        {sales.slice(0,5).map(s=>(
-          <div key={s.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-            <div><div style={{fontSize:12.5,fontWeight:600,color:'#F5F5F5'}}>{s.product_name}</div><div style={{fontSize:11,color:'#546880'}}>{s.date} · {s.customer_name||'زبون'}</div></div>
-            <div style={{fontSize:13,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
-          </div>
-        ))}
-        {!sales.length&&<div style={{color:'#546880',fontSize:13,textAlign:'center',padding:20}}>لا توجد مبيعات بعد</div>}
-      </div>
-    </div>
-  );
+const low = products.filter(p=>p.quantity<=LOW_STOCK);
+const stockVal = products.reduce((s,p)=>s+(p.quantity*(p.cost_iqd||0)),0);
+const todayRev = sales.filter(s=>s.date===whToday()).reduce((s,x)=>s+x.total_iqd,0);
+const monthRev = sales.filter(s=>s.date?.slice(0,7)===whToday().slice(0,7)).reduce((s,x)=>s+x.total_iqd,0);
+const totalDebt = debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
+const urgent = debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7);
+const stats = [
+{l:'مبيعات اليوم', v:whFmt(todayRev), c:'#10B981', I:TrendingUp},
+{l:'مبيعات الشهر', v:whFmt(monthRev), c:'#06B6D4', I:BarChart3},
+{l:'رصيد المخزن', v:whFmt(stockVal), c:'#8B5CF6', I:Warehouse},
+{l:'إجمالي الديون', v:whFmt(totalDebt), c:'#EF4444', I:CreditCard},
+{l:'أصناف المنتجات', v:products.length, c:'#F59E0B', I:Package},
+{l:'موزعون', v:suppliers.length, c:'#06B6D4', I:Truck},
+];
+return (
+<div>
+{(low.length>0||urgent.length>0)&&(
+<div className="aurora-alert warn">
+<div className="aurora-alert-title"><AlertCircle size={14}/>تنبيهات</div>
+{low.length>0&&<div>⚠️ {low.length} منتج أقل من {LOW_STOCK} قطع: {low.slice(0,3).map(p=>p.car_name).join('، ')}</div>}
+{urgent.length>0&&<div>🔴 {urgent.length} دين يستحق خلال 7 أيام</div>}
+</div>
+)}
+<div className="aurora-wh-stats-grid">
+{stats.map(s=>(
+<div key={s.l} className="aurora-wh-stat" style={{ '--accent': s.c }}>
+<s.I size={17} />
+<div className="aurora-wh-stat-value">{s.v}</div>
+<div className="aurora-wh-stat-label">{s.l}</div>
+</div>
+))}
+</div>
+{low.length>0&&(
+<div className="aurora-wh-section danger">
+<div className="aurora-wh-section-title">منتجات تحتاج تزويد</div>
+{low.map(p=>(
+<div key={p.id} className="aurora-wh-low-item">
+<div>
+<div className="aurora-wh-low-name">{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}</div>
+{p.location&&<div className="aurora-wh-low-loc">📍 {p.location}</div>}
+</div>
+<div className={`aurora-wh-low-qty ${p.quantity===0?'zero':''}`}>{p.quantity}</div>
+</div>
+))}
+</div>
+)}
+<div className="aurora-wh-section">
+<div className="aurora-wh-section-title">آخر المبيعات</div>
+{sales.slice(0,5).map(s=>(
+<div key={s.id} className="aurora-wh-sale-row">
+<div>
+<div className="aurora-wh-sale-name">{s.product_name}</div>
+<div className="aurora-wh-sale-meta">{s.date} · {s.customer_name||'زبون'}</div>
+</div>
+<div className="aurora-wh-sale-total">{whFmt(s.total_iqd)}</div>
+</div>
+))}
+{!sales.length&&<div className="aurora-empty-state small">لا توجد مبيعات بعد</div>}
+</div>
+</div>
+);
 }
 
-// المنتجات
 function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
-  const [search,setSearch]=useState('');
-  const [type,setType]=useState('all');
-  const [modal,setModal]=useState(false);
-  const [carModal,setCarModal]=useState(false);
-  const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:'',image_url:''});
-  const [carForm,setCarForm]=useState({name:''});
-  const [saving,setSaving]=useState(false);
-  const [imgUploading,setImgUploading]=useState(false);
-  const [newCarMode,setNewCarMode]=useState(false);
-  const [whMenu,setWhMenu]=useState(false);
-  const [locSearchModal,setLocSearchModal]=useState(false);
-  const [locSearch,setLocSearch]=useState('');
-  const whImportRef=React.useRef(null);
-  const whMenuItem={display:'block',width:'100%',textAlign:'right',padding:'10px 12px',background:'transparent',border:'none',borderRadius:8,color:'#EAF0F7',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'};
-  const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
-  function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',branch:'',shelf:'',notes:'',image_url:''});setModal(true);}
-  function openEdit(p){
-    setEditing(p);setNewCarMode(false);
-    // فكّ الموقع المحفوظ "فرع X - رف Y" إلى حقلين
-    let branch='',shelf='';
-    const loc=p.location||'';
-    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
-    if(bm)branch=bm[1].trim();if(sm)shelf=sm[1].trim();
-    setForm({car_name:p.car_name||'',type:p.type||'mother_dosah',quantity:p.quantity||0,cost_iqd:p.cost_iqd||0,price_iqd:p.price_iqd||0,location:loc,branch,shelf,notes:p.notes||'',image_url:p.image_url||''});setModal(true);
-  }
-  // ضغط الصورة لـ base64 وتخزينها مع المنتج
-  function handlePickImage(e){
-    const file=e.target.files?.[0]; if(!file)return;
-    setImgUploading(true);
-    const reader=new FileReader();
-    reader.onload=()=>{
-      const img=new window.Image();
-      img.onload=()=>{
-        const canvas=document.createElement('canvas');
-        const max=600; let{width,height}=img;
-        if(width>height&&width>max){height=height*max/width;width=max;}
-        else if(height>max){width=width*max/height;height=max;}
-        canvas.width=width;canvas.height=height;
-        canvas.getContext('2d').drawImage(img,0,0,width,height);
-        setForm(f=>({...f,image_url:canvas.toDataURL('image/jpeg',0.7)}));
-        setImgUploading(false);
-      };
-      img.onerror=()=>{setImgUploading(false);alert('تعذّر قراءة الصورة');};
-      img.src=reader.result;
-    };
-    reader.onerror=()=>{setImgUploading(false);};
-    reader.readAsDataURL(file);
-  }
-  async function save(){
-    if(!form.car_name.trim()){alert('أدخل اسم السيارة');return;}
-    setSaving(true);
-    // أرسل الحقول الصالحة فقط (بدون id/created_at لتجنّب أخطاء التحديث)
-    const locClean=(form.branch||form.shelf)?`فرع ${form.branch||''} - رف ${form.shelf||''}`.trim():'';
-    const clean={car_name:form.car_name.trim(),type:form.type,quantity:Number(form.quantity)||0,cost_iqd:Number(form.cost_iqd)||0,price_iqd:Number(form.price_iqd)||0,location:locClean,notes:form.notes||'',image_url:form.image_url||''};
-    try{
-      if(editing){await sbU('wh_products',editing.id,clean);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...clean}:p));}
-      else{const r=await sbI('wh_products',{...clean,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
-      setModal(false);
-    }catch(e){alert('فشل الحفظ: '+e.message);}
-    setSaving(false);
-  }
-  async function addCar(){
-    if(!carForm.name.trim()){alert('أدخل اسم السيارة');return;}
-    setSaving(true);
-    try{
-      const prods=await Promise.all(WH_PRODUCT_TYPES.map(t=>sbI('wh_products',{car_name:carForm.name,type:t.id,quantity:0,cost_iqd:0,price_iqd:0,location:'',created_at:new Date().toISOString()})));
-      const added=prods.flatMap(r=>r||[]);
-      setProducts(prev=>[...added,...prev]);
-      setCars(prev=>[...new Set([...prev,carForm.name])]);
-      setCarModal(false);setCarForm({name:''});
-    }catch(e){alert('فشل: '+e.message);}
-    setSaving(false);
-  }
-  async function del(id){if(!confirm('حذف هذا المنتج؟'))return;try{await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}catch(e){alert('فشل الحذف: '+e.message+'\n\nقد تحتاج تفعيل صلاحية الحذف في قاعدة البيانات.');}}
-
-  // تصدير كل المنتجات كملف CSV
-  function exportProducts(){
-    if(products.length===0){alert('لا توجد منتجات للتصدير');return;}
-    const cols=['car_name','type','quantity','cost_iqd','price_iqd','location','notes'];
-    const header=['اسم السيارة','النوع','الكمية','التكلفة','السعر','الموقع','ملاحظات'];
-    const esc=(v)=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
-    const rows=products.map(p=>cols.map(c=>esc(p[c])).join(','));
-    const csv='\uFEFF'+[header.join(','),...rows].join('\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download=`منتجات-المخزن-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }
-
-  // استيراد منتجات من ملف CSV
-  async function importProducts(e){
-    const file=e.target.files?.[0]; if(!file)return;
-    const reader=new FileReader();
-    reader.onload=async()=>{
-      try{
-        const text=String(reader.result).replace(/^\uFEFF/,'');
-        const lines=text.split(/\r?\n/).filter(l=>l.trim());
-        if(lines.length<2){alert('الملف فارغ أو لا يحتوي بيانات');return;}
-        // تجاهل صف العناوين، استورد الباقي
-        const parseLine=(line)=>{const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===','&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out;};
-        const typeIds=WH_PRODUCT_TYPES.map(t=>t.id);
-        let added=0;
-        for(let i=1;i<lines.length;i++){
-          const c=parseLine(lines[i]);
-          if(!c[0]?.trim())continue;
-          const rec={car_name:c[0].trim(),type:typeIds.includes(c[1]?.trim())?c[1].trim():'mother_dosah',quantity:Number(c[2])||0,cost_iqd:Number(c[3])||0,price_iqd:Number(c[4])||0,location:c[5]||'',notes:c[6]||'',created_at:new Date().toISOString()};
-          const r=await sbI('wh_products',rec);
-          if(r?.[0]){setProducts(prev=>[r[0],...prev]);added++;}
-        }
-        alert(`✅ تم استيراد ${added} منتج بنجاح`);
-      }catch(err){alert('فشل الاستيراد: '+err.message);}
-    };
-    reader.readAsText(file);
-    e.target.value='';
-  }
-  return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المنتجات والمخزون</h3>
-        <div style={{display:'flex',gap:7}}>
-          <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            <Plus size={13}/> منتج جديد
-          </button>
-          {/* قائمة 3 نقاط: تصدير / استيراد / بحث عن موقع */}
-          <div style={{position:'relative'}}>
-            <button onClick={()=>setWhMenu(v=>!v)} style={{display:'flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontSize:18,fontWeight:900,lineHeight:1}}>⋮</button>
-            {whMenu&&(
-              <>
-                <div onClick={()=>setWhMenu(false)} style={{position:'fixed',inset:0,zIndex:40}}/>
-                <div style={{position:'absolute',top:42,left:0,zIndex:41,background:'#1A2234',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,minWidth:170,boxShadow:'0 12px 32px rgba(0,0,0,0.5)'}}>
-                  <button onClick={()=>{setWhMenu(false);setLocSearchModal(true);}} style={whMenuItem}>🔍 بحث عن موقع منتج</button>
-                  <button onClick={()=>{setWhMenu(false);exportProducts();}} style={whMenuItem}>📥 تصدير المنتجات</button>
-                  <button onClick={()=>{setWhMenu(false);whImportRef.current?.click();}} style={whMenuItem}>📤 استيراد المنتجات</button>
-                </div>
-              </>
-            )}
-          </div>
-          <input type="file" accept=".csv" ref={whImportRef} onChange={importProducts} style={{display:'none'}} />
-        </div>
-      </div>
-      <div style={{display:'flex',gap:7,marginBottom:12,flexWrap:'wrap'}}>
-        <div style={{position:'relative',flex:1,minWidth:160}}>
-          <Search size={13} style={{position:'absolute',right:9,top:'50%',transform:'translateY(-50%)',color:'#546880'}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." style={{...whInp,paddingRight:29}}/>
-        </div>
-        {[{id:'all',label:'الكل'},...WH_PRODUCT_TYPES].map(t=>(
-          <button key={t.id} onClick={()=>setType(t.id)} style={{padding:'6px 11px',borderRadius:18,border:`1px solid ${type===t.id?'#2AABEE':'rgba(255,255,255,0.07)'}`,background:type===t.id?'rgba(42,171,238,0.15)':'transparent',color:type===t.id?'#2AABEE':'#546880',fontSize:11.5,fontWeight:700,cursor:'pointer'}}>
-            {t.icon||''} {t.label}
-          </button>
-        ))}
-      </div>
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
-        {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#546880'}}>لا توجد منتجات</div>:
-        filtered.map((p,i)=>{
-          const t=WH_PRODUCT_TYPES.find(x=>x.id===p.type);
-          const isLow=p.quantity<=LOW_STOCK;
-          return(
-            <div key={p.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
-              {p.image_url
-                ? <img src={p.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:42,height:42,borderRadius:10,objectFit:'cover',flexShrink:0,border:'1px solid rgba(255,255,255,0.08)'}}/>
-                : <div style={{width:42,height:42,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{t?.icon}</div>}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{p.car_name}</div>
-                <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
-                  <span style={{fontSize:11,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding:'2px 7px',borderRadius:18}}>{t?.label}</span>
-                  {p.location&&<span style={{fontSize:11,color:'#546880'}}>📍 {p.location}</span>}
-                  {p.price_iqd>0
-                    ? <span style={{fontSize:11,color:'#546880'}}>~{whFmt(p.price_iqd)}</span>
-                    : <span style={{fontSize:11,color:'#546880'}}>السعر حسب الطلب</span>}
-                </div>
-              </div>
-              <div style={{textAlign:'center',minWidth:46}}>
-                <div style={{fontSize:20,fontWeight:800,color:isLow?'#F25050':'#4DDB6B'}}>{p.quantity}</div>
-                <div style={{fontSize:10,color:'#546880'}}>قطعة</div>
-                {isLow&&<div style={{fontSize:10,color:'#F25050',fontWeight:700}}>⚠️</div>}
-              </div>
-              <div style={{display:'flex',gap:5}}>
-                <button onClick={()=>openEdit(p)} style={{padding:7,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:8,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={13}/></button>
-                <button onClick={()=>del(p.id)} style={{padding:7,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:8,color:'#F25050',cursor:'pointer'}}><Trash2 size={13}/></button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {locSearchModal&&(
-        <WhModal title="بحث عن موقع منتج" onClose={()=>{setLocSearchModal(false);setLocSearch('');}}>
-          <WhField label="اسم المنتج">
-            <input value={locSearch} onChange={e=>setLocSearch(e.target.value)} placeholder="اكتب اسم المنتج..." style={whInp} autoFocus/>
-          </WhField>
-          <div style={{marginTop:10,maxHeight:320,overflowY:'auto',display:'flex',flexDirection:'column',gap:8}}>
-            {locSearch.trim().length<1
-              ? <div style={{textAlign:'center',color:'#546880',fontSize:12,padding:'20px 0'}}>اكتب اسم المنتج لعرض موقعه</div>
-              : (()=>{
-                  const res=products.filter(p=>p.car_name?.includes(locSearch.trim()));
-                  if(res.length===0)return <div style={{textAlign:'center',color:'#546880',fontSize:12,padding:'20px 0'}}>لا توجد نتائج</div>;
-                  return res.map(p=>{
-                    const loc=p.location||'';
-                    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
-                    const branch=bm?bm[1].trim():'—';const shelf=sm?sm[1].trim():'—';
-                    return(
-                      <div key={p.id} style={{padding:'11px 13px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:11}}>
-                        <div style={{fontSize:13.5,fontWeight:700,color:'#F5F5F5',marginBottom:6}}>{p.car_name}</div>
-                        <div style={{display:'flex',gap:8}}>
-                          <div style={{flex:1,background:'rgba(42,171,238,0.08)',borderRadius:8,padding:'7px 10px'}}>
-                            <div style={{fontSize:10,color:'#546880'}}>الفرع</div>
-                            <div style={{fontSize:14,fontWeight:800,color:'#2AABEE'}}>{branch}</div>
-                          </div>
-                          <div style={{flex:1,background:'rgba(240,168,104,0.08)',borderRadius:8,padding:'7px 10px'}}>
-                            <div style={{fontSize:10,color:'#546880'}}>الرف</div>
-                            <div style={{fontSize:14,fontWeight:800,color:'#F0A868'}}>{shelf}</div>
-                          </div>
-                          <div style={{textAlign:'center',padding:'7px 10px'}}>
-                            <div style={{fontSize:10,color:'#546880'}}>الكمية</div>
-                            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{p.quantity}</div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-          </div>
-          <button onClick={()=>{setLocSearchModal(false);setLocSearch('');}} style={{width:'100%',marginTop:12,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إغلاق</button>
-        </WhModal>
-      )}
-      {modal&&(
-        <WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
-          <WhField label="اسم المنتج" required>
-            <input value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} placeholder="اكتب اسم المنتج" style={whInp}/>
-          </WhField>
-          <WhField label="نوع المنتج" required>
-            <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
-              {WH_PRODUCT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
-          </WhField>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الكمية"><input type="number" value={form.quantity||''} placeholder="0" onChange={e=>setForm(f=>({...f,quantity:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd||''} placeholder="0" onChange={e=>setForm(f=>({...f,cost_iqd:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="سعر البيع التقديري (اختياري)"><input type="number" value={form.price_iqd||''} placeholder="يُحدَّد من الطلب" onChange={e=>setForm(f=>({...f,price_iqd:e.target.value===''?0:Number(e.target.value)}))} style={whInp}/></WhField>
-            <WhField label="موقع المخزن">
-              <div style={{display:'flex',gap:7}}>
-                <input value={form.branch||''} onChange={e=>setForm(f=>({...f,branch:e.target.value,location:`فرع ${e.target.value||''} - رف ${f.shelf||''}`.trim()}))} placeholder="الفرع: A" style={{...whInp,flex:1}}/>
-                <input value={form.shelf||''} onChange={e=>setForm(f=>({...f,shelf:e.target.value,location:`فرع ${f.branch||''} - رف ${e.target.value||''}`.trim()}))} placeholder="الرف: 350" style={{...whInp,flex:1}}/>
-              </div>
-            </WhField>
-          </div>
-          <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
-          <WhField label="صورة المنتج">
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              {form.image_url?(
-                <div style={{position:'relative'}}>
-                  <img src={form.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:60,height:60,borderRadius:10,objectFit:'cover',border:'1px solid rgba(255,255,255,0.1)'}}/>
-                  <button onClick={()=>setForm(f=>({...f,image_url:''}))} style={{position:'absolute',top:-6,left:-6,width:20,height:20,borderRadius:'50%',background:'#F25050',border:'none',color:'#fff',fontSize:12,cursor:'pointer',lineHeight:1}}>×</button>
-                </div>
-              ):(
-                <div style={{width:60,height:60,borderRadius:10,background:'rgba(255,255,255,0.04)',border:'1px dashed rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <Image size={20} color="#546880"/>
-                </div>
-              )}
-              <label style={{padding:'8px 14px',background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.3)',borderRadius:9,color:'#2AABEE',fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                {imgUploading?'جارٍ المعالجة...':(form.image_url?'تغيير الصورة':'اختر صورة')}
-                <input type="file" accept="image/*" onChange={handlePickImage} style={{display:'none'}}/>
-              </label>
-            </div>
-          </WhField>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
-          </div>
-        </WhModal>
-      )}
-      {carModal&&(
-        <WhModal title="إضافة سيارة جديدة" onClose={()=>setCarModal(false)}>
-          <div style={{background:'rgba(42,171,238,0.07)',border:'1px solid rgba(42,171,238,0.18)',borderRadius:9,padding:11,marginBottom:13,fontSize:12,color:'#2AABEE'}}>
-            سيتم إضافة الأنواع الثلاثة (أم الدوسة، ربل حوضي، جلد) تلقائياً
-          </div>
-          <WhField label="اسم السيارة" required>
-            <input value={carForm.name} onChange={e=>setCarForm({name:e.target.value})} placeholder="مثال: تويوتا كامري 2022" style={whInp}/>
-          </WhField>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setCarModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={addCar} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الإضافة...':'✨ إضافة للأنواع الثلاثة'}</button>
-          </div>
-        </WhModal>
-      )}
-    </div>
-  );
+const [search,setSearch]=useState('');
+const [type,setType]=useState('all');
+const [modal,setModal]=useState(false);
+const [carModal,setCarModal]=useState(false);
+const [editing,setEditing]=useState(null);
+const [form,setForm]=useState({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});
+const [carForm,setCarForm]=useState({name:''});
+const [saving,setSaving]=useState(false);
+const filtered = products.filter(p=>(type==='all'||p.type===type)&&(!search||p.car_name?.includes(search)||p.location?.includes(search)));
+function openNew(){setEditing(null);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',notes:''});setModal(true);}
+function openEdit(p){setEditing(p);setForm({...p});setModal(true);}
+async function save(){
+if(!form.car_name.trim()){alert('أدخل اسم السيارة');return;}
+setSaving(true);
+try{
+if(editing){await sbU('wh_products',editing.id,form);setProducts(prev=>prev.map(p=>p.id===editing.id?{...p,...form}:p));}
+else{const r=await sbI('wh_products',{...form,created_at:new Date().toISOString()});if(r?.[0])setProducts(prev=>[r[0],...prev]);}
+setModal(false);
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+async function addCar(){
+if(!carForm.name.trim()){alert('أدخل اسم السيارة');return;}
+setSaving(true);
+try{
+const prods=await Promise.all(WH_PRODUCT_TYPES.map(t=>sbI('wh_products',{car_name:carForm.name,type:t.id,quantity:0,cost_iqd:0,price_iqd:0,location:'',created_at:new Date().toISOString()})));
+const added=prods.flatMap(r=>r||[]);
+setProducts(prev=>[...added,...prev]);
+setCars(prev=>[...new Set([...prev,carForm.name])]);
+setCarModal(false);setCarForm({name:''});
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+async function del(id){if(!confirm('حذف هذا المنتج؟'))return;await sbD('wh_products',id);setProducts(prev=>prev.filter(p=>p.id!==id));}
+return (
+<div>
+<div className="aurora-wh-header">
+<h3>المنتجات والمخزون</h3>
+<div className="aurora-wh-header-actions">
+<button onClick={()=>setCarModal(true)} className="aurora-btn ghost small"><Plus size={12}/> إضافة سيارة</button>
+<button onClick={openNew} className="aurora-btn primary small"><Plus size={12}/> منتج جديد</button>
+</div>
+</div>
+<div className="aurora-wh-filters">
+<div className="aurora-search-box flex">
+<Search size={12} />
+<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." />
+</div>
+{[{id:'all',label:'الكل'},...WH_PRODUCT_TYPES].map(t=>(
+<button key={t.id} onClick={()=>setType(t.id)} className={`aurora-wh-type-chip ${type===t.id?'active':''}`}>
+{t.icon||''} {t.label}
+</button>
+))}
+</div>
+<div className="aurora-wh-list">
+{filtered.length===0?<div className="aurora-empty-state small">لا توجد منتجات</div>:
+filtered.map((p,i)=>{
+const t=WH_PRODUCT_TYPES.find(x=>x.id===p.type);
+const isLow=p.quantity<=LOW_STOCK;
+return(
+<div key={p.id} className="aurora-wh-product-row">
+<div className="aurora-wh-product-icon" style={{ background: `${t?.color||'#6366F1'}20`, color: t?.color }}>{t?.icon}</div>
+<div className="aurora-wh-product-info">
+<div className="aurora-wh-product-name">{p.car_name}</div>
+<div className="aurora-wh-product-tags">
+<span className="aurora-wh-product-tag" style={{ color: t?.color, background: `${t?.color||'#6366F1'}15` }}>{t?.label}</span>
+{p.location&&<span className="aurora-wh-product-loc">📍 {p.location}</span>}
+{p.price_iqd>0&&<span className="aurora-wh-product-price">{whFmt(p.price_iqd)}</span>}
+</div>
+</div>
+<div className="aurora-wh-product-qty-wrap">
+<div className={`aurora-wh-product-qty ${isLow?'low':''}`}>{p.quantity}</div>
+<div className="aurora-wh-product-qty-label">قطعة</div>
+{isLow&&<div className="aurora-wh-product-qty-warn">⚠️</div>}
+</div>
+<div className="aurora-wh-product-actions">
+<button onClick={()=>openEdit(p)} className="aurora-icon-btn"><Edit3 size={12}/></button>
+<button onClick={()=>del(p.id)} className="aurora-icon-btn danger"><Trash2 size={12}/></button>
+</div>
+</div>
+);
+})}
+</div>
+{modal&&(
+<WhModal title={editing?'تعديل منتج':'إضافة منتج'} onClose={()=>setModal(false)}>
+<WhField label="اسم السيارة" required>
+<select value={form.car_name} onChange={e=>setForm(f=>({...f,car_name:e.target.value}))}>
+<option value="">اختر سيارة...</option>
+{cars.map(c=><option key={c} value={c}>{c}</option>)}
+<option value="__new__">+ اكتب اسم جديد</option>
+</select>
+{form.car_name==='__new__'&&<input placeholder="اسم السيارة الجديدة" onChange={e=>setForm(f=>({...f,car_name:e.target.value}))} style={{marginTop:6}}/>}
+</WhField>
+<WhField label="نوع المنتج" required>
+<select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
+{WH_PRODUCT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+</select>
+</WhField>
+<div className="aurora-grid-2">
+<WhField label="الكمية"><input type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} /></WhField>
+<WhField label="سعر الشراء (د.ع)"><input type="number" value={form.cost_iqd} onChange={e=>setForm(f=>({...f,cost_iqd:Number(e.target.value)}))} /></WhField>
+<WhField label="سعر البيع (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} /></WhField>
+<WhField label="موقع المخزن"><input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="فرع A، رف 350" /></WhField>
+</div>
+<WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} /></WhField>
+<div className="aurora-modal-footer">
+<button onClick={()=>setModal(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={save} disabled={saving} className="aurora-btn primary">{saving?'جارٍ الحفظ...':'حفظ'}</button>
+</div>
+</WhModal>
+)}
+{carModal&&(
+<WhModal title="إضافة سيارة جديدة" onClose={()=>setCarModal(false)}>
+<div className="aurora-info-box">
+سيتم إضافة الأنواع الثلاثة (أم الدوسة، ربل حوضي، جلد) تلقائياً
+</div>
+<WhField label="اسم السيارة" required>
+<input value={carForm.name} onChange={e=>setCarForm({name:e.target.value})} placeholder="مثال: تويوتا كامري 2022" />
+</WhField>
+<div className="aurora-modal-footer">
+<button onClick={()=>setCarModal(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={addCar} disabled={saving} className="aurora-btn primary">{saving?'جارٍ الإضافة...':'✨ إضافة للأنواع الثلاثة'}</button>
+</div>
+</WhModal>
+)}
+</div>
+);
 }
 
-// المبيعات
 function WhSales({ sales, setSales, products, sbI }) {
-  const [period,setPeriod]=useState('month');
-  const [modal,setModal]=useState(false);
-  const [form,setForm]=useState({product_id:'',product_name:'',quantity:1,price_iqd:0,total_iqd:0,customer_name:'',date:whToday(),notes:''});
-  const [saving,setSaving]=useState(false);
-  const now=new Date();
-  const filtered=useMemo(()=>sales.filter(s=>{
-    const d=new Date(s.date);
-    if(period==='today')return s.date===whToday();
-    if(period==='week')return(now-d)/86400000<=7;
-    if(period==='month')return s.date?.slice(0,7)===whToday().slice(0,7);
-    if(period==='year')return s.date?.slice(0,4)===whToday().slice(0,4);
-    return true;
-  }),[sales,period]);
-  const rev=filtered.reduce((s,x)=>s+x.total_iqd,0);
-  async function save(){
-    if(!form.product_name||!form.price_iqd){alert('أدخل المنتج والسعر');return;}
-    setSaving(true);
-    try{
-      const d={...form,total_iqd:form.price_iqd*form.quantity,created_at:new Date().toISOString()};
-      const r=await sbI('wh_sales',d);
-      if(r?.[0])setSales(prev=>[r[0],...prev]);
-      setModal(false);
-    }catch(e){alert('فشل: '+e.message);}
-    setSaving(false);
-  }
-  return(
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المبيعات</h3>
-        <button onClick={()=>setModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> تسجيل بيعة</button>
-      </div>
-      <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
-        {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
-          <button key={v} onClick={()=>setPeriod(v)} style={{padding:'6px 12px',borderRadius:18,border:`1px solid ${period===v?'#4DDB6B':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(77,219,107,0.14)':'transparent',color:period===v?'#4DDB6B':'#546880',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
-        ))}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:14}}>
-        {[{l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B'},{l:'عدد الصفقات',v:filtered.length,c:'#2AABEE'},{l:'قطع مباعة',v:filtered.reduce((s,x)=>s+x.quantity,0),c:'#A78BFA'}].map(s=>(
-          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
-            <div style={{fontSize:18,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
-        {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#546880'}}>لا توجد مبيعات</div>:
-        filtered.map((s,i)=>(
-          <div key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
-            <div>
-              <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{s.product_name}</div>
-              <div style={{fontSize:11,color:'#546880',marginTop:2}}>{s.date} · {s.customer_name||'زبون'} · {s.quantity} قطعة</div>
-            </div>
-            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
-          </div>
-        ))}
-      </div>
-      {modal&&(
-        <WhModal title="تسجيل بيعة جديدة" onClose={()=>setModal(false)}>
-          <WhField label="المنتج" required>
-            <select value={form.product_id} onChange={e=>{const p=products.find(x=>x.id===e.target.value);setForm(f=>({...f,product_id:e.target.value,product_name:p?`${p.car_name} — ${WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}`:'',price_iqd:p?.price_iqd||0}));}} style={whInp}>
-              <option value="">اختر منتج</option>
-              {products.map(p=><option key={p.id} value={p.id}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label} ({p.quantity} قطعة)</option>)}
-            </select>
-          </WhField>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)||0}))} style={whInp}/></WhField>
-            <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
-          </div>
-          <div style={{background:'rgba(77,219,107,0.07)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,padding:'10px 13px',marginBottom:12,fontSize:16,fontWeight:800,color:'#4DDB6B'}}>{whFmt(form.price_iqd*form.quantity)}</div>
-          <WhField label="اسم الزبون"><input value={form.customer_name} onChange={e=>setForm(f=>({...f,customer_name:e.target.value}))} placeholder="اختياري" style={whInp}/></WhField>
-          <WhField label="التاريخ"><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ البيعة'}</button>
-          </div>
-        </WhModal>
-      )}
-    </div>
-  );
+const [period,setPeriod]=useState('month');
+const [modal,setModal]=useState(false);
+const [form,setForm]=useState({product_id:'',product_name:'',quantity:1,price_iqd:0,total_iqd:0,customer_name:'',date:whToday(),notes:''});
+const [saving,setSaving]=useState(false);
+const now=new Date();
+const filtered=useMemo(()=>sales.filter(s=>{
+const d=new Date(s.date);
+if(period==='today')return s.date===whToday();
+if(period==='week')return(now-d)/86400000<=7;
+if(period==='month')return s.date?.slice(0,7)===whToday().slice(0,7);
+if(period==='year')return s.date?.slice(0,4)===whToday().slice(0,4);
+return true;
+}),[sales,period]);
+const rev=filtered.reduce((s,x)=>s+x.total_iqd,0);
+async function save(){
+if(!form.product_name||!form.price_iqd){alert('أدخل المنتج والسعر');return;}
+setSaving(true);
+try{
+const d={...form,total_iqd:form.price_iqd*form.quantity,created_at:new Date().toISOString()};
+const r=await sbI('wh_sales',d);
+if(r?.[0])setSales(prev=>[r[0],...prev]);
+setModal(false);
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+return(
+<div>
+<div className="aurora-wh-header">
+<h3>المبيعات</h3>
+<button onClick={()=>setModal(true)} className="aurora-btn success small"><Plus size={12}/> تسجيل بيعة</button>
+</div>
+<div className="aurora-wh-period-chips">
+{[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
+<button key={v} onClick={()=>setPeriod(v)} className={`aurora-wh-period-chip ${period===v?'active':''}`}>{l}</button>
+))}
+</div>
+<div className="aurora-wh-stats-grid small">
+{[{l:'الإيرادات',v:whFmt(rev),c:'#10B981'},{l:'عدد الصفقات',v:filtered.length,c:'#06B6D4'},{l:'قطع مباعة',v:filtered.reduce((s,x)=>s+x.quantity,0),c:'#8B5CF6'}].map(s=>(
+<div key={s.l} className="aurora-wh-stat small" style={{ '--accent': s.c }}>
+<div className="aurora-wh-stat-value">{s.v}</div>
+<div className="aurora-wh-stat-label">{s.l}</div>
+</div>
+))}
+</div>
+<div className="aurora-wh-list">
+{filtered.length===0?<div className="aurora-empty-state small">لا توجد مبيعات</div>:
+filtered.map((s,i)=>(
+<div key={s.id} className="aurora-wh-sale-row">
+<div>
+<div className="aurora-wh-sale-name">{s.product_name}</div>
+<div className="aurora-wh-sale-meta">{s.date} · {s.customer_name||'زبون'} · {s.quantity} قطعة</div>
+</div>
+<div className="aurora-wh-sale-total">{whFmt(s.total_iqd)}</div>
+</div>
+))}
+</div>
+{modal&&(
+<WhModal title="تسجيل بيعة جديدة" onClose={()=>setModal(false)}>
+<WhField label="المنتج" required>
+<select value={form.product_id} onChange={e=>{const p=products.find(x=>x.id===e.target.value);setForm(f=>({...f,product_id:e.target.value,product_name:p?`${p.car_name} — ${WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}`:'',price_iqd:p?.price_iqd||0}));}}>
+<option value="">اختر منتج</option>
+{products.map(p=><option key={p.id} value={p.id}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label} ({p.quantity} قطعة)</option>)}
+</select>
+</WhField>
+<div className="aurora-grid-2">
+<WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)}))} /></WhField>
+<WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)}))} /></WhField>
+</div>
+<div className="aurora-wh-total-preview">{whFmt(form.price_iqd*form.quantity)}</div>
+<WhField label="اسم الزبون"><input value={form.customer_name} onChange={e=>setForm(f=>({...f,customer_name:e.target.value}))} placeholder="اختياري" /></WhField>
+<WhField label="التاريخ"><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} /></WhField>
+<div className="aurora-modal-footer">
+<button onClick={()=>setModal(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={save} disabled={saving} className="aurora-btn success">{saving?'جارٍ الحفظ...':'حفظ البيعة'}</button>
+</div>
+</WhModal>
+)}
+</div>
+);
 }
 
-// الموزعون
 function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
-  const [modal,setModal]=useState(false);
-  const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({name:'',phone:'',address:'',available_products:'',notes:''});
-  const [saving,setSaving]=useState(false);
-  function openNew(){setEditing(null);setForm({name:'',phone:'',address:'',available_products:'',notes:''});setModal(true);}
-  function openEdit(s){setEditing(s);setForm({...s});setModal(true);}
-  async function save(){
-    if(!form.name.trim()){alert('أدخل اسم الموزع');return;}
-    setSaving(true);
-    try{
-      if(editing){await sbU('wh_suppliers',editing.id,form);setSuppliers(prev=>prev.map(s=>s.id===editing.id?{...s,...form}:s));}
-      else{const r=await sbI('wh_suppliers',{...form,created_at:new Date().toISOString()});if(r?.[0])setSuppliers(prev=>[r[0],...prev]);}
-      setModal(false);
-    }catch(e){alert('فشل: '+e.message);}
-    setSaving(false);
-  }
-  async function del(id){if(!confirm('حذف هذا الموزع؟'))return;await sbD('wh_suppliers',id);setSuppliers(prev=>prev.filter(s=>s.id!==id));}
-  return(
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>موزعو الجملة</h3>
-        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موزع جديد</button>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:13}}>
-        {suppliers.map(s=>(
-          <div key={s.id} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:15,position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,right:0,left:0,height:3,background:'linear-gradient(90deg,transparent,#2AABEE,transparent)',opacity:0.7}}/>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:'#F5F5F5'}}>{s.name}</div>
-                {s.phone&&<div style={{fontSize:12,color:'#2AABEE',marginTop:3}}>📞 {s.phone}</div>}
-                {s.address&&<div style={{fontSize:12,color:'#546880',marginTop:2}}>📍 {s.address}</div>}
-              </div>
-              <div style={{display:'flex',gap:5}}>
-                <button onClick={()=>openEdit(s)} style={{padding:6,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
-                <button onClick={()=>del(s.id)} style={{padding:6,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
-              </div>
-            </div>
-            {s.available_products&&(
-              <div style={{background:'rgba(42,171,238,0.06)',border:'1px solid rgba(42,171,238,0.12)',borderRadius:8,padding:'8px 10px'}}>
-                <div style={{fontSize:10.5,color:'#2AABEE',fontWeight:700,marginBottom:3}}>المتوفر عنده:</div>
-                <div style={{fontSize:12,color:'#8B9AB3'}}>{s.available_products}</div>
-              </div>
-            )}
-            {s.notes&&<div style={{fontSize:11.5,color:'#546880',marginTop:8}}>📝 {s.notes}</div>}
-          </div>
-        ))}
-        {!suppliers.length&&<div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#546880'}}>لا يوجد موزعون بعد</div>}
-      </div>
-      {modal&&(
-        <WhModal title={editing?'تعديل موزع':'إضافة موزع جديد'} onClose={()=>setModal(false)}>
-          <WhField label="اسم الموزع" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
-          <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} placeholder="07XXXXXXXXX" style={whInp}/></WhField>
-          <WhField label="العنوان"><input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} style={whInp}/></WhField>
-          <WhField label="المنتجات المتوفرة عنده"><textarea value={form.available_products} onChange={e=>setForm(f=>({...f,available_products:e.target.value}))} placeholder="كامري 2020 جلد، لاندكروزر ربل..." style={{...whInp,minHeight:65,resize:'vertical'}}/></WhField>
-          <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
-          </div>
-        </WhModal>
-      )}
-    </div>
-  );
+const [modal,setModal]=useState(false);
+const [editing,setEditing]=useState(null);
+const [form,setForm]=useState({name:'',phone:'',address:'',available_products:'',notes:''});
+const [saving,setSaving]=useState(false);
+function openNew(){setEditing(null);setForm({name:'',phone:'',address:'',available_products:'',notes:''});setModal(true);}
+function openEdit(s){setEditing(s);setForm({...s});setModal(true);}
+async function save(){
+if(!form.name.trim()){alert('أدخل اسم الموزع');return;}
+setSaving(true);
+try{
+if(editing){await sbU('wh_suppliers',editing.id,form);setSuppliers(prev=>prev.map(s=>s.id===editing.id?{...s,...form}:s));}
+else{const r=await sbI('wh_suppliers',{...form,created_at:new Date().toISOString()});if(r?.[0])setSuppliers(prev=>[r[0],...prev]);}
+setModal(false);
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+async function del(id){if(!confirm('حذف هذا الموزع؟'))return;await sbD('wh_suppliers',id);setSuppliers(prev=>prev.filter(s=>s.id!==id));}
+return(
+<div>
+<div className="aurora-wh-header">
+<h3>موزعو الجملة</h3>
+<button onClick={openNew} className="aurora-btn primary small"><Plus size={12}/> موزع جديد</button>
+</div>
+<div className="aurora-wh-suppliers-grid">
+{suppliers.map(s=>(
+<div key={s.id} className="aurora-wh-supplier-card">
+<div className="aurora-wh-supplier-top" />
+<div className="aurora-wh-supplier-head">
+<div>
+<div className="aurora-wh-supplier-name">{s.name}</div>
+{s.phone&&<div className="aurora-wh-supplier-phone">📞 {s.phone}</div>}
+{s.address&&<div className="aurora-wh-supplier-addr">📍 {s.address}</div>}
+</div>
+<div className="aurora-wh-supplier-actions">
+<button onClick={()=>openEdit(s)} className="aurora-icon-btn"><Edit3 size={11}/></button>
+<button onClick={()=>del(s.id)} className="aurora-icon-btn danger"><Trash2 size={11}/></button>
+</div>
+</div>
+{s.available_products&&(
+<div className="aurora-wh-supplier-products">
+<div className="aurora-wh-supplier-products-title">المتوفر عنده:</div>
+<div>{s.available_products}</div>
+</div>
+)}
+{s.notes&&<div className="aurora-wh-supplier-notes">📝 {s.notes}</div>}
+</div>
+))}
+{!suppliers.length&&<div className="aurora-empty-state small">لا يوجد موزعون بعد</div>}
+</div>
+{modal&&(
+<WhModal title={editing?'تعديل موزع':'إضافة موزع جديد'} onClose={()=>setModal(false)}>
+<WhField label="اسم الموزع" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} /></WhField>
+<WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="07XXXXXXXXX" /></WhField>
+<WhField label="العنوان"><input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} /></WhField>
+<WhField label="المنتجات المتوفرة عنده"><textarea value={form.available_products} onChange={e=>setForm(f=>({...f,available_products:e.target.value}))} placeholder="كامري 2020 جلد، لاندكروزر ربل..." /></WhField>
+<WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} /></WhField>
+<div className="aurora-modal-footer">
+<button onClick={()=>setModal(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={save} disabled={saving} className="aurora-btn primary">{saving?'جارٍ الحفظ...':'حفظ'}</button>
+</div>
+</WhModal>
+)}
+</div>
+);
 }
 
-// الديون
 function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
-  const [modal,setModal]=useState(false);
-  const [filter,setFilter]=useState('unpaid');
-  const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({name:'',type:'supplier',amount_iqd:0,due_date:'',status:'unpaid',notes:''});
-  const [saving,setSaving]=useState(false);
-  const filtered=filter==='all'?debts:debts.filter(d=>d.status===filter);
-  const totalUnpaid=debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
-  function openNew(){setEditing(null);setForm({name:'',type:'supplier',amount_iqd:0,due_date:'',status:'unpaid',notes:''});setModal(true);}
-  function openEdit(d){setEditing(d);setForm({...d});setModal(true);}
-  async function save(){
-    if(!form.name.trim()||!form.amount_iqd){alert('أدخل الاسم والمبلغ');return;}
-    setSaving(true);
-    try{
-      if(editing){await sbU('wh_debts',editing.id,form);setDebts(prev=>prev.map(d=>d.id===editing.id?{...d,...form}:d));}
-      else{const r=await sbI('wh_debts',{...form,created_at:new Date().toISOString()});if(r?.[0])setDebts(prev=>[r[0],...prev]);}
-      setModal(false);
-    }catch(e){alert('فشل: '+e.message);}
-    setSaving(false);
-  }
-  async function markPaid(id){await sbU('wh_debts',id,{status:'paid',paid_at:new Date().toISOString()});setDebts(prev=>prev.map(d=>d.id===id?{...d,status:'paid'}:d));}
-  async function del(id){if(!confirm('حذف هذا الدين؟'))return;await sbD('wh_debts',id);setDebts(prev=>prev.filter(d=>d.id!==id));}
-  return(
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>الديون والمصاريف</h3>
-        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'rgba(242,80,80,0.1)',border:'1px solid rgba(242,80,80,0.28)',borderRadius:9,color:'#F25050',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> إضافة دين</button>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11,marginBottom:14}}>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontSize:18,fontWeight:800,color:'#F25050'}}>{whFmt(totalUnpaid)}</div>
-          <div style={{fontSize:11,color:'#546880',marginTop:3}}>إجمالي الديون غير المسددة</div>
-        </div>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontSize:18,fontWeight:800,color:'#F0A868'}}>{debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length}</div>
-          <div style={{fontSize:11,color:'#546880',marginTop:3}}>ديون تستحق خلال 7 أيام</div>
-        </div>
-      </div>
-      <div style={{display:'flex',gap:6,marginBottom:12}}>
-        {[['all','الكل'],['unpaid','غير مسددة'],['paid','مسددة']].map(([v,l])=>(
-          <button key={v} onClick={()=>setFilter(v)} style={{padding:'6px 12px',borderRadius:18,border:`1px solid ${filter===v?'#F25050':'rgba(255,255,255,0.07)'}`,background:filter===v?'rgba(242,80,80,0.12)':'transparent',color:filter===v?'#F25050':'#546880',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
-        ))}
-      </div>
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
-        {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#546880'}}>لا توجد ديون</div>:
-        filtered.map((d,i)=>{
-          const type=WH_DEBT_TYPES.find(t=>t.id===d.type);
-          const days=whDaysUntil(d.due_date);
-          const urgent=d.status==='unpaid'&&days!==null&&days<=7;
-          return(
-            <div key={d.id} style={{display:'flex',alignItems:'center',gap:11,padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none',background:urgent?'rgba(242,80,80,0.04)':'transparent'}}>
-              <div style={{width:8,height:8,borderRadius:'50%',background:d.status==='paid'?'#4DDB6B':type?.color||'#F25050',flexShrink:0}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{d.name}</div>
-                <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
-                  <span style={{fontSize:11,color:type?.color,background:`${type?.color||'#F25050'}15`,padding:'2px 7px',borderRadius:18}}>{type?.label}</span>
-                  {d.due_date&&<span style={{fontSize:11,color:urgent?'#F25050':'#546880'}}>📅 {d.due_date}{days!==null?` (${days>0?`${days} يوم`:'اليوم'})`:''}</span>}
-                  {d.status==='paid'&&<span style={{fontSize:11,color:'#4DDB6B'}}>✓ مسدد</span>}
-                </div>
-              </div>
-              <div style={{fontSize:14,fontWeight:800,color:d.status==='paid'?'#546880':'#F25050'}}>{whFmt(d.amount_iqd)}</div>
-              <div style={{display:'flex',gap:5}}>
-                {d.status==='unpaid'&&<button onClick={()=>markPaid(d.id)} title="تسديد" style={{padding:6,background:'rgba(77,219,107,0.1)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:7,color:'#4DDB6B',cursor:'pointer'}}><CheckCircle2 size={12}/></button>}
-                <button onClick={()=>openEdit(d)} style={{padding:6,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
-                <button onClick={()=>del(d.id)} style={{padding:6,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {modal&&(
-        <WhModal title={editing?'تعديل دين':'إضافة دين/مصروف'} onClose={()=>setModal(false)}>
-          <WhField label="الاسم / الوصف" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="مثال: دين موزع أبو علي" style={whInp}/></WhField>
-          <WhField label="النوع" required>
-            <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={whInp}>
-              {WH_DEBT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
-          </WhField>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
-            <WhField label="تاريخ الاستحقاق"><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} style={whInp}/></WhField>
-          </div>
-          <WhField label="الحالة">
-            <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={whInp}>
-              <option value="unpaid">غير مسدد</option>
-              <option value="paid">مسدد</option>
-            </select>
-          </WhField>
-          <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'rgba(242,80,80,0.15)',border:'1px solid rgba(242,80,80,0.3)',borderRadius:9,color:'#F25050',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
-          </div>
-        </WhModal>
-      )}
-    </div>
-  );
+const [modal,setModal]=useState(false);
+const [filter,setFilter]=useState('unpaid');
+const [editing,setEditing]=useState(null);
+const [form,setForm]=useState({name:'',type:'supplier',amount_iqd:0,due_date:'',status:'unpaid',notes:''});
+const [saving,setSaving]=useState(false);
+const filtered=filter==='all'?debts:debts.filter(d=>d.status===filter);
+const totalUnpaid=debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
+function openNew(){setEditing(null);setForm({name:'',type:'supplier',amount_iqd:0,due_date:'',status:'unpaid',notes:''});setModal(true);}
+function openEdit(d){setEditing(d);setForm({...d});setModal(true);}
+async function save(){
+if(!form.name.trim()||!form.amount_iqd){alert('أدخل الاسم والمبلغ');return;}
+setSaving(true);
+try{
+if(editing){await sbU('wh_debts',editing.id,form);setDebts(prev=>prev.map(d=>d.id===editing.id?{...d,...form}:d));}
+else{const r=await sbI('wh_debts',{...form,created_at:new Date().toISOString()});if(r?.[0])setDebts(prev=>[r[0],...prev]);}
+setModal(false);
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+async function markPaid(id){await sbU('wh_debts',id,{status:'paid',paid_at:new Date().toISOString()});setDebts(prev=>prev.map(d=>d.id===id?{...d,status:'paid'}:d));}
+async function del(id){if(!confirm('حذف هذا الدين؟'))return;await sbD('wh_debts',id);setDebts(prev=>prev.filter(d=>d.id!==id));}
+return(
+<div>
+<div className="aurora-wh-header">
+<h3>الديون والمصاريف</h3>
+<button onClick={openNew} className="aurora-btn danger small"><Plus size={12}/> إضافة دين</button>
+</div>
+<div className="aurora-wh-stats-grid small">
+<div className="aurora-wh-stat small danger">
+<div className="aurora-wh-stat-value">{whFmt(totalUnpaid)}</div>
+<div className="aurora-wh-stat-label">إجمالي الديون غير المسددة</div>
+</div>
+<div className="aurora-wh-stat small warn">
+<div className="aurora-wh-stat-value">{debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length}</div>
+<div className="aurora-wh-stat-label">ديون تستحق خلال 7 أيام</div>
+</div>
+</div>
+<div className="aurora-wh-period-chips">
+{[['all','الكل'],['unpaid','غير مسددة'],['paid','مسددة']].map(([v,l])=>(
+<button key={v} onClick={()=>setFilter(v)} className={`aurora-wh-period-chip ${filter===v?'active':''}`}>{l}</button>
+))}
+</div>
+<div className="aurora-wh-list">
+{filtered.length===0?<div className="aurora-empty-state small">لا توجد ديون</div>:
+filtered.map((d,i)=>{
+const type=WH_DEBT_TYPES.find(t=>t.id===d.type);
+const days=whDaysUntil(d.due_date);
+const urgent=d.status==='unpaid'&&days!==null&&days<=7;
+return(
+<div key={d.id} className={`aurora-wh-debt-row ${urgent?'urgent':''}`}>
+<div className="aurora-wh-debt-dot" style={{ background: d.status==='paid'?'#10B981':type?.color||'#EF4444' }} />
+<div className="aurora-wh-debt-info">
+<div className="aurora-wh-debt-name">{d.name}</div>
+<div className="aurora-wh-debt-tags">
+<span className="aurora-wh-debt-tag" style={{ color: type?.color, background: `${type?.color||'#EF4444'}15` }}>{type?.label}</span>
+{d.due_date&&<span className={`aurora-wh-debt-date ${urgent?'urgent':''}`}>📅 {d.due_date}{days!==null?` (${days>0?`${days} يوم`:'اليوم'})`:''}</span>}
+{d.status==='paid'&&<span className="aurora-wh-debt-paid">✓ مسدد</span>}
+</div>
+</div>
+<div className={`aurora-wh-debt-amount ${d.status==='paid'?'paid':''}`}>{whFmt(d.amount_iqd)}</div>
+<div className="aurora-wh-debt-actions">
+{d.status==='unpaid'&&<button onClick={()=>markPaid(d.id)} title="تسديد" className="aurora-icon-btn success"><CheckCircle2 size={11}/></button>}
+<button onClick={()=>openEdit(d)} className="aurora-icon-btn"><Edit3 size={11}/></button>
+<button onClick={()=>del(d.id)} className="aurora-icon-btn danger"><Trash2 size={11}/></button>
+</div>
+</div>
+);
+})}
+</div>
+{modal&&(
+<WhModal title={editing?'تعديل دين':'إضافة دين/مصروف'} onClose={()=>setModal(false)}>
+<WhField label="الاسم / الوصف" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="مثال: دين موزع أبو علي" /></WhField>
+<WhField label="النوع" required>
+<select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
+{WH_DEBT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+</select>
+</WhField>
+<div className="aurora-grid-2">
+<WhField label="المبلغ (د.ع)" required><input type="number" value={form.amount_iqd} onChange={e=>setForm(f=>({...f,amount_iqd:Number(e.target.value)}))} /></WhField>
+<WhField label="تاريخ الاستحقاق"><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} /></WhField>
+</div>
+<WhField label="الحالة">
+<select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
+<option value="unpaid">غير مسدد</option>
+<option value="paid">مسدد</option>
+</select>
+</WhField>
+<WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} /></WhField>
+<div className="aurora-modal-footer">
+<button onClick={()=>setModal(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={save} disabled={saving} className="aurora-btn danger">{saving?'جارٍ الحفظ...':'حفظ'}</button>
+</div>
+</WhModal>
+)}
+</div>
+);
 }
 
-// الموظفون
 function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
-  const [modal,setModal]=useState(false);
-  const [payModal,setPayModal]=useState(null);
-  const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({name:'',role:'',salary:0,phone:'',start_date:whToday(),notes:''});
-  const [payForm,setPayForm]=useState({amount:0,date:whToday(),notes:''});
-  const [saving,setSaving]=useState(false);
-  function openNew(){setEditing(null);setForm({name:'',role:'',salary:0,phone:'',start_date:whToday(),notes:''});setModal(true);}
-  function openEdit(e){setEditing(e);setForm({...e});setModal(true);}
-  async function save(){
-    if(!form.name.trim()){alert('أدخل اسم الموظف');return;}
-    setSaving(true);
-    try{
-      if(editing){await sbU('wh_employees',editing.id,form);setEmployees(prev=>prev.map(e=>e.id===editing.id?{...e,...form}:e));}
-      else{const r=await sbI('wh_employees',{...form,created_at:new Date().toISOString()});if(r?.[0])setEmployees(prev=>[...prev,r[0]]);}
-      setModal(false);
-    }catch(e){alert('فشل: '+e.message);}
-    setSaving(false);
-  }
-  async function payEmployee(){
-    if(!payForm.amount){alert('أدخل المبلغ');return;}
-    setSaving(true);
-    try{
-      await sbI('wh_salary_payments',{employee_id:payModal.id,employee_name:payModal.name,...payForm,created_at:new Date().toISOString()});
-      setPayModal(null);
-      alert(`✅ تم تسجيل صرف ${whFmt(payForm.amount)} لـ ${payModal.name}`);
-    }catch(e){alert('فشل: '+e.message);}
-    setSaving(false);
-  }
-  async function del(id){if(!confirm('حذف هذا الموظف؟'))return;await sbD('wh_employees',id);setEmployees(prev=>prev.filter(e=>e.id!==id));}
-  return(
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>الموظفون والرواتب</h3>
-        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 13px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موظف جديد</button>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:13}}>
-        {employees.map(e=>(
-          <div key={e.id} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding:15}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:11}}>
-              <div style={{display:'flex',gap:10,alignItems:'center'}}>
-                <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#fff'}}>{e.name?.[0]}</div>
-                <div><div style={{fontSize:13.5,fontWeight:800,color:'#F5F5F5'}}>{e.name}</div><div style={{fontSize:11.5,color:'#546880'}}>{e.role||'موظف'}</div></div>
-              </div>
-              <div style={{display:'flex',gap:5}}>
-                <button onClick={()=>openEdit(e)} style={{padding:6,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
-                <button onClick={()=>del(e.id)} style={{padding:6,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
-              </div>
-            </div>
-            <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.15)',borderRadius:9,padding:'9px 12px',marginBottom:10}}>
-              <div style={{fontSize:11,color:'#A78BFA',marginBottom:2}}>الراتب الشهري</div>
-              <div style={{fontSize:17,fontWeight:800,color:'#A78BFA'}}>{whFmt(e.salary)}</div>
-            </div>
-            {e.phone&&<div style={{fontSize:12,color:'#2AABEE',marginBottom:8}}>📞 {e.phone}</div>}
-            <button onClick={()=>{setPayModal(e);setPayForm({amount:e.salary,date:whToday(),notes:''}); }}
-              style={{width:'100%',padding:'8px',background:'rgba(77,219,107,0.08)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,color:'#4DDB6B',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-              <DollarSign size={13}/> صرف راتب
-            </button>
-          </div>
-        ))}
-        {!employees.length&&<div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#546880'}}>لا يوجد موظفون</div>}
-      </div>
-      {modal&&(
-        <WhModal title={editing?'تعديل موظف':'إضافة موظف'} onClose={()=>setModal(false)}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>
-            <WhField label="الاسم" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={whInp}/></WhField>
-            <WhField label="المسمى الوظيفي"><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="موظف، محاسب..." style={whInp}/></WhField>
-            <WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)||0}))} style={whInp}/></WhField>
-            <WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:arabicToEnglishDigits(e.target.value)}))} style={whInp}/></WhField>
-          </div>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setModal(false)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
-          </div>
-        </WhModal>
-      )}
-      {payModal&&(
-        <WhModal title={`صرف راتب — ${payModal.name}`} onClose={()=>setPayModal(null)}>
-          <WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)||0}))} style={whInp}/></WhField>
-          <WhField label="التاريخ"><input type="date" value={payForm.date} onChange={e=>setPayForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
-          <WhField label="ملاحظات"><input value={payForm.notes} onChange={e=>setPayForm(f=>({...f,notes:e.target.value}))} placeholder="راتب شهر..." style={whInp}/></WhField>
-          <div style={{display:'flex',gap:9,marginTop:8}}>
-            <button onClick={()=>setPayModal(null)} style={{flex:1,padding:'10px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={payEmployee} disabled={saving} style={{flex:2,padding:'10px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'صرف الراتب'}</button>
-          </div>
-        </WhModal>
-      )}
-    </div>
-  );
+const [modal,setModal]=useState(false);
+const [payModal,setPayModal]=useState(null);
+const [editing,setEditing]=useState(null);
+const [form,setForm]=useState({name:'',role:'',salary:0,phone:'',start_date:whToday(),notes:''});
+const [payForm,setPayForm]=useState({amount:0,date:whToday(),notes:''});
+const [saving,setSaving]=useState(false);
+function openNew(){setEditing(null);setForm({name:'',role:'',salary:0,phone:'',start_date:whToday(),notes:''});setModal(true);}
+function openEdit(e){setEditing(e);setForm({...e});setModal(true);}
+async function save(){
+if(!form.name.trim()){alert('أدخل اسم الموظف');return;}
+setSaving(true);
+try{
+if(editing){await sbU('wh_employees',editing.id,form);setEmployees(prev=>prev.map(e=>e.id===editing.id?{...e,...form}:e));}
+else{const r=await sbI('wh_employees',{...form,created_at:new Date().toISOString()});if(r?.[0])setEmployees(prev=>[...prev,r[0]]);}
+setModal(false);
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+async function payEmployee(){
+if(!payForm.amount){alert('أدخل المبلغ');return;}
+setSaving(true);
+try{
+await sbI('wh_salary_payments',{employee_id:payModal.id,employee_name:payModal.name,...payForm,created_at:new Date().toISOString()});
+setPayModal(null);
+alert(`✅ تم تسجيل صرف ${whFmt(payForm.amount)} لـ ${payModal.name}`);
+}catch(e){alert('فشل: '+e.message);}
+setSaving(false);
+}
+async function del(id){if(!confirm('حذف هذا الموظف؟'))return;await sbD('wh_employees',id);setEmployees(prev=>prev.filter(e=>e.id!==id));}
+return(
+<div>
+<div className="aurora-wh-header">
+<h3>الموظفون والرواتب</h3>
+<button onClick={openNew} className="aurora-btn primary small"><Plus size={12}/> موظف جديد</button>
+</div>
+<div className="aurora-wh-employees-grid">
+{employees.map(e=>(
+<div key={e.id} className="aurora-wh-employee-card">
+<div className="aurora-wh-employee-head">
+<div className="aurora-wh-employee-avatar">{e.name?.[0]}</div>
+<div className="aurora-wh-employee-info">
+<div className="aurora-wh-employee-name">{e.name}</div>
+<div className="aurora-wh-employee-role">{e.role||'موظف'}</div>
+</div>
+<div className="aurora-wh-employee-actions">
+<button onClick={()=>openEdit(e)} className="aurora-icon-btn"><Edit3 size={11}/></button>
+<button onClick={()=>del(e.id)} className="aurora-icon-btn danger"><Trash2 size={11}/></button>
+</div>
+</div>
+<div className="aurora-wh-employee-salary">
+<div className="aurora-wh-employee-salary-label">الراتب الشهري</div>
+<div className="aurora-wh-employee-salary-value">{whFmt(e.salary)}</div>
+</div>
+{e.phone&&<div className="aurora-wh-employee-phone">📞 {e.phone}</div>}
+<button onClick={()=>{setPayModal(e);setPayForm({amount:e.salary,date:whToday(),notes:''}); }}
+className="aurora-wh-employee-pay-btn">
+<DollarSign size={12}/> صرف راتب
+</button>
+</div>
+))}
+{!employees.length&&<div className="aurora-empty-state small">لا يوجد موظفون</div>}
+</div>
+{modal&&(
+<WhModal title={editing?'تعديل موظف':'إضافة موظف'} onClose={()=>setModal(false)}>
+<div className="aurora-grid-2">
+<WhField label="الاسم" required><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} /></WhField>
+<WhField label="المسمى الوظيفي"><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="موظف، محاسب..." /></WhField>
+<WhField label="الراتب (د.ع)" required><input type="number" value={form.salary} onChange={e=>setForm(f=>({...f,salary:Number(e.target.value)}))} /></WhField>
+<WhField label="رقم الهاتف"><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} /></WhField>
+</div>
+<div className="aurora-modal-footer">
+<button onClick={()=>setModal(false)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={save} disabled={saving} className="aurora-btn primary">{saving?'جارٍ الحفظ...':'حفظ'}</button>
+</div>
+</WhModal>
+)}
+{payModal&&(
+<WhModal title={`صرف راتب — ${payModal.name}`} onClose={()=>setPayModal(null)}>
+<WhField label="المبلغ (د.ع)" required><input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:Number(e.target.value)}))} /></WhField>
+<WhField label="التاريخ"><input type="date" value={payForm.date} onChange={e=>setPayForm(f=>({...f,date:e.target.value}))} /></WhField>
+<WhField label="ملاحظات"><input value={payForm.notes} onChange={e=>setPayForm(f=>({...f,notes:e.target.value}))} placeholder="راتب شهر..." /></WhField>
+<div className="aurora-modal-footer">
+<button onClick={()=>setPayModal(null)} className="aurora-btn ghost">إلغاء</button>
+<button onClick={payEmployee} disabled={saving} className="aurora-btn success">{saving?'جارٍ الحفظ...':'صرف الراتب'}</button>
+</div>
+</WhModal>
+)}
+</div>
+);
 }
 
-// التقارير
 function WhReports({ sales, products, debts }) {
-  const [period,setPeriod]=useState('month');
-  const now=new Date();
-  const filtered=useMemo(()=>sales.filter(s=>{
-    const d=new Date(s.date);
-    if(period==='today')return s.date===whToday();
-    if(period==='week')return(now-d)/86400000<=7;
-    if(period==='month')return s.date?.slice(0,7)===whToday().slice(0,7);
-    if(period==='year')return s.date?.slice(0,4)===whToday().slice(0,4);
-    return true;
-  }),[sales,period]);
-  const rev=filtered.reduce((s,x)=>s+x.total_iqd,0);
-  const totalDebt=debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
-  const stockCost=products.reduce((s,p)=>s+(p.quantity*(p.cost_iqd||0)),0);
-  const stockSale=products.reduce((s,p)=>s+(p.quantity*(p.price_iqd||0)),0);
-  const byType=WH_PRODUCT_TYPES.map(t=>({
-    ...t,
-    total:filtered.filter(s=>products.find(p=>p.id===s.product_id)?.type===t.id).reduce((sum,s)=>sum+s.total_iqd,0),
-    count:filtered.filter(s=>products.find(p=>p.id===s.product_id)?.type===t.id).length,
-  }));
-  const counted={};
-  filtered.forEach(s=>{counted[s.product_name]=(counted[s.product_name]||0)+s.quantity;});
-  const top=Object.entries(counted).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  return(
-    <div>
-      <h3 style={{margin:'0 0 14px',fontSize:17,fontWeight:800,color:'#F5F5F5'}}>التقارير المالية</h3>
-      <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-        {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
-          <button key={v} onClick={()=>setPeriod(v)} style={{padding:'6px 12px',borderRadius:18,border:`1px solid ${period===v?'#2AABEE':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(42,171,238,0.14)':'transparent',color:period===v?'#2AABEE':'#546880',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
-        ))}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))',gap:11,marginBottom:16}}>
-        {[
-          {l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B',I:TrendingUp},
-          {l:'إجمالي الديون',v:whFmt(totalDebt),c:'#F25050',I:CreditCard},
-          {l:'تكلفة المخزن',v:whFmt(stockCost),c:'#F0A868',I:Package},
-          {l:'قيمة البيع المتوقعة',v:whFmt(stockSale),c:'#A78BFA',I:BarChart3},
-          {l:'الربح المتوقع',v:whFmt(stockSale-stockCost),c:stockSale>stockCost?'#4DDB6B':'#F25050',I:Percent},
-        ].map(s=>(
-          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px'}}>
-            <s.I size={16} color={s.c} style={{marginBottom:7}}/>
-            <div style={{fontSize:16,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:13}}>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:14}}>
-          <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:11}}>مبيعات حسب النوع</div>
-          {byType.map(t=>(
-            <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-              <div style={{display:'flex',alignItems:'center',gap:7}}>
-                <span style={{fontSize:16}}>{t.icon}</span>
-                <div><div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{t.label}</div><div style={{fontSize:11,color:'#546880'}}>{t.count} صفقة</div></div>
-              </div>
-              <div style={{fontSize:13,fontWeight:800,color:t.color}}>{whFmt(t.total)}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:14}}>
-          <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:11}}>الأكثر مبيعاً</div>
-          {top.map(([name,qty])=>(
-            <div key={name} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-              <span style={{fontSize:12.5,color:'#F5F5F5'}}>{name}</span>
-              <span style={{fontSize:12.5,fontWeight:700,color:'#4DDB6B'}}>{qty} قطعة</span>
-            </div>
-          ))}
-          {!top.length&&<div style={{color:'#546880',fontSize:13,textAlign:'center',padding:20}}>لا توجد بيانات</div>}
-        </div>
-      </div>
-    </div>
-  );
+const [period,setPeriod]=useState('month');
+const now=new Date();
+const filtered=useMemo(()=>sales.filter(s=>{
+const d=new Date(s.date);
+if(period==='today')return s.date===whToday();
+if(period==='week')return(now-d)/86400000<=7;
+if(period==='month')return s.date?.slice(0,7)===whToday().slice(0,7);
+if(period==='year')return s.date?.slice(0,4)===whToday().slice(0,4);
+return true;
+}),[sales,period]);
+const rev=filtered.reduce((s,x)=>s+x.total_iqd,0);
+const totalDebt=debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
+const stockCost=products.reduce((s,p)=>s+(p.quantity*(p.cost_iqd||0)),0);
+const stockSale=products.reduce((s,p)=>s+(p.quantity*(p.price_iqd||0)),0);
+const byType=WH_PRODUCT_TYPES.map(t=>({
+...t,
+total:filtered.filter(s=>products.find(p=>p.id===s.product_id)?.type===t.id).reduce((sum,s)=>sum+s.total_iqd,0),
+count:filtered.filter(s=>products.find(p=>p.id===s.product_id)?.type===t.id).length,
+}));
+const counted={};
+filtered.forEach(s=>{counted[s.product_name]=(counted[s.product_name]||0)+s.quantity;});
+const top=Object.entries(counted).sort((a,b)=>b[1]-a[1]).slice(0,5);
+return(
+<div>
+<h3 className="aurora-wh-section-title">التقارير المالية</h3>
+<div className="aurora-wh-period-chips">
+{[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
+<button key={v} onClick={()=>setPeriod(v)} className={`aurora-wh-period-chip ${period===v?'active':''}`}>{l}</button>
+))}
+</div>
+<div className="aurora-wh-stats-grid">
+{[
+{l:'الإيرادات',v:whFmt(rev),c:'#10B981',I:TrendingUp},
+{l:'إجمالي الديون',v:whFmt(totalDebt),c:'#EF4444',I:CreditCard},
+{l:'تكلفة المخزن',v:whFmt(stockCost),c:'#F59E0B',I:Package},
+{l:'قيمة البيع المتوقعة',v:whFmt(stockSale),c:'#8B5CF6',I:BarChart3},
+{l:'الربح المتوقع',v:whFmt(stockSale-stockCost),c:stockSale>stockCost?'#10B981':'#EF4444',I:Percent},
+].map(s=>(
+<div key={s.l} className="aurora-wh-stat" style={{ '--accent': s.c }}>
+<s.I size={15} />
+<div className="aurora-wh-stat-value">{s.v}</div>
+<div className="aurora-wh-stat-label">{s.l}</div>
+</div>
+))}
+</div>
+<div className="aurora-wh-reports-grid">
+<div className="aurora-wh-section">
+<div className="aurora-wh-section-title">مبيعات حسب النوع</div>
+{byType.map(t=>(
+<div key={t.id} className="aurora-wh-report-row">
+<div className="aurora-wh-report-info">
+<span className="aurora-wh-report-icon">{t.icon}</span>
+<div>
+<div className="aurora-wh-report-name">{t.label}</div>
+<div className="aurora-wh-report-count">{t.count} صفقة</div>
+</div>
+</div>
+<div className="aurora-wh-report-total" style={{ color: t.color }}>{whFmt(t.total)}</div>
+</div>
+))}
+</div>
+<div className="aurora-wh-section">
+<div className="aurora-wh-section-title">الأكثر مبيعاً</div>
+{top.map(([name,qty])=>(
+<div key={name} className="aurora-wh-report-row">
+<span className="aurora-wh-report-name">{name}</span>
+<span className="aurora-wh-report-qty">{qty} قطعة</span>
+</div>
+))}
+{!top.length&&<div className="aurora-empty-state small">لا توجد بيانات</div>}
+</div>
+</div>
+</div>
+);
 }
 
-// ── WarehouseView الرئيسي ──
 const WH_NAV = [
-  {id:'dashboard', label:'لوحة التحكم', icon:Home},
-  {id:'products',  label:'المنتجات',    icon:Package},
-  {id:'sales',     label:'المبيعات',    icon:ShoppingCart},
-  {id:'suppliers', label:'الموزعون',    icon:Truck},
-  {id:'debts',     label:'الديون',      icon:CreditCard},
-  {id:'employees', label:'الموظفون',    icon:Users},
-  {id:'reports',   label:'التقارير',    icon:BarChart3},
+{id:'dashboard', label:'لوحة التحكم', icon:Home},
+{id:'products', label:'المنتجات', icon:Package},
+{id:'sales', label:'المبيعات', icon:ShoppingCart},
+{id:'suppliers', label:'الموزعون', icon:Truck},
+{id:'debts', label:'الديون', icon:CreditCard},
+{id:'employees', label:'الموظفون', icon:Users},
+{id:'reports', label:'التقارير', icon:BarChart3},
 ];
 
 function WarehouseView() {
-  const [whView, setWhView]     = useState('dashboard');
-  const [loading, setLoading]   = useState(true);
-  const [whProducts,  setWhProducts]  = useState([]);
-  const [whSales,     setWhSales]     = useState([]);
-  const [whSuppliers, setWhSuppliers] = useState([]);
-  const [whDebts,     setWhDebts]     = useState([]);
-  const [whEmployees, setWhEmployees] = useState([]);
-  const [whCars,      setWhCars]      = useState([]);
+const [whView, setWhView] = useState('dashboard');
+const [loading, setLoading] = useState(true);
+const [whProducts, setWhProducts] = useState([]);
+const [whSales, setWhSales] = useState([]);
+const [whSuppliers, setWhSuppliers] = useState([]);
+const [whDebts, setWhDebts] = useState([]);
+const [whEmployees, setWhEmployees] = useState([]);
+const [whCars, setWhCars] = useState([]);
 
-  // helpers مختصرة
-  const sbI = (t,d)    => sbInsert(t,d);
-  const sbU = (t,id,d) => sbUpdate(t,id,d);
-  const sbD = async (t,id) => { return await sbDelete(t,id); };
+const sbI = (t,d) => sbInsert(t,d);
+const sbU = (t,id,d) => sbUpdate(t,id,d);
+const sbD = async (t,id) => { const url=`${SUPABASE_URL}/rest/v1/${t}?id=eq.${id}`; await fetch(url,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}}); };
 
-  useEffect(()=>{
-    async function load(){
-      setLoading(true);
-      try{
-        const [p,s,sup,d,e]=await Promise.all([
-          sbSelect('wh_products', wsFilter() + '&order=car_name.asc'),
-          sbSelect('wh_sales','&order=date.desc&limit=300'),
-          sbSelect('wh_suppliers','&order=name.asc'),
-          sbSelect('wh_debts','&order=due_date.asc'),
-          sbSelect('wh_employees','&order=name.asc'),
-        ]);
-        setWhProducts(p||[]);
-        setWhSales(s||[]);
-        setWhSuppliers(sup||[]);
-        setWhDebts(d||[]);
-        setWhEmployees(e||[]);
-        setWhCars([...new Set((p||[]).map(x=>x.car_name).filter(Boolean))]);
-      }catch(err){console.error('WH load error:',err);}
-      setLoading(false);
-    }
-    load();
-  },[]);
+useEffect(()=>{
+async function load(){
+setLoading(true);
+try{
+const [p,s,sup,d,e]=await Promise.all([
+sbSelect('wh_products','&order=car_name.asc'),
+sbSelect('wh_sales','&order=date.desc&limit=300'),
+sbSelect('wh_suppliers','&order=name.asc'),
+sbSelect('wh_debts','&order=due_date.asc'),
+sbSelect('wh_employees','&order=name.asc'),
+]);
+setWhProducts(p||[]);
+setWhSales(s||[]);
+setWhSuppliers(sup||[]);
+setWhDebts(d||[]);
+setWhEmployees(e||[]);
+setWhCars([...new Set((p||[]).map(x=>x.car_name).filter(Boolean))]);
+}catch(err){console.error('WH load error:',err);}
+setLoading(false);
+}
+load();
+},[]);
 
-  const lowCount  = whProducts.filter(p=>p.quantity<=LOW_STOCK).length;
-  const urgentDbt = whDebts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length;
+const lowCount = whProducts.filter(p=>p.quantity<=LOW_STOCK).length;
+const urgentDbt = whDebts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length;
 
-  function renderWhView(){
-    if(loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:300,color:'#546880',flexDirection:'column',gap:12}}><RefreshCw size={24} style={{animation:'spin 1s linear infinite'}}/><span>جارٍ تحميل المخزن...</span></div>;
-    switch(whView){
-      case 'dashboard':  return <WhDashboard products={whProducts} sales={whSales} debts={whDebts} suppliers={whSuppliers}/>;
-      case 'products':   return <WhProducts products={whProducts} setProducts={setWhProducts} cars={whCars} setCars={setWhCars} sbI={sbI} sbU={sbU} sbD={sbD}/>;
-      case 'sales':      return <WhSales sales={whSales} setSales={setWhSales} products={whProducts} sbI={sbI}/>;
-      case 'suppliers':  return <WhSuppliers suppliers={whSuppliers} setSuppliers={setWhSuppliers} sbI={sbI} sbU={sbU} sbD={sbD}/>;
-      case 'debts':      return <WhDebts debts={whDebts} setDebts={setWhDebts} sbI={sbI} sbU={sbU} sbD={sbD}/>;
-      case 'employees':  return <WhEmployees employees={whEmployees} setEmployees={setWhEmployees} sbI={sbI} sbU={sbU} sbD={sbD}/>;
-      case 'reports':    return <WhReports sales={whSales} products={whProducts} debts={whDebts}/>;
-      default: return null;
-    }
-  }
-
-  const isMobile = useIsMobile();
-
-  return (
-    <div style={{display:'flex',flexDirection:isMobile?'column':'row',height:'100%',direction:'rtl'}}>
-
-      {/* ── على الموبايل: تابات أفقية في الأعلى ── */}
-      {isMobile ? (
-        <div style={{display:'flex',overflowX:'auto',background:'#17212B',borderBottom:'1px solid rgba(255,255,255,0.07)',padding:'8px 10px',gap:6,flexShrink:0,WebkitOverflowScrolling:'touch'}}>
-          {WH_NAV.map(item=>{
-            const Icon=item.icon;
-            const active=whView===item.id;
-            return(
-              <button key={item.id} onClick={()=>setWhView(item.id)}
-                style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'7px 12px',borderRadius:10,background:active?'rgba(42,171,238,0.18)':'rgba(255,255,255,0.04)',border:`1px solid ${active?'rgba(42,171,238,0.35)':'transparent'}`,color:active?'#2AABEE':'#8B9AB3',fontSize:10,fontWeight:active?800:600,cursor:'pointer',flexShrink:0,transition:'all 0.15s',minWidth:56}}>
-                <Icon size={18} strokeWidth={active?2.5:1.8}/>
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : (
-        /* ── على اللابتوب: قائمة جانبية ── */
-        <div style={{width:200,flexShrink:0,background:'linear-gradient(180deg,#17212B,#141F2B)',borderLeft:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',padding:'14px 10px',gap:4,overflowY:'auto'}}>
-          <div style={{fontSize:13,fontWeight:800,color:'#8B9AB3',padding:'0 6px 10px',borderBottom:'1px solid rgba(255,255,255,0.07)',marginBottom:6}}>
-            🏪 إدارة المخزن
-          </div>
-          {(lowCount>0||urgentDbt>0)&&(
-            <div style={{background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:9,padding:'7px 10px',marginBottom:8,fontSize:11}}>
-              {lowCount>0&&<div style={{color:'#F0A868',marginBottom:2}}>⚠️ {lowCount} منتج منخفض</div>}
-              {urgentDbt>0&&<div style={{color:'#F25050'}}>🔴 {urgentDbt} دين عاجل</div>}
-            </div>
-          )}
-          {WH_NAV.map(item=>{
-            const Icon=item.icon;
-            const active=whView===item.id;
-            return(
-              <button key={item.id} onClick={()=>setWhView(item.id)}
-                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 10px',borderRadius:9,background:active?'rgba(42,171,238,0.15)':'transparent',border:active?'1px solid rgba(42,171,238,0.25)':'1px solid transparent',color:active?'#2AABEE':'#8B9AB3',fontSize:12.5,fontWeight:active?800:600,cursor:'pointer',transition:'all 0.15s'}}>
-                <Icon size={16} strokeWidth={active?2.5:1.8}/>
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* المحتوى */}
-      <div style={{flex:1,overflowY:'auto',padding:isMobile?'14px 12px':'18px 20px'}}>
-        {renderWhView()}
-      </div>
-    </div>
-  );
+function renderWhView(){
+if(loading) return <div className="aurora-loading"><RefreshCw size={22} className="aurora-spin" /><span>جارٍ تحميل المخزن...</span></div>;
+switch(whView){
+case 'dashboard': return <WhDashboard products={whProducts} sales={whSales} debts={whDebts} suppliers={whSuppliers}/>;
+case 'products': return <WhProducts products={whProducts} setProducts={setWhProducts} cars={whCars} setCars={setWhCars} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+case 'sales': return <WhSales sales={whSales} setSales={setWhSales} products={whProducts} sbI={sbI}/>;
+case 'suppliers': return <WhSuppliers suppliers={whSuppliers} setSuppliers={setWhSuppliers} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+case 'debts': return <WhDebts debts={whDebts} setDebts={setWhDebts} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+case 'employees': return <WhEmployees employees={whEmployees} setEmployees={setWhEmployees} sbI={sbI} sbU={sbU} sbD={sbD}/>;
+case 'reports': return <WhReports sales={whSales} products={whProducts} debts={whDebts}/>;
+default: return null;
+}
 }
 
-// ──────────────────────────────────────────────
-// أنماط عامة + خطوط
-// ──────────────────────────────────────────────
-// ──────────────────────────────────────────────
-// أنماط عامة — Telegram Style
-// ──────────────────────────────────────────────
-function GlobalStyles() {
-  return (
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap');
+const isMobile = useIsMobile();
 
-      /* ── نعومة عالمية — Telegram Level ── */
-      *, *::before, *::after {
-        box-sizing: border-box;
-        font-family: 'Cairo', sans-serif;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-
-      /* تسريع GPU لكل العناصر */
-      html { scroll-behavior: smooth; }
-      body {
-        margin: 0;
-        background: var(--tg-bg);
-        color: var(--tg-text);
-        overscroll-behavior: none;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      :root {
-        --tg-bg:      #0E1621;
-        --tg-panel:   #17212B;
-        --tg-input:   #242F3D;
-        --tg-border:  rgba(255,255,255,0.07);
-        --tg-blue:    #2AABEE;
-        --tg-blue2:   #229ED9;
-        --tg-green:   #4DDB6B;
-        --tg-red:     #F25050;
-        --tg-text:    #F5F5F5;
-        --tg-sub:     #8B9AB3;
-        --tg-dim:     #546880;
-        --tg-hover:   rgba(255,255,255,0.05);
-        --tg-active:  rgba(42,171,238,0.15);
-        /* Telegram easing curves */
-        --ease-tg:       cubic-bezier(0.4, 0.0, 0.2, 1);
-        --ease-tg-out:   cubic-bezier(0.0, 0.0, 0.2, 1);
-        --ease-tg-in:    cubic-bezier(0.4, 0.0, 1.0, 1);
-        --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
-        --ease-bounce:   cubic-bezier(0.22, 1, 0.36, 1);
-      }
-
-      input::placeholder, textarea::placeholder { color: var(--tg-dim); }
-      input:focus, select:focus, textarea:focus { outline: none; }
-      input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-        outline: 2px solid rgba(42,171,238,0.5); outline-offset: 1px;
-      }
-
-      /* سكرولبار ناعم */
-      ::-webkit-scrollbar { width: 3px; height: 3px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb {
-        background: rgba(42,171,238,0.18);
-        border-radius: 10px;
-        transition: background 0.2s ease;
-      }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.4); }
-      select, input, textarea { color-scheme: dark; }
-
-      /* ── أزرار — نفس Telegram ── */
-      button {
-        font-family: 'Cairo', sans-serif;
-        cursor: pointer;
-        transition:
-          background 0.18s var(--ease-tg),
-          color 0.18s var(--ease-tg),
-          opacity 0.15s var(--ease-tg),
-          transform 0.12s var(--ease-spring),
-          box-shadow 0.18s var(--ease-tg),
-          border-color 0.18s var(--ease-tg);
-        will-change: transform;
-      }
-      button:hover { filter: brightness(1.06); }
-      button:active {
-        transform: scale(0.94) !important;
-        transition-duration: 0.08s !important;
-      }
-      button:disabled {
-        opacity: 0.42;
-        cursor: default;
-        transform: none !important;
-        filter: none !important;
-      }
-
-      /* ── Nav items ── */
-      .alfhd-app-wrap { background: var(--tg-bg) !important; }
-      .alfhd-app-wrap > aside {
-        width: 260px !important;
-        background: linear-gradient(180deg, var(--tg-panel) 0%, #141F2B 100%) !important;
-        border-left: 1px solid rgba(255,255,255,0.07) !important;
-        backdrop-filter: none !important;
-        box-shadow: 2px 0 16px rgba(0,0,0,0.4) !important;
-      }
-      .alfhd-main-area { padding: 0 !important; background: var(--tg-bg) !important; }
-      .alfhd-nav-item {
-        border-radius: 10px !important;
-        font-weight: 700 !important;
-        transition: background 0.16s var(--ease-tg), color 0.16s var(--ease-tg) !important;
-      }
-      .alfhd-nav-item:hover { background: var(--tg-hover) !important; }
-      .alfhd-bottom-nav-item-active,
-      .alfhd-nav-item.alfhd-bottom-nav-item-active {
-        background: var(--tg-active) !important;
-        color: var(--tg-blue) !important;
-        border-color: rgba(42,171,238,0.22) !important;
-        box-shadow: none !important;
-      }
-
-      /* ── قائمة المحادثات ── */
-      .alfhd-conv-layout {
-        grid-template-columns: 320px minmax(0,1fr) !important;
-        gap: 0 !important;
-        min-height: 100vh !important;
-      }
-      .alfhd-conv-list {
-        background: var(--tg-panel) !important;
-        border: none !important;
-        border-radius: 0 !important;
-        border-left: 1px solid var(--tg-border) !important;
-        padding: 8px 0 !important;
-        gap: 0 !important;
-        max-height: 100vh !important;
-        box-shadow: none !important;
-        scroll-behavior: smooth !important;
-      }
-
-      /* ── عنصر محادثة — ripple + hover ناعم ── */
-      .alfhd-conv-item {
-        border-radius: 0 !important;
-        border: none !important;
-        border-right: 3px solid transparent !important;
-        padding: 10px 14px !important;
-        margin: 0 !important;
-        transition:
-          background 0.15s var(--ease-tg),
-          border-color 0.15s var(--ease-tg) !important;
-        position: relative !important;
-        overflow: hidden !important;
-      }
-      .alfhd-conv-item::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: rgba(42,171,238,0.07);
-        opacity: 0;
-        transition: opacity 0.15s var(--ease-tg);
-        pointer-events: none;
-      }
-      .alfhd-conv-item:hover::after { opacity: 1; }
-      .alfhd-conv-item:active::after { opacity: 0; }
-
-      /* ── فقاعات الرسائل ── */
-      .alfhd-chat-bubble-row {
-        animation: msgSlideIn 0.22s var(--ease-bounce) both;
-        will-change: transform, opacity;
-      }
-      .alfhd-conv-detail {
-        background: var(--tg-bg) !important;
-        border: none !important;
-        border-radius: 0 !important;
-        padding: 0 !important;
-        min-height: 100vh !important;
-        box-shadow: none !important;
-      }
-      .alfhd-chat-detail-header {
-        background: var(--tg-panel) !important;
-        border-bottom: 1px solid var(--tg-border) !important;
-        padding: 12px 16px !important;
-        transition: background 0.2s var(--ease-tg) !important;
-      }
-      .alfhd-chat-scroll {
-        background: var(--tg-bg) !important;
-        border: none !important;
-        border-radius: 0 !important;
-        padding: 14px 16px !important;
-        -webkit-overflow-scrolling: touch !important;
-        scroll-behavior: smooth !important;
-        overscroll-behavior: contain !important;
-      }
-      .alfhd-composer-bar {
-        background: var(--tg-panel) !important;
-        border: none !important;
-        border-top: 1px solid var(--tg-border) !important;
-        border-radius: 0 !important;
-        padding: 10px 14px !important;
-        box-shadow: none !important;
-        transition: background 0.2s var(--ease-tg) !important;
-      }
-      .alfhd-linked-order {
-        border-radius: 10px !important;
-        background: var(--tg-input) !important;
-        border-color: var(--tg-border) !important;
-        animation: slideDown 0.22s var(--ease-bounce) both !important;
-      }
-
-      /* ── كروت الطلبات ── */
-      .alfhd-order-card {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(255,255,255,0.09) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3) !important;
-        transition:
-          transform 0.22s var(--ease-spring),
-          box-shadow 0.22s var(--ease-tg),
-          border-color 0.22s var(--ease-tg),
-          background 0.18s var(--ease-tg) !important;
-        will-change: transform !important;
-      }
-      .alfhd-order-card:hover {
-        background: linear-gradient(145deg, #1e2d3d, #1F3347) !important;
-        border-color: rgba(42,171,238,0.25) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(42,171,238,0.12) !important;
-      }
-      .alfhd-order-card:active {
-        transform: translateY(0px) scale(0.99) !important;
-        transition-duration: 0.1s !important;
-      }
-
-      /* ── موديلات ── */
-      .alfhd-modal {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4) !important;
-        animation: modalSlideUp 0.28s var(--ease-bounce) both !important;
-        will-change: transform, opacity !important;
-      }
-
-      /* ── كروت المستخدمين والصفحات ── */
-      .alfhd-users-grid > *, .alfhd-pages-grid > * {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(255,255,255,0.09) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
-        backdrop-filter: none !important;
-        transition:
-          transform 0.22s var(--ease-spring),
-          box-shadow 0.22s var(--ease-tg),
-          border-color 0.22s var(--ease-tg) !important;
-        will-change: transform !important;
-      }
-      .alfhd-stats-row > *:hover,
-      .alfhd-stats-grid-2 > *:hover,
-      .alfhd-pages-grid > *:hover,
-      .alfhd-users-grid > *:hover {
-        transform: translateY(-3px) !important;
-        border-color: rgba(42,171,238,0.25) !important;
-        box-shadow: 0 10px 28px rgba(0,0,0,0.6), 0 3px 10px rgba(42,171,238,0.13) !important;
-      }
-
-      /* ── تبويبات ── */
-      .alfhd-view-header { padding: 14px 18px 10px !important; margin-bottom: 12px !important; }
-      .alfhd-bottom-nav-item svg, .alfhd-nav-item svg {
-        transition: transform 0.2s var(--ease-spring) !important;
-      }
-      .alfhd-bottom-nav-item-active svg {
-        transform: scale(1.12) !important;
-      }
-
-      /* ── Bottom nav ── */
-      .alfhd-bottom-nav-item {
-        transition:
-          color 0.18s var(--ease-tg),
-          background 0.18s var(--ease-tg) !important;
-      }
-      .alfhd-bottom-nav-item:active {
-        transform: scale(0.88) !important;
-        transition-duration: 0.08s !important;
-      }
-
-      /* ── Login card ── */
-      .alfhd-login-card {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(42,171,238,0.15) !important;
-        border-radius: 20px !important;
-        box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(42,171,238,0.05), inset 0 1px 0 rgba(255,255,255,0.05) !important;
-      }
-
-      /* ══════════ KEYFRAMES ══════════ */
-
-      /* دخول فقاعة رسالة — مثل Telegram */
-      @keyframes msgSlideIn {
-        from { opacity: 0; transform: scale(0.88) translateY(6px); }
-        to   { opacity: 1; transform: scale(1)    translateY(0); }
-      }
-
-      /* دخول محادثة من اليمين على الموبايل */
-      @keyframes chatSlideIn {
-        from { opacity: 0; transform: translateX(100%); }
-        to   { opacity: 1; transform: translateX(0); }
-      }
-
-      /* دخول محتوى للأعلى */
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(10px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-
-      /* دخول موديل من الأسفل */
-      @keyframes modalSlideUp {
-        from { opacity: 0; transform: translateY(20px) scale(0.97); }
-        to   { opacity: 1; transform: translateY(0)    scale(1); }
-      }
-
-      /* انزلاق للأسفل */
-      @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-8px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-
-      /* دخول الكروت */
-      @keyframes cardEnter {
-        from { opacity: 0; transform: translateY(12px) scale(0.98); }
-        to   { opacity: 1; transform: translateY(0)    scale(1); }
-      }
-      .alfhd-card-enter { animation: cardEnter 0.26s var(--ease-bounce) both; }
-
-      /* باقي الـ keyframes */
-      @keyframes shake {
-        0%,100% { transform: translateX(0); }
-        20% { transform: translateX(-8px); }
-        40% { transform: translateX(8px); }
-        60% { transform: translateX(-5px); }
-        80% { transform: translateX(5px); }
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes unreadPulse {
-        0%,100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.5); }
-        50% { box-shadow: 0 0 0 5px rgba(229,57,53,0); }
-      }
-      .alfhd-unread-pulse { animation: unreadPulse 1.4s ease-in-out infinite; }
-      @keyframes recPulse {
-        0%,100% { opacity:1; transform:scale(1); }
-        50% { opacity:0.4; transform:scale(0.8); }
-      }
-      .alfhd-rec-dot { animation: recPulse 1s ease-in-out infinite; }
-      @keyframes loginFloat {
-        0%,100% { transform:translateY(0); }
-        50% { transform:translateY(-6px); }
-      }
-      @keyframes starDrift {
-        from { transform:translate3d(0,0,0); }
-        to   { transform:translate3d(-80px,100px,0); }
-      }
-      @keyframes starDriftReverse {
-        from { transform:translate3d(0,0,0); }
-        to   { transform:translate3d(80px,-80px,0); }
-      }
-      @keyframes orbitSpin {
-        from { transform:rotate(0deg); }
-        to   { transform:rotate(360deg); }
-      }
-      .alfhd-stars-layer  { animation: starDrift 30s linear infinite; }
-      .alfhd-stars-layer-2 { animation: starDriftReverse 44s linear infinite; }
-      .alfhd-login-orbit  { animation: orbitSpin 36s linear infinite; }
-
-      /* Ripple effect على المحادثات عند الضغط */
-      @keyframes ripple {
-        from { transform: scale(0); opacity: 0.35; }
-        to   { transform: scale(4); opacity: 0; }
-      }
-
-      /* تقليل الحركة للمستخدمين الذين يفضلون ذلك */
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
-      }
-
-      @media (max-width: 860px) {
-        .alfhd-app-wrap { flex-direction: column !important; }
-
-        /* كل الصفحات: هيدر 52px + نافيجيشن 66px */
-        .alfhd-main-area {
-          padding: 52px 0 66px !important;
-          width: 100% !important;
-          min-height: 100vh !important;
-          box-sizing: border-box !important;
-        }
-
-        /* صفحة المحادثات: padding عادي مثل باقي الصفحات */
-        .alfhd-main-conv {
-          padding: 52px 0 66px !important;
-          height: 100vh !important;
-          min-height: 0 !important;
-          overflow: hidden !important;
-          display: flex !important;
-          flex-direction: column !important;
-          box-sizing: border-box !important;
-        }
-
-        /* حاوية المحادثات: تملأ المساحة المتبقية بعد الهيدر والنافيجيشن */
-        .alfhd-conv-fullscreen {
-          position: static !important;
-          top: auto !important;
-          bottom: auto !important;
-          right: auto !important;
-          left: auto !important;
-          width: 100% !important;
-          height: 100% !important;
-          flex: 1 !important;
-          overflow: hidden !important;
-          display: flex !important;
-          z-index: auto !important;
-        }
-
-        .alfhd-conv-layout { grid-template-columns: 1fr !important; }
-        .alfhd-conv-list {
-          max-height: none !important;
-          height: 100% !important;
-          border-left: none !important;
-          overflow-y: auto !important;
-        }
-        .alfhd-conv-list-hidden-mobile { display: none !important; }
-        .alfhd-conv-detail-empty { display: none !important; }
-
-        /* المحادثة المفتوحة — تطغى فوق كل شيء */
-        .alfhd-conv-detail-active-mobile {
-          position: fixed !important;
-          top: 0 !important; right: 0 !important;
-          left: 0 !important; bottom: 0 !important;
-          z-index: 300 !important;
-          width: 100% !important;
-          height: 100dvh !important;
-          display: flex !important;
-          flex-direction: column !important;
-          background: #0E1621 !important;
-          animation: chatSlideIn 0.2s ease !important;
-          border-radius: 0 !important;
-          border: none !important;
-          padding: 0 !important;
-          min-height: 0 !important;
-        }
-        .alfhd-conv-detail-active-mobile .alfhd-chat-detail-header {
-          padding: 12px 14px !important;
-          padding-top: max(12px, env(safe-area-inset-top, 12px)) !important;
-          flex-shrink: 0 !important;
-        }
-        .alfhd-conv-detail-active-mobile .alfhd-chat-scroll {
-          flex: 1 1 auto !important;
-          max-height: none !important;
-          min-height: 0 !important;
-          padding: 12px !important;
-          overflow-y: auto !important;
-        }
-        .alfhd-conv-detail-active-mobile .alfhd-composer-bar {
-          margin: 0 !important;
-          border-radius: 0 !important;
-          border-left: none !important;
-          border-right: none !important;
-          border-bottom: none !important;
-          padding: 10px 12px !important;
-          padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
-          flex-shrink: 0 !important;
-        }
-        .alfhd-conv-detail-active-mobile .alfhd-linked-order {
-          flex-shrink: 0 !important;
-          margin: 0 !important;
-          max-height: 130px !important;
-          overflow-y: auto !important;
-          border-radius: 0 !important;
-        }
-        .alfhd-conv-back-btn { display: flex !important; }
-        .alfhd-chat-scroll { max-height: none !important; }
-        .alfhd-stats-row { grid-template-columns: repeat(2,1fr) !important; }
-        .alfhd-stats-grid-2 { grid-template-columns: 1fr !important; }
-        .alfhd-orders-table-header { display: none !important; }
-        .alfhd-orders-row { grid-template-columns: 1fr !important; display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 12px !important; }
-        .alfhd-view-header { flex-direction: column !important; align-items: flex-start !important; }
-        .alfhd-pages-grid, .alfhd-users-grid { grid-template-columns: 1fr !important; }
-        .alfhd-bar-chart-row { grid-template-columns: 1fr !important; gap: 4px !important; }
-        .alfhd-modal { max-width: 96vw !important; }
-        .alfhd-login-card { max-width: 92vw !important; padding: 32px 20px !important; }
-        .alfhd-orders-grid { grid-template-columns: 1fr !important; }
-      }
-
-      @media print {
-        body * { visibility: hidden; }
-        .alfhd-print-area, .alfhd-print-area * { visibility: visible; }
-        .alfhd-print-area { position: absolute; top: 0; right: 0; left: 0; width: 100%; display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
-        .alfhd-orders-grid { display: grid !important; grid-template-columns: repeat(2,1fr) !important; }
-        .alfhd-no-print { display: none !important; }
-      }
-
-      /* ═══════════════════════════════════════════════
-         ✨ طبقة السحر — تحسينات بصرية فاخرة عامة (144Hz)
-         ═══════════════════════════════════════════════ */
-
-      /* نعومة عامة 144Hz — كل العناصر التفاعلية */
-      button, a, .alfhd-order-card, input, select, textarea, [role="button"] {
-        transition-timing-function: var(--ease-tg) !important;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      /* انكباس فاخر عند ضغط أي زر */
-      button:active:not(:disabled) {
-        transform: scale(0.96) !important;
-        transition: transform 0.08s var(--ease-tg) !important;
-      }
-
-      /* توهّج ذهبي ناعم للمبالغ المهمة */
-      .alfhd-amount-glow {
-        background: linear-gradient(135deg, #FFD479, #F0A868) !important;
-        -webkit-background-clip: text !important;
-        background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        text-shadow: 0 0 18px rgba(240,168,104,0.25);
-        font-weight: 900 !important;
-      }
-
-      /* زجاجية فاخرة للنوافذ المنبثقة */
-      .alfhd-modal {
-        backdrop-filter: blur(20px) saturate(1.2) !important;
-        -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
-        background: linear-gradient(145deg, rgba(28,40,54,0.92), rgba(20,30,42,0.92)) !important;
-      }
-
-      /* خلفية التطبيق بعمق متدرّج خفيف */
-      .alfhd-app-wrap {
-        background:
-          radial-gradient(1200px 600px at 70% -10%, rgba(42,171,238,0.06), transparent 60%),
-          radial-gradient(900px 500px at 10% 110%, rgba(240,168,104,0.04), transparent 55%),
-          var(--tg-bg, #0E1621) !important;
-      }
-
-      /* نقطة حالة نابضة (متصل) */
-      @keyframes alfhdPulse {
-        0%   { box-shadow: 0 0 0 0 rgba(77,219,107,0.5); }
-        70%  { box-shadow: 0 0 0 7px rgba(77,219,107,0); }
-        100% { box-shadow: 0 0 0 0 rgba(77,219,107,0); }
-      }
-      .alfhd-pulse { animation: alfhdPulse 2s var(--ease-tg) infinite; }
-
-      /* دخول ناعم منزلق للعناصر */
-      @keyframes alfhdFadeUp {
-        from { opacity: 0; transform: translateY(8px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      .alfhd-fade-up { animation: alfhdFadeUp 0.4s var(--ease-bounce) both; }
-
-      /* رسالة محادثة تنزلق بنعومة عند الوصول */
-      @keyframes alfhdMsgIn {
-        from { opacity: 0; transform: translateY(6px) scale(0.98); }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
-      }
-      .alfhd-msg-row { animation: alfhdMsgIn 0.32s var(--ease-bounce) both; }
-
-      /* جرس الإشعارات — توهّج خفيف عند وجود جديد */
-      @keyframes alfhdBellGlow {
-        0%,100% { box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
-        50%     { box-shadow: 0 4px 20px rgba(242,80,80,0.4); }
-      }
-
-      /* تمرير ناعم في كل الحاويات */
-      * { scroll-behavior: smooth; }
-
-      /* شريط تمرير أنيق */
-      ::-webkit-scrollbar { width: 7px; height: 7px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.25); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.45); }
-
-      /* تقليل الحركة لمن يفضّل ذلك (وصول) */
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-      }
-    `}</style>
-  );
+return (
+<div className={`aurora-wh-layout ${isMobile?'mobile':''}`}>
+{isMobile ? (
+<div className="aurora-wh-mobile-tabs">
+{WH_NAV.map(item=>{
+const Icon=item.icon;
+const active=whView===item.id;
+return(
+<button key={item.id} onClick={()=>setWhView(item.id)} className={`aurora-wh-mobile-tab ${active?'active':''}`}>
+<Icon size={17} strokeWidth={active?2.5:1.8}/>
+{item.label}
+</button>
+);
+})}
+</div>
+) : (
+<div className="aurora-wh-sidebar">
+<div className="aurora-wh-sidebar-title">🏪 إدارة المخزن</div>
+{(lowCount>0||urgentDbt>0)&&(
+<div className="aurora-wh-sidebar-alerts">
+{lowCount>0&&<div>⚠️ {lowCount} منتج منخفض</div>}
+{urgentDbt>0&&<div>🔴 {urgentDbt} دين عاجل</div>}
+</div>
+)}
+{WH_NAV.map(item=>{
+const Icon=item.icon;
+const active=whView===item.id;
+return(
+<button key={item.id} onClick={()=>setWhView(item.id)} className={`aurora-wh-nav-item ${active?'active':''}`}>
+<Icon size={15} strokeWidth={active?2.5:1.8}/>
+{item.label}
+</button>
+);
+})}
+</div>
+)}
+<div className="aurora-wh-content">{renderWhView()}</div>
+</div>
+);
 }
 
-// ──────────────────────────────────────────────
-// كائن الأنماط — Telegram Style
-// ──────────────────────────────────────────────
-const TG = '#0E1621';
-const TP = '#17212B';
-const TI = '#242F3D';
-const TB = 'rgba(255,255,255,0.07)';
-const TBL = '#2AABEE';
-const TBL2 = '#229ED9';
-const TGR = '#4DDB6B';
-const TRD = '#F25050';
-const TTX = '#F5F5F5';
-const TSB = '#8B9AB3';
-const TDM = '#546880';
-const TAC = 'rgba(42,171,238,0.15)';
-const TSH = '0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)';
-const TBTN = `linear-gradient(135deg,${TBL},${TBL2})`;
-const TGBTN = 'linear-gradient(135deg,#4DDB6B,#22C55E)';
-const TRDS = 'rgba(242,80,80,0.12)';
+// ══════════════════════════════════════════════════════════════
+// التطبيق الرئيسي
+// ══════════════════════════════════════════════════════════════
+export default function AlFhdApp() {
+const [activeView, setActiveView] = useState('conversations');
+const [pendingOpenConvId, setPendingOpenConvId] = useState(null);
+const [pendingNewOrderFromConv, setPendingNewOrderFromConv] = useState(null);
+const [pendingOpenOrderId, setPendingOpenOrderId] = useState(null);
+const goToConversation = useCallback((convId) => { setPendingOpenConvId(convId); setActiveView('conversations'); }, []);
+const goToNewOrderFromConversation = useCallback((conv) => { setPendingNewOrderFromConv(conv); setActiveView('orders'); }, []);
+const goToOrderDetails = useCallback((order) => { setPendingOpenOrderId(order.id); setActiveView('orders'); }, []);
 
-const styles = {
-  // ── Login ──
-  loginWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: TG, position: 'relative', overflow: 'hidden', direction: 'rtl', padding: 20 },
-  loginSpaceBg: { position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(42,171,238,0.08), transparent 60%)', pointerEvents: 'none' },
-  loginStarsLayer: { position: 'absolute', inset: '-20%', opacity: 0.20, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 0 1px, transparent 1.3px)', backgroundSize: '90px 90px' },
-  loginStarsLayer2: { position: 'absolute', inset: '-18%', opacity: 0.10, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.6) 0 1px, transparent 1.5px)', backgroundSize: '60px 60px' },
-  loginNebulaOne: { position: 'absolute', width: 380, height: 380, borderRadius: '50%', top: '-90px', right: '-110px', background: 'radial-gradient(circle, rgba(42,171,238,0.10), transparent 70%)', filter: 'blur(28px)' },
-  loginNebulaTwo: { position: 'absolute', width: 340, height: 340, borderRadius: '50%', bottom: '-110px', left: '-90px', background: 'radial-gradient(circle, rgba(34,158,217,0.08), transparent 72%)', filter: 'blur(26px)' },
-  loginOrbit: { position: 'absolute', width: 500, height: 500, borderRadius: '50%', border: '1px solid rgba(42,171,238,0.07)', borderTopColor: 'rgba(42,171,238,0.18)', pointerEvents: 'none' },
-  loginBrandTop: { position: 'absolute', top: 20, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, color: TSB, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', background: 'rgba(23,33,43,0.80)', border: `1px solid ${TB}`, borderRadius: 999, padding: '6px 13px' },
-  loginCard: { position: 'relative', zIndex: 1, background: TP, border: `1px solid ${TB}`, borderRadius: 16, padding: '36px 30px 24px', width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'loginFloat 5s ease-in-out infinite' },
-  loginGlassShine: { display: 'none' },
-  loginCardAccent: { position: 'absolute', top: 0, right: 0, left: 0, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, borderRadius: '16px 16px 0 0', opacity: 0.7 },
-  loginLogoArea: { position: 'relative', marginBottom: 4 },
-  logoGlow: { position: 'absolute', inset: -22, borderRadius: '50%', background: 'radial-gradient(circle, rgba(42,171,238,0.18) 0%, transparent 70%)', filter: 'blur(10px)' },
-  loginTitle: { fontSize: 28, fontWeight: 800, color: TTX, margin: '12px 0 2px', letterSpacing: '0.03em' },
-  loginSubtitle: { fontSize: 12, color: TSB, margin: 0, fontWeight: 500 },
-  loginMicroCopy: { marginTop: 9, color: TBL, fontSize: 10.5, fontWeight: 700, background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.18)', borderRadius: 999, padding: '4px 11px' },
-  inputLabel: { display: 'block', fontSize: 11, color: TSB, marginBottom: 11, fontWeight: 700, textAlign: 'center', letterSpacing: '0.05em' },
-  pinBoxesWrap: { position: 'relative', display: 'flex', gap: 9, justifyContent: 'center', cursor: 'text' },
-  pinBox: { width: 50, height: 56, borderRadius: 10, background: TI, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: TBL, fontWeight: 900, transition: 'border-color 0.13s, transform 0.12s' },
-  pinBoxActive: { borderColor: TBL, transform: 'translateY(-2px)' },
-  pinBoxFilled: { borderColor: 'rgba(42,171,238,0.45)', background: 'rgba(42,171,238,0.07)' },
-  pinBoxError: { borderColor: TRD },
-  pinHiddenInput: { position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', border: 'none', padding: 0, margin: 0, cursor: 'text' },
-  errorText: { color: TRD, fontSize: 11.5, marginTop: 9, textAlign: 'center', fontWeight: 600 },
-  rememberRow: { marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: TSB, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' },
-  loginKeypad: { marginTop: 17, display: 'grid', gridTemplateColumns: 'repeat(3, 50px)', gap: 9, justifyContent: 'center' },
-  loginKeypadBtn: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: TI, color: TTX, fontSize: 16, fontWeight: 700 },
-  loginKeypadGhost: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: 'transparent', color: TSB, fontSize: 11, fontWeight: 700 },
-  checkbox: { width: 14, height: 14, accentColor: TBL, cursor: 'pointer' },
-  loginFooter: { marginTop: 20, fontSize: 10, color: TDM, position: 'relative', zIndex: 1, letterSpacing: '0.04em' },
+const [pages, setPages] = useState([]);
+const [conversations, setConversations] = useState([]);
+const [orders, setOrders] = useState([]);
+const [notifications, setNotifications] = useState([]);
+const [showNotifications, setShowNotifications] = useState(false);
+const ordersRef = React.useRef([]);
+useEffect(() => { ordersRef.current = orders; }, [orders]);
 
-  // ── App layout ──
-  appWrap: { display: 'flex', minHeight: '100vh', background: TG, direction: 'rtl', color: TTX, fontFamily: "'Cairo', sans-serif" },
-  sidebar: { width: 260, background: TP, borderLeft: `1px solid ${TB}`, display: 'flex', flexDirection: 'column', padding: '14px 10px', flexShrink: 0 },
-  sidebarHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px 14px', borderBottom: `1px solid ${TB}`, marginBottom: 10 },
-  sidebarBrand: { fontSize: 15.5, fontWeight: 800, color: TTX },
-  sidebarBrandSub: { fontSize: 9, color: TDM, letterSpacing: '0.05em', textTransform: 'uppercase' },
-  sidebarNav: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1 },
-  navItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 10, border: '1px solid transparent', background: 'transparent', color: TSB, fontSize: 13.5, fontWeight: 600, textAlign: 'right', position: 'relative', transition: 'all 0.12s ease' },
-  navItemActive: { background: TAC, borderColor: 'rgba(42,171,238,0.20)', color: TBL, fontWeight: 700 },
-  navActiveDot: { position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)', width: 3, height: 15, borderRadius: 4, background: TBL },
-  sidebarFooter: { paddingTop: 11, borderTop: `1px solid ${TB}` },
-  userBadge: { display: 'flex', alignItems: 'center', gap: 9, padding: '6px', marginBottom: 7 },
-  userAvatar: { width: 32, height: 32, borderRadius: '50%', background: TBTN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
-  userName: { fontSize: 13, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  userRole: { fontSize: 10, color: TDM },
-  logoutBtn: { display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '9px 11px', background: 'transparent', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 10, color: TRD, fontSize: 12.5, fontWeight: 600 },
+const [warehouseProducts, setWarehouseProducts] = useState([]);
+const warehouseProductsRef = React.useRef([]);
+useEffect(() => { warehouseProductsRef.current = warehouseProducts; }, [warehouseProducts]);
 
-  // ── Mobile ──
-  mobileHeader: { position: 'fixed', top: 0, right: 0, left: 0, height: 52, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(23,33,43,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid rgba(255,255,255,0.09)`, padding: '0 14px', direction: 'rtl', paddingTop: 'env(safe-area-inset-top,0px)' },
-  mobileHeaderBrand: { display: 'flex', alignItems: 'center', gap: 8 },
-  mobileHeaderTitle: { fontSize: 15, fontWeight: 800, color: TTX },
-  mobileLogoutBtn: { width: 32, height: 32, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  bottomNav: { position: 'fixed', bottom: 0, right: 0, left: 0, zIndex: 100, display: 'flex', justifyContent: 'space-around', alignItems: 'center', background: 'rgba(23,33,43,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: `1px solid rgba(255,255,255,0.09)`, padding: '6px 4px', paddingBottom: 'max(8px, env(safe-area-inset-bottom,8px))', direction: 'rtl' },
-  bottomNavItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'transparent', border: 'none', color: TDM, padding: '5px 8px', flex: 1, minWidth: 0, position: 'relative' },
-  bottomNavItemActive: { color: TBL },
-  bottomNavLabel: { fontSize: 9.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
+async function recordWarehouseSale(order) {
+try {
+const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
+if (!match) { console.warn('⚠️ لم يُعثر على منتج مطابق'); return; }
+const { product, confidence } = match;
+await sbInsert('wh_sales', {
+product_id: product.id,
+product_name: `${product.car_name} — ${PRODUCT_TYPE_LABELS[product.type]}`,
+quantity: 1, price_iqd: Number(order.total) || 0, total_iqd: Number(order.total) || 0,
+customer_name: order.customer || '', date: new Date().toISOString().slice(0, 10),
+notes: `طلب #${order.orderNo} — مطابقة ${confidence === 'high' ? 'عالية' : confidence === 'medium' ? 'متوسطة' : 'منخفضة'}`,
+created_at: new Date().toISOString(),
+});
+const newQty = Math.max(0, (product.quantity || 0) - 1);
+await sbUpdate('wh_products', product.id, { quantity: newQty });
+setWarehouseProducts(prev => prev.map(p => p.id === product.id ? { ...p, quantity: newQty } : p));
+} catch (e) { console.error('warehouse sale error:', e); }
+}
 
-  mainArea: { flex: 1, overflow: 'auto', padding: '0', position: 'relative', background: TG },
-  viewWrap: { animation: 'fadeUp 0.24s var(--ease-bounce) both', maxWidth: 1480, margin: '0 auto', padding: '16px 18px', willChange: 'opacity, transform' },
-  viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap', gap: 11 },
-  viewTitle: { fontSize: 19, fontWeight: 800, color: TTX, margin: 0, letterSpacing: '-0.02em' },
-  viewSubtitle: { fontSize: 12, color: TDM, margin: '3px 0 0', fontWeight: 500 },
-  pageSelectWrap: { display: 'flex', alignItems: 'center', gap: 7, background: TI, border: 'none', borderRadius: 10, padding: '6px 11px' },
-  pageSelect: { background: 'transparent', border: 'none', color: TTX, fontSize: 12.5, fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
+async function returnToWarehouse(order) {
+try {
+const match = matchOrderToWarehouseProduct(order, warehouseProductsRef.current);
+if (!match) return;
+const { product } = match;
+const newQty = (product.quantity || 0) + 1;
+await sbUpdate('wh_products', product.id, { quantity: newQty });
+setWarehouseProducts(prev => prev.map(p => p.id === product.id ? { ...p, quantity: newQty } : p));
+} catch (e) { console.error('warehouse return error:', e); }
+}
 
-  // ── Conversations ──
-  convTabs: { display: 'flex', gap: 5, marginBottom: 0, flexWrap: 'wrap', padding: '0 0 9px' },
-  convTab: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12, fontWeight: 600, transition: 'all 0.12s ease' },
-  convTabActive: { background: TAC, color: TBL },
-  convTabCount: { background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 6px', fontSize: 10, fontWeight: 700 },
-  convTabCountActive: { background: 'rgba(42,171,238,0.28)', color: TBL },
-  unreadPulse: { position: 'absolute', top: -5, left: -5, minWidth: 15, height: 15, padding: '0 4px', borderRadius: 20, background: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${TP}` },
-  markAllReadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '7px', marginBottom: 4, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 0, color: TBL, fontSize: 12, fontWeight: 600 },
-  markAllReadBtnDisabled: { opacity: 0.38, color: TDM, background: 'transparent', cursor: 'not-allowed' },
+const [users, setUsers] = useState([]);
+const [storageReady, setStorageReady] = useState(false);
 
-  convLayout: { display: 'grid', gridTemplateColumns: '320px 1fr', gap: 0, minHeight: '100vh', alignItems: 'stretch' },
-  convList: { background: TP, border: 'none', borderRadius: 0, borderLeft: `1px solid ${TB}`, padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 0, maxHeight: '100vh', overflow: 'auto', boxShadow: 'none' },
-  searchBox: { display: 'flex', alignItems: 'center', gap: 8, background: TI, border: 'none', borderRadius: 10, padding: '8px 12px', margin: '0 10px 7px', boxShadow: 'none' },
-  searchInput: { background: 'transparent', border: 'none', color: TTX, fontSize: 12.5, width: '100%', fontFamily: "'Cairo', sans-serif" },
-  convItem: { display: 'flex', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', borderRight: '3px solid transparent', borderRadius: 0, textAlign: 'right', alignItems: 'center', transition: 'background 0.12s ease', width: '100%' },
-  convItemActive: { background: TAC, borderRightColor: TBL },
-  convAvatar: { width: 44, height: 44, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 15 },
-  convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  convCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  convTime: { fontSize: 10.5, color: TDM, flexShrink: 0, marginRight: 5 },
-  convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
-  convLastMsg: { fontSize: 12, color: TSB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
-  convMiniMetaRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 3, minHeight: 14 },
-  convMiniMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 999, background: 'rgba(42,171,238,0.08)', color: TBL, fontSize: 9, fontWeight: 700 },
-  unreadBadge: { background: TBL, color: '#fff', borderRadius: 20, fontSize: 10.5, fontWeight: 800, padding: '2px 7px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0 },
+useEffect(() => {
+async function loadWarehouseProducts() {
+try {
+const res = await sbSelect('wh_products', '&order=car_name.asc');
+if (res) setWarehouseProducts(res);
+} catch (e) { console.warn('warehouse load error:', e); }
+}
+if (storageReady) loadWarehouseProducts();
+}, [storageReady]);
 
-  convDetail: { background: TG, border: 'none', borderRadius: 0, padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0, overflow: 'hidden', boxShadow: 'none' },
-  detailHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${TB}`, marginBottom: 0, position: 'relative', background: TP },
-  convBackBtn: { display: 'none', width: 32, height: 32, borderRadius: 9, background: TI, border: 'none', color: TSB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  convAvatarLg: { width: 40, height: 40, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 },
-  detailName: { fontSize: 14.5, fontWeight: 800, color: TTX },
-  detailPage: { fontSize: 11, color: TDM, fontWeight: 500 },
-  chatHeaderMetaRow: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 3 },
-  chatHeaderMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 999, background: TI, color: TSB, fontSize: 9.5, fontWeight: 600 },
-  pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 11.5, fontWeight: 700, flexShrink: 0 },
-  chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
-  msgBubbleIn: { background: '#182533', border: 'none', borderRadius: '16px 16px 16px 4px', padding: '8px 12px', fontSize: 13.5, color: '#F5F5F5', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
-  msgBubbleOut: { background: '#2B5278', border: 'none', borderRadius: '16px 16px 4px 16px', padding: '8px 12px', fontSize: 13.5, color: '#fff', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
-  chatDateDivider: { alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 10, fontWeight: 600 },
-  msgImage: { width: '100%', maxWidth: 260, borderRadius: 10, display: 'block' },
-  msgAudio: { width: 240, maxWidth: '100%', height: 34 },
-  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.45)', alignSelf: 'flex-end', fontWeight: 500 },
-  composerBar: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 0, background: TP, border: 'none', borderTop: `1px solid ${TB}`, borderRadius: 0, padding: '10px 14px', boxShadow: 'none' },
-  composerIconBtn: { width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TDM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  recordingBar: { display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' },
-  recordingInfo: { flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
-  recordingDot: { width: 9, height: 9, borderRadius: '50%', background: TRD, flexShrink: 0 },
-  recordingTime: { fontSize: 14, fontWeight: 800, color: TTX, fontFamily: 'monospace', minWidth: 42 },
-  recordingLabel: { fontSize: 12, color: TDM },
-  recordingCancelBtn: { width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  recordingSendBtn: { width: 38, height: 38, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
-  composerInput: { flex: 1, background: 'transparent', border: 'none', color: TTX, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" },
-  composerSendBtn: { width: 36, height: 36, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
-  linkedOrderCard: { background: TI, border: `1px solid ${TB}`, borderRadius: 10, padding: 12, marginBottom: 9 },
-  linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: TBL, marginBottom: 9 },
-  linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 7 },
-  linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  linkedOrderLabel: { fontSize: 11.5, color: TDM },
-  linkedOrderValue: { fontSize: 12.5, color: TTX, fontWeight: 600 },
-  linkedOrderDetailBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '8px', background: 'rgba(42,171,238,0.09)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700 },
-  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '52px 20px', color: TDM, fontSize: 13.5, fontWeight: 500, animation: 'alfhdFadeUp 0.5s var(--ease-bounce) both' },
-  emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: TDM, fontSize: 13.5, fontWeight: 500, animation: 'alfhdFadeUp 0.5s var(--ease-bounce) both' },
+const [authedUser, setAuthedUser] = useState(() => {
+try {
+const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
+if (saved?.userId && saved?.userData) return saved.userData;
+} catch (_) {}
+return null;
+});
+const [appLoading, setAppLoading] = useState(!(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session')));
 
-  // ── Orders ──
-  printBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
-  secondaryBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 600 },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 },
-  statCard: { display: 'flex', alignItems: 'center', gap: 11, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: '14px 16px', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden' },
-  statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  statValue: { fontSize: 20, fontWeight: 800, color: TTX, lineHeight: 1.15, letterSpacing: '-0.02em' },
-  statLabel: { fontSize: 10.5, color: TDM, marginTop: 2 },
-  sectionTabs: { display: 'flex', gap: 5, marginBottom: 13 },
-  sectionTab: { display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12.5, fontWeight: 600, transition: 'all 0.12s ease' },
-  sectionTabActive: { background: TAC, color: TBL },
-  filterChips: { display: 'flex', gap: 5 },
-  chip: { padding: '6px 12px', background: TI, border: 'none', borderRadius: 20, color: TDM, fontSize: 11.5, fontWeight: 600 },
-  chipActive: { background: TAC, color: TBL },
-  ordersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(272px,1fr))', gap: 11 },
-  orderCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative' },
-  orderTicketHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px 9px' },
-  orderTicketAvatar: { width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15 },
-  orderCardCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderTicketPage: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderStatusPill: { fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: '3px 9px', flexShrink: 0 },
-  orderTicketBody: { padding: '0 13px 9px', display: 'flex', flexDirection: 'column', gap: 5 },
-  orderDetailRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TSB },
-  deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TBL, fontWeight: 700, marginTop: 2 },
-  orderTicketItems: { fontSize: 11.5, color: '#C8D0DC', background: TI, borderRadius: 8, padding: '8px 10px', marginTop: 2, lineHeight: 1.55, border: 'none' },
-  orderTicketFoot: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '9px 13px', borderTop: `1px solid ${TB}` },
-  orderCardTotal: { fontSize: 17, fontWeight: 800, color: TTX, letterSpacing: '-0.02em' },
-  orderCurrency: { fontSize: 11, fontWeight: 500, color: TDM },
-  orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, color: TDM, marginTop: 2 },
-  printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(77,219,107,0.11)', color: TGR, borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 },
-  batchBlock: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH },
-  batchHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
-  batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: TTX },
-  batchHeaderTime: { fontSize: 10.5, color: TDM, fontWeight: 500 },
-  orderCardActions: { display: 'flex', gap: 5, padding: '9px 13px', borderTop: `1px solid ${TB}`, background: 'rgba(0,0,0,0.08)' },
-  orderActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 31, borderRadius: 8, background: TI, border: 'none', color: TDM },
-  statusSelect: { border: '1px solid', borderRadius: 8, padding: '5px 8px', fontSize: 11.5, fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
+const convSignatureRef = React.useRef('');
+const HANDOFF_TRIGGERS_GLOBAL = [
+'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
+'transferred this chat', 'transfer this chat', 'Your AI agent transferred',
+'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
+'نحولك للموظف', 'تحويل المحادثة', 'handoff', 'hand off',
+];
 
-  // ── Stats ──
-  chartCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, marginBottom: 13, boxShadow: TSH },
-  timeFilterBar: { display: 'flex', gap: 5, marginBottom: 12, flexWrap: 'wrap' },
-  customDateRow: { display: 'flex', gap: 8, marginBottom: 14 },
-  customDateSelect: { background: TI, border: 'none', borderRadius: 9, padding: '8px 11px', color: TTX, fontSize: 12.5, fontFamily: "'Cairo', sans-serif", flex: 1 },
-  customDateSelectCompact: { background: TI, border: 'none', borderRadius: 9, padding: '8px 10px', color: TTX, fontSize: 12, fontFamily: "'Cairo', sans-serif", minWidth: 110 },
-  filtersWrap: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, background: TI, borderRadius: 10, padding: 10 },
-  dateChipsRow: { display: 'none' },
-  filterBottomRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
-  chartTitle: { fontSize: 14, fontWeight: 700, color: TTX, margin: '0 0 13px' },
-  barChartArea: { display: 'flex', flexDirection: 'column', gap: 12 },
-  barChartRow: { display: 'grid', gridTemplateColumns: '165px 1fr 105px', gap: 11, alignItems: 'center' },
-  barChartLabel: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: TSB, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
-  barChartTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
-  barChartFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4, transition: 'width 0.5s ease' },
-  barChartValue: { fontSize: 11.5, fontWeight: 700, color: TBL, textAlign: 'left' },
-  statsGrid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 },
-  donutWrap: { display: 'flex', justifyContent: 'center', padding: '8px 0' },
-  pageStatRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  pageStatInfo: { display: 'flex', alignItems: 'center', gap: 9 },
-  pageStatBadge: { background: TI, padding: '4px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 700, color: TSB },
+const refreshConversations = useCallback(async () => {
+try {
+const dbConversations = await sbSelect('alfhd_conversations', '&order=last_message_time.desc');
+if (dbConversations) {
+const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
+if (sig !== convSignatureRef.current) {
+convSignatureRef.current = sig;
+const mapped = dbConversations.map(mapConversationFromDb);
+setConversations(mapped);
+const toHandoff = mapped.filter((c) => {
+if (c.tab === 'handoff') return false;
+const msg = (c.lastMsg || '').toLowerCase();
+return HANDOFF_TRIGGERS_GLOBAL.some((t) => msg.includes(t.toLowerCase()));
+});
+if (toHandoff.length > 0) {
+setConversations((prev) => prev.map((c) => (toHandoff.find((h) => h.id === c.id) ? { ...c, tab: 'handoff' } : c)));
+toHandoff.forEach(async (c) => {
+try { await sbUpdate('alfhd_conversations', c.id, { tab: 'handoff' }); } catch (_e) {}
+});
+}
+}
+}
+} catch (e) { console.error('Supabase conversations load error:', e); }
+}, []);
 
-  // ── Pages ──
-  addBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
-  confirmBtn: { background: TBL, border: 'none', borderRadius: 8, padding: '0 15px', color: '#fff', fontWeight: 700, fontSize: 13 },
-  fbErrorBox: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12, background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.18)`, borderRadius: 10, padding: '10px 12px', color: TRD, fontSize: 12.5, lineHeight: 1.6 },
-  fbExchangingBox: { marginBottom: 12, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 10, padding: '10px 12px', color: TBL, fontSize: 12.5 },
-  fbCandidatesWrap: { marginBottom: 15, background: TI, border: 'none', borderRadius: 11, padding: 12 },
-  fbCandidatesTitle: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 10 },
-  fbCandidateRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${TB}` },
-  fbCandidateAvatarImg: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' },
-  fbCandidateId: { fontSize: 10.5, color: TDM, marginTop: 2 },
-  pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(295px,1fr))', gap: 12 },
-  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, overflow: 'hidden', transition: 'all 0.2s ease' },
-  pageCardTopLine: { position: 'absolute', top: 0, right: 16, left: 16, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, opacity: 0.55 },
-  pageCardHeader: { display: 'flex', alignItems: 'center', gap: 11, width: '100%' },
-  subscribeBtn: { width: '100%', background: 'rgba(77,219,107,0.09)', border: `1px solid rgba(77,219,107,0.22)`, borderRadius: 10, padding: '9px 0', color: TGR, fontSize: 12, fontWeight: 700 },
-  pageCardAvatar: { width: 46, height: 46, borderRadius: '50%', background: TI, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0 },
-  pageCardName: { fontSize: 14, fontWeight: 800, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  pageCardMeta: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, marginTop: 3, fontWeight: 600 },
-  pageStatusPill: { display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start', borderRadius: 20, padding: '6px 11px', fontSize: 11.5, fontWeight: 700, border: 'none' },
-  pageStatusPillOk: { color: TGR, background: 'rgba(77,219,107,0.09)' },
-  pageStatusPillWait: { color: TBL, background: 'rgba(42,171,238,0.09)' },
-  liveDot: { width: 7, height: 7, borderRadius: '50%', boxShadow: '0 0 8px currentColor' },
-  iconBtnDanger: { width: 30, height: 30, borderRadius: 8, background: 'rgba(242,80,80,0.08)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+const knownOrderIdsRef = React.useRef(null);
+const orderSignatureRef = React.useRef('');
+const rejectedIdsRef = React.useRef(null);
 
-  // ── Users ──
-  usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(285px,1fr))', gap: 11 },
-  userCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, transition: 'all 0.2s ease' },
-  userCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-  userCardAvatar: { width: 38, height: 38, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 },
-  userCardName: { fontSize: 13, fontWeight: 700, color: TTX },
-  userCardRole: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: TDM, marginTop: 2 },
-  activeDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
-  userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
-  permTag: { background: 'rgba(42,171,238,0.09)', color: TBL, fontSize: 9.5, fontWeight: 600, padding: '3px 7px', borderRadius: 6 },
-  userCardActions: { display: 'flex', gap: 6 },
-  userActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', background: TI, border: 'none', borderRadius: 8, color: TSB, fontSize: 10.5, fontWeight: 600 },
-  userCardMetaRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
-  userCodeTag: { fontSize: 10.5, color: TDM, background: TI, border: 'none', borderRadius: 7, padding: '3px 8px', fontFamily: 'monospace' },
-  warehouseNote: { display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: 10, fontSize: 12, color: TSB, lineHeight: 1.6 },
-  rejectReasonBox: { margin: '0 13px 10px', padding: '8px 10px', background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.14)`, borderRadius: 9, fontSize: 12, color: TTX, display: 'flex', flexDirection: 'column', gap: 3 },
-  rejectReasonLabel: { fontSize: 10.5, color: TRD, fontWeight: 700 },
-  rejectedCard: { border: `1.5px solid rgba(242,80,80,0.36)`, boxShadow: '0 0 0 1px rgba(242,80,80,0.09), 0 4px 14px -6px rgba(242,80,80,0.25)' },
-  rejectedBanner: { display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'center', background: '#7B1A1A', color: '#fff', fontSize: 12, fontWeight: 800, padding: '8px 11px', borderRadius: '12px 12px 0 0', margin: '-1px -1px 0' },
-  prepTimeRow: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: TDM, margin: '0 13px 8px', paddingTop: 2 },
-  orderReprepNoteBox: { display: 'flex', alignItems: 'flex-start', gap: 7, margin: '0 13px 10px', background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.24)`, color: '#FCA5A5', borderRadius: 9, padding: '8px 10px', fontSize: 12, lineHeight: 1.6 },
-  globalOrderSearchWrap: { position: 'relative', display: 'flex', alignItems: 'center', gap: 6, width: 208, minHeight: 34, background: TI, border: 'none', borderRadius: 10, padding: '0 10px' },
-  globalOrderSearchInput: { width: '100%', background: 'transparent', border: 'none', outline: 'none', color: TTX, fontSize: 12, fontFamily: "'Cairo', sans-serif" },
-  globalOrderResultsBox: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 50, background: TP, border: `1px solid ${TB}`, borderRadius: 11, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', overflow: 'hidden' },
-  globalOrderResultItem: { width: '100%', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 10px', border: 'none', background: 'transparent', borderRadius: 0, textAlign: 'right', color: TTX },
-  globalOrderResultTitle: { fontSize: 12, fontWeight: 700, color: TTX, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  globalOrderResultMeta: { fontSize: 10.5, color: TDM, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  globalOrderEmpty: { padding: '11px', color: TDM, fontSize: 12, textAlign: 'center' },
-
-  // ── Warehouse ──
-  warehouseWrap: { flex: 1, overflow: 'auto', padding: '18px 15px', maxWidth: 700, margin: '0 auto', width: '100%' },
-  warehouseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 11, paddingTop: 'env(safe-area-inset-top,0px)' },
-  warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
-  warehouseCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, transition: 'all 0.2s ease' },
-  warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
-  warehouseCardNo: { fontSize: 12, fontWeight: 800, color: TBL, fontFamily: 'monospace' },
-  warehouseCardDate: { fontSize: 11, color: TDM },
-  warehouseBigType: { fontSize: 17, fontWeight: 800, color: TTX, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
-  warehouseFilterBar: { display: 'flex', gap: 6, marginBottom: 13 },
-  warehouseFilterChip: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 7px', background: TI, border: 'none', borderRadius: 10, color: TDM, fontSize: 12.5, fontWeight: 700 },
-  warehouseFilterChipActive: { background: TAC, color: TBL },
-  warehouseFilterCount: { minWidth: 19, height: 19, borderRadius: 10, background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 800, padding: '0 5px' },
-  warehouseFilterCountActive: { background: TBL, color: '#fff' },
-  warehouseReprepNote: { display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, padding: '10px 11px', color: '#FCA5A5' },
-  warehouseReprepTitle: { fontSize: 12, fontWeight: 800, color: TRD, marginBottom: 3 },
-  warehouseReprepText: { fontSize: 13.5, fontWeight: 700, color: '#FEE2E2', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
-  warehouseItemsBox: { marginTop: 10, background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: '9px 11px' },
-  warehouseItemsLabel: { fontSize: 10.5, fontWeight: 700, color: '#FFCA28', marginBottom: 4 },
-  warehouseItemsText: { fontSize: 13.5, color: TTX, lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
-  warehouseBadge: { width: 38, height: 38, borderRadius: '50%', background: TBTN, color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
-  warehouseActions: { display: 'flex', gap: 8, marginTop: 12 },
-  warehouseDoneBtn: { flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '12px', background: TGBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(77,219,107,0.32)' },
-  warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
-
-  // ── Modal ──
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: 20, overflowY: 'auto' },
-  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginBottom: 20 },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
-  modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
-  modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
-  modalBody: { padding: '15px 17px', display: 'flex', flexDirection: 'column', gap: 13 },
-  formGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
-  formLabel: { fontSize: 11.5, fontWeight: 600, color: TDM },
-  formInput: { background: TI, border: 'none', borderRadius: 9, padding: '9px 12px', color: TTX, fontSize: 13, fontFamily: "'Cairo', sans-serif" },
-  roleToggle: { display: 'flex', gap: 6 },
-  roleBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px', background: TI, border: 'none', borderRadius: 9, color: TDM, fontSize: 12, fontWeight: 600 },
-  roleBtnActive: { background: TAC, color: TBL },
-  permsGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
-  permCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: TSB, padding: '5px 0', cursor: 'pointer' },
-  modalFooter: { display: 'flex', gap: 8, padding: '13px 17px', borderTop: `1px solid ${TB}` },
-  modalCancelBtn: { flex: 1, padding: '9px', background: 'transparent', border: `1px solid ${TB}`, borderRadius: 9, color: TDM, fontSize: 12.5, fontWeight: 600 },
-  modalSaveBtn: { flex: 1, padding: '9px', background: TBTN, border: 'none', borderRadius: 9, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.28)' },
-  detailGridRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 11, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
-  detailGridLabel: { fontSize: 11.5, color: TDM, flexShrink: 0 },
-  detailGridValue: { fontSize: 12.5, color: TTX, fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
-  detailActionBtn: { flex: 1, minWidth: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px', background: TI, border: 'none', borderRadius: 9, color: TSB, fontSize: 12, fontWeight: 700 },
-  statsBottomBtns: { display: 'flex', gap: 8, marginTop: 13 },
-  statsSmallBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '10px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 700 },
-  statsSummaryBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1.4, padding: '10px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
-  summaryRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 10, background: TI, border: 'none', marginBottom: 6 },
-  summaryRowSub: { background: 'transparent', border: 'none', padding: '4px 15px', marginBottom: 2 },
-  summaryRowLabel: { fontSize: 12.5, fontWeight: 600 },
-  summaryRowValue: { fontSize: 16, fontWeight: 800 },
-  summaryHint: { fontSize: 11, color: TDM, textAlign: 'center', marginTop: 8 },
-  bestSellerRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 },
-  bestSellerRank: { width: 24, height: 24, borderRadius: 8, background: 'rgba(42,171,238,0.11)', color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, flexShrink: 0 },
-  bestSellerType: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 4, overflowWrap: 'anywhere' },
-  bestSellerTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
-  bestSellerFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4 },
-  bestSellerCount: { fontSize: 14, fontWeight: 800, color: TBL, minWidth: 23, textAlign: 'center', flexShrink: 0 },
-  convertedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${TB}` },
-  convertedCustomer: { fontSize: 13, fontWeight: 700, color: TTX },
-  convertedSub: { fontSize: 11, color: TBL, marginTop: 2 },
-  convertedMeta: { fontSize: 10.5, color: TDM, marginTop: 2 },
-  convertedTotal: { fontSize: 13, fontWeight: 800, color: TBL, flexShrink: 0 },
-  neglectedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px', marginBottom: 5, borderRadius: 10, background: TI, border: 'none', cursor: 'pointer' },
-  neglectedRowSel: { background: TAC, border: '1px solid rgba(42,171,238,0.28)' },
-  neglectedCheck: { width: 21, height: 21, borderRadius: 6, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff' },
-  neglectedCheckOn: { background: TBL, borderColor: TBL },
+const pushNotif = useCallback((notif) => {
+const entry = {
+id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+time: new Date().toISOString(), read: false, ...notif,
 };
+setNotifications((prev) => [entry, ...prev].slice(0, 50));
+try { notif.type === 'returned' ? playAlarmSound() : playNotificationSound(); } catch (_e) {}
+try {
+if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+new Notification(notif.title, { body: notif.body });
+}
+} catch (_e) {}
+}, []);
+
+const refreshOrders = useCallback(async () => {
+try {
+const dbOrders = await sbSelect('alfhd_orders', '&order=created_at.desc');
+if (!dbOrders) return;
+const mapped = dbOrders.map(mapOrderFromDb);
+if (knownOrderIdsRef.current) {
+const newChatOrder = mapped.find((o) => o.source === 'chat' && !knownOrderIdsRef.current.has(o.id));
+if (newChatOrder) playNotificationSound();
+}
+knownOrderIdsRef.current = new Set(mapped.map((o) => o.id));
+const rejectedNow = new Set(mapped.filter((o) => o.prepStatus === 'rejected').map((o) => o.id));
+if (rejectedIdsRef.current) {
+const newlyRejectedOrders = mapped.filter((o) => o.prepStatus === 'rejected' && !rejectedIdsRef.current.has(o.id));
+if (newlyRejectedOrders.length > 0) {
+playAlarmSound();
+for (const ro of newlyRejectedOrders) {
+pushNotif({
+type: 'returned', title: '⚠️ طلب لم يُجهَّز',
+body: `طلب #${ro.orderNo} — ${ro.customer || ''} — المجهّز: ${ro.prepByName || 'غير معروف'}${ro.prepReason ? ' — السبب: ' + ro.prepReason : ''}`,
+orderNo: ro.orderNo,
+});
+}
+}
+}
+rejectedIdsRef.current = rejectedNow;
+const sig = dbOrders.map((o) => `${o.id}:${o.status}:${o.stage}:${o.prep_status}:${o.converted}:${o.printed}:${o.jenni_sent}:${o.jenni_shipment_id}:${o.jenni_tracking}:${o.delivery_status}:${o.delivery_step}:${o.delivery_step_ar}:${o.delivery_note}:${o.delivery_updated_at}`).join('|');
+if (sig !== orderSignatureRef.current) {
+orderSignatureRef.current = sig;
+const prevOrders = ordersRef.current;
+for (const newOrder of mapped) {
+const prev = prevOrders.find(o => o.id === newOrder.id);
+if (!prev) continue;
+const prevStatus = prev.deliveryStatus;
+const newStatus = newOrder.deliveryStatus;
+if (newStatus === 'DELIVERED' && prevStatus !== 'DELIVERED') {
+recordWarehouseSale(newOrder);
+pushNotif({
+type: 'delivered', title: 'تم تسليم طلب 🎉',
+body: `طلب #${newOrder.orderNo} — ${newOrder.customer || ''} (${Number(newOrder.total).toLocaleString()} د.ع)`,
+orderNo: newOrder.orderNo,
+});
+}
+if ((newStatus === 'RETURNED_TO_MERCHANT' || newStatus === 'returned') &&
+prevStatus !== 'RETURNED_TO_MERCHANT' && prevStatus !== 'returned') {
+returnToWarehouse(newOrder);
+pushNotif({
+type: 'returned', title: '⚠️ طلب راجع — انتبه',
+body: `طلب #${newOrder.orderNo} — ${newOrder.customer || ''}${newOrder.deliveryNote ? ' — ' + newOrder.deliveryNote : ''}`,
+orderNo: newOrder.orderNo,
+});
+}
+}
+setOrders(mapped);
+}
+} catch (e) { console.error('orders refresh error:', e); }
+}, [pushNotif]);
+
+useEffect(() => {
+try {
+if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+Notification.requestPermission().catch(() => {});
+}
+} catch (_e) {}
+}, []);
+
+useEffect(() => {
+if (!storageReady) return undefined;
+let interval = null;
+const start = () => {
+if (interval) return;
+interval = setInterval(() => { if (!document.hidden) refreshOrders(); }, 12000);
+};
+const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+start();
+const onVis = () => { if (document.hidden) stop(); else { refreshOrders(); start(); } };
+document.addEventListener('visibilitychange', onVis);
+return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
+}, [storageReady, refreshOrders]);
+
+useEffect(() => {
+if (!storageReady) return undefined;
+const syncJenni = async () => {
+if (document.hidden) return;
+try {
+await fetch(JENNI_SYNC_FUNCTION_URL, {
+method: 'POST',
+headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+body: '{}',
+});
+await refreshOrders();
+} catch (_e) {}
+};
+syncJenni();
+let interval = setInterval(syncJenni, 60000);
+const onVis = () => { if (!document.hidden) syncJenni(); };
+document.addEventListener('visibilitychange', onVis);
+return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVis); };
+}, [storageReady, refreshOrders]);
+
+useEffect(() => {
+(async () => {
+try {
+const [dbPages, dbOrders, dbUsers] = await Promise.all([
+sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at', '&order=created_at.asc'),
+sbSelect('alfhd_orders', '&order=created_at.desc'),
+sbSelect('alfhd_users', '&order=created_at.asc'),
+]);
+if (dbPages?.length) setPages(dbPages.map(mapPageFromDb));
+if (dbOrders?.length) setOrders(dbOrders.map(mapOrderFromDb));
+if (dbUsers?.length) setUsers(dbUsers.map(mapUserFromDb));
+await refreshConversations();
+} catch (e) { console.error('Supabase init load error:', e); }
+finally { setStorageReady(true); }
+})();
+}, [refreshConversations]);
+
+const pollFacebookNow = useCallback(async () => {
+try {
+await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
+} catch (e) { console.error('active poll error:', e); }
+finally { refreshConversations(); }
+}, [refreshConversations]);
+
+useEffect(() => {
+if (!storageReady) return undefined;
+pollFacebookNow();
+let interval = null;
+const start = () => {
+if (interval) return;
+interval = setInterval(() => { if (!document.hidden) pollFacebookNow(); }, 8000);
+};
+const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+start();
+const onVis = () => { if (document.hidden) stop(); else { pollFacebookNow(); start(); } };
+document.addEventListener('visibilitychange', onVis);
+return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
+}, [storageReady, pollFacebookNow]);
+
+useEffect(() => {
+if (!storageReady) return;
+setAppLoading(false);
+try {
+const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
+if (saved?.userId) {
+const found = users.find((u) => u.id === saved.userId && u.active);
+if (found) {
+setAuthedUser(found);
+const store = localStorage.getItem('alfhd_session') ? localStorage : sessionStorage;
+store.setItem('alfhd_session', JSON.stringify({ userId: found.id, userData: found }));
+} else if (authedUser) {
+setAuthedUser(null);
+localStorage.removeItem('alfhd_session');
+sessionStorage.removeItem('alfhd_session');
+}
+}
+} catch (e) {}
+}, [storageReady]);
+
+const handleLogin = (user, rememberMe = true) => {
+ensureAudioReady();
+setAuthedUser(user); setAppLoading(false);
+try {
+const payload = JSON.stringify({ userId: user.id, userData: user });
+localStorage.removeItem('alfhd_session');
+sessionStorage.removeItem('alfhd_session');
+(rememberMe ? localStorage : sessionStorage).setItem('alfhd_session', payload);
+} catch (e) {}
+};
+const handleLogout = () => {
+setAuthedUser(null);
+try {
+localStorage.removeItem('alfhd_session');
+sessionStorage.removeItem('alfhd_session');
+} catch (e) {}
+};
+const hasPermission = (permId) => {
+if (!authedUser) return false;
+if (authedUser.role === 'admin') return true;
+return authedUser.permissions?.includes(permId);
+};
+const contactWhatsApp = useCallback((rawPhone) => {
+if (!rawPhone) { alert('لا يوجد رقم متاح'); return; }
+let digits = String(rawPhone).replace(/[^0-9]/g, '');
+if (digits.startsWith('00')) digits = digits.slice(2);
+else if (digits.startsWith('0')) digits = '964' + digits.slice(1);
+else if (!digits.startsWith('964')) digits = '964' + digits;
+window.open(`https://wa.me/${digits}`, '_blank');
+}, []);
+
+if (appLoading && !authedUser) {
+return (
+<>
+<GlobalStyles />
+<div className="aurora-loading-screen">
+<FahdLogo size={48} />
+<RefreshCw size={19} className="aurora-spin" />
+</div>
+</>
+);
+}
+
+if (!authedUser) {
+return (
+<>
+<GlobalStyles />
+<LoginScreen users={users} onLogin={handleLogin} />
+</>
+);
+}
+
+if (authedUser.role === 'warehouse') {
+return <PrepWorkerView currentUser={authedUser} onLogout={handleLogout} />;
+}
+
+return (
+<ErrorBoundary>
+<>
+<GlobalStyles />
+<div className="aurora-notif-bell-wrap">
+<button onClick={() => {
+setShowNotifications((v) => !v);
+if (!showNotifications) setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+}} className={`aurora-notif-bell ${notifications.some((n) => !n.read) ? 'active' : ''}`} title="الإشعارات">
+<Bell size={18} />
+{notifications.some((n) => !n.read) && (
+<span className="aurora-notif-count">{notifications.filter((n) => !n.read).length}</span>
+)}
+</button>
+{showNotifications && (
+<div className="aurora-notif-panel">
+<div className="aurora-notif-header">
+<span>الإشعارات</span>
+{notifications.length > 0 && (
+<button onClick={() => setNotifications([])}>مسح الكل</button>
+)}
+</div>
+{notifications.length === 0 && <div className="aurora-notif-empty">لا إشعارات</div>}
+{notifications.map((n) => (
+<div key={n.id} className={`aurora-notif-item ${n.type}`}>
+<div className="aurora-notif-title">{n.title}</div>
+<div className="aurora-notif-body">{n.body}</div>
+<div className="aurora-notif-time">{new Date(n.time).toLocaleString('ar')}</div>
+</div>
+))}
+</div>
+)}
+</div>
+
+<div className="aurora-app">
+<Sidebar activeView={activeView} setActiveView={setActiveView}
+onLogout={handleLogout} currentUser={authedUser} pages={pages} />
+<main className={`aurora-main ${activeView === 'conversations' ? 'conv' : ''}`}>
+{activeView === 'conversations' && (
+<ConversationsView conversations={conversations} pages={pages} orders={orders}
+setConversations={setConversations} pendingOpenConvId={pendingOpenConvId}
+clearPendingOpenConvId={() => setPendingOpenConvId(null)}
+onCreateOrderFromConv={goToNewOrderFromConversation}
+onOpenOrderDetails={goToOrderDetails} />
+)}
+{activeView === 'orders' && (
+<OrdersView orders={orders} pages={pages} setOrders={setOrders}
+conversations={conversations} setConversations={setConversations}
+pendingOpenOrderId={pendingOpenOrderId}
+clearPendingOpenOrderId={() => setPendingOpenOrderId(null)}
+onViewConversation={goToConversation}
+pendingNewOrderFromConv={pendingNewOrderFromConv}
+clearPendingNewOrderFromConv={() => setPendingNewOrderFromConv(null)}
+currentUser={authedUser} warehouseProducts={warehouseProducts} />
+)}
+{activeView === 'stats' && (
+<StatsView orders={orders} pages={pages} conversations={conversations} setOrders={setOrders} />
+)}
+{activeView === 'users' && (authedUser.role === 'admin' || (authedUser.permissions || []).includes('users_manage')) && (
+<AdminView users={users} setUsers={setUsers} orders={orders} conversations={conversations}
+onViewConversation={goToConversation} onContactWhatsApp={contactWhatsApp} />
+)}
+{activeView === 'pages' && <PagesView pages={pages} setPages={setPages} />}
+{activeView === 'warehouse' && (authedUser.role === 'admin' || authedUser.role === 'manager') && <WarehouseView />}
+</main>
+</div>
+</>
+</ErrorBoundary>
+);
+}
+
+// ══════════════════════════════════════════════════════════════
+// GlobalStyles - تصميم Aurora الكامل
+// ══════════════════════════════════════════════════════════════
+function GlobalStyles() {
+return (
+<style>{`
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after {
+box-sizing: border-box;
+font-family: 'Cairo', 'Inter', sans-serif;
+-webkit-tap-highlight-color: transparent;
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+}
+
+:root {
+/* Aurora Color System */
+--aurora-bg: #0A0E1A;
+--aurora-bg-elev: #111626;
+--aurora-surface: #161B2E;
+--aurora-surface-2: #1C2238;
+--aurora-border: rgba(255, 255, 255, 0.08);
+--aurora-border-strong: rgba(255, 255, 255, 0.14);
+
+/* Primary Gradient - Indigo to Violet */
+--aurora-primary: #6366F1;
+--aurora-primary-2: #8B5CF6;
+--aurora-primary-grad: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+
+/* Accent - Cyan */
+--aurora-accent: #06B6D4;
+--aurora-accent-grad: linear-gradient(135deg, #06B6D4 0%, #0891B2 100%);
+
+/* Semantic */
+--aurora-success: #10B981;
+--aurora-success-grad: linear-gradient(135deg, #10B981 0%, #059669 100%);
+--aurora-danger: #EF4444;
+--aurora-danger-grad: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+--aurora-warn: #F59E0B;
+--aurora-warn-grad: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+--aurora-pink: #EC4899;
+
+/* Text */
+--aurora-text: #F8FAFC;
+--aurora-text-2: #E2E8F0;
+--aurora-text-muted: #94A3B8;
+--aurora-text-dim: #64748B;
+
+/* Effects */
+--aurora-glow-primary: 0 0 40px rgba(99, 102, 241, 0.25);
+--aurora-glow-accent: 0 0 40px rgba(6, 182, 212, 0.25);
+--aurora-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+--aurora-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+--aurora-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+/* Radius */
+--aurora-r-sm: 8px;
+--aurora-r-md: 12px;
+--aurora-r-lg: 16px;
+--aurora-r-xl: 20px;
+--aurora-r-full: 999px;
+
+/* Easing */
+--aurora-ease: cubic-bezier(0.4, 0.0, 0.2, 1);
+--aurora-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+--aurora-ease-bounce: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html { scroll-behavior: smooth; }
+body {
+margin: 0;
+background: var(--aurora-bg);
+color: var(--aurora-text);
+overscroll-behavior: none;
+-webkit-overflow-scrolling: touch;
+}
+
+input::placeholder, textarea::placeholder { color: var(--aurora-text-dim); }
+input:focus, select:focus, textarea:focus { outline: none; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+outline: 2px solid rgba(99, 102, 241, 0.5); outline-offset: 1px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+background: rgba(99, 102, 241, 0.25);
+border-radius: 10px;
+transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.45); }
+select, input, textarea { color-scheme: dark; }
+
+/* ═══ Aurora Background ═══ */
+.aurora-login-wrap {
+min-height: 100vh;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+background: var(--aurora-bg);
+position: relative;
+overflow: hidden;
+direction: rtl;
+padding: 20px;
+}
+
+.aurora-bg-orb {
+position: absolute;
+border-radius: 50%;
+filter: blur(80px);
+pointer-events: none;
+opacity: 0.5;
+}
+.aurora-orb-1 {
+width: 500px; height: 500px;
+background: radial-gradient(circle, rgba(99, 102, 241, 0.35), transparent 70%);
+top: -150px; right: -100px;
+animation: auroraFloat 20s ease-in-out infinite;
+}
+.aurora-orb-2 {
+width: 450px; height: 450px;
+background: radial-gradient(circle, rgba(139, 92, 246, 0.3), transparent 70%);
+bottom: -150px; left: -100px;
+animation: auroraFloat 25s ease-in-out infinite reverse;
+}
+.aurora-orb-3 {
+width: 350px; height: 350px;
+background: radial-gradient(circle, rgba(6, 182, 212, 0.25), transparent 70%);
+top: 40%; left: 50%;
+transform: translateX(-50%);
+animation: auroraFloat 30s ease-in-out infinite;
+}
+
+.aurora-grid-bg {
+position: absolute;
+inset: 0;
+background-image:
+linear-gradient(rgba(99, 102, 241, 0.04) 1px, transparent 1px),
+linear-gradient(90deg, rgba(99, 102, 241, 0.04) 1px, transparent 1px);
+background-size: 50px 50px;
+mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+pointer-events: none;
+}
+
+@keyframes auroraFloat {
+0%, 100% { transform: translate(0, 0); }
+33% { transform: translate(30px, -30px); }
+66% { transform: translate(-20px, 20px); }
+}
+
+.aurora-login-top-badge {
+position: absolute;
+top: 20px;
+z-index: 2;
+display: flex;
+align-items: center;
+gap: 7px;
+color: var(--aurora-text-muted);
+font-size: 10px;
+font-weight: 700;
+letter-spacing: 0.18em;
+background: rgba(22, 27, 46, 0.7);
+backdrop-filter: blur(20px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-full);
+padding: 7px 14px;
+}
+
+.aurora-login-card {
+position: relative;
+z-index: 1;
+background: rgba(22, 27, 46, 0.8);
+backdrop-filter: blur(30px) saturate(1.4);
+-webkit-backdrop-filter: blur(30px) saturate(1.4);
+border: 1px solid var(--aurora-border-strong);
+border-radius: var(--aurora-r-xl);
+padding: 38px 32px 28px;
+width: 100%;
+max-width: 400px;
+display: flex;
+flex-direction: column;
+align-items: center;
+box-shadow: var(--aurora-shadow-lg), var(--aurora-glow-primary);
+animation: auroraCardFloat 6s ease-in-out infinite;
+}
+
+.aurora-card-glow {
+position: absolute;
+inset: -1px;
+border-radius: var(--aurora-r-xl);
+background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3), rgba(6, 182, 212, 0.3));
+filter: blur(20px);
+opacity: 0.5;
+z-index: -1;
+}
+
+.aurora-card-border {
+position: absolute;
+inset: 0;
+border-radius: var(--aurora-r-xl);
+padding: 1px;
+background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.3), rgba(6, 182, 212, 0.5));
+-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+-webkit-mask-composite: xor;
+mask-composite: exclude;
+pointer-events: none;
+}
+
+@keyframes auroraCardFloat {
+0%, 100% { transform: translateY(0); }
+50% { transform: translateY(-6px); }
+}
+
+.aurora-logo-wrap {
+position: relative;
+margin-bottom: 8px;
+}
+.aurora-logo-halo {
+position: absolute;
+inset: -25px;
+border-radius: 50%;
+background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
+filter: blur(15px);
+animation: auroraPulse 3s ease-in-out infinite;
+}
+@keyframes auroraPulse {
+0%, 100% { opacity: 0.6; transform: scale(1); }
+50% { opacity: 1; transform: scale(1.05); }
+}
+
+.aurora-login-title {
+font-size: 32px;
+font-weight: 900;
+color: var(--aurora-text);
+margin: 12px 0 2px;
+letter-spacing: -0.02em;
+background: linear-gradient(135deg, #F8FAFC 0%, #94A3B8 100%);
+-webkit-background-clip: text;
+background-clip: text;
+-webkit-text-fill-color: transparent;
+}
+
+.aurora-login-subtitle {
+font-size: 13px;
+color: var(--aurora-text-muted);
+margin: 0;
+font-weight: 500;
+}
+
+.aurora-login-chip {
+margin-top: 10px;
+color: var(--aurora-primary);
+font-size: 11px;
+font-weight: 700;
+background: rgba(99, 102, 241, 0.12);
+border: 1px solid rgba(99, 102, 241, 0.25);
+border-radius: var(--aurora-r-full);
+padding: 5px 13px;
+}
+
+.aurora-form-section {
+width: 100%;
+margin-top: 28px;
+}
+
+.aurora-label {
+display: block;
+font-size: 11px;
+color: var(--aurora-text-muted);
+margin-bottom: 12px;
+font-weight: 700;
+text-align: center;
+letter-spacing: 0.05em;
+text-transform: uppercase;
+}
+
+.aurora-pin-row {
+position: relative;
+display: flex;
+gap: 10px;
+justify-content: center;
+cursor: text;
+}
+
+.aurora-pin-box {
+width: 54px;
+height: 60px;
+border-radius: var(--aurora-r-md);
+background: var(--aurora-surface);
+border: 1.5px solid var(--aurora-border);
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 22px;
+color: var(--aurora-primary);
+font-weight: 900;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-pin-box.active {
+border-color: var(--aurora-primary);
+transform: translateY(-2px);
+box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+}
+.aurora-pin-box.filled {
+border-color: rgba(99, 102, 241, 0.5);
+background: rgba(99, 102, 241, 0.08);
+}
+.aurora-pin-box.err {
+border-color: var(--aurora-danger);
+animation: auroraShake 0.5s;
+}
+.aurora-pin-dot {
+width: 10px;
+height: 10px;
+border-radius: 50%;
+background: var(--aurora-primary-grad);
+box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+}
+
+.aurora-pin-hidden {
+position: absolute;
+inset: 0;
+opacity: 0;
+width: 100%;
+height: 100%;
+border: none;
+padding: 0;
+margin: 0;
+cursor: text;
+}
+
+@keyframes auroraShake {
+0%, 100% { transform: translateX(0); }
+25% { transform: translateX(-6px); }
+75% { transform: translateX(6px); }
+}
+.aurora-shake { animation: auroraShake 0.5s !important; }
+
+.aurora-error {
+color: var(--aurora-danger);
+font-size: 12px;
+margin-top: 10px;
+text-align: center;
+font-weight: 600;
+}
+
+.aurora-remember {
+margin-top: 14px;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 7px;
+color: var(--aurora-text-muted);
+font-size: 12px;
+font-weight: 600;
+cursor: pointer;
+}
+.aurora-checkbox {
+width: 15px;
+height: 15px;
+accent-color: var(--aurora-primary);
+cursor: pointer;
+}
+
+.aurora-keypad {
+margin-top: 20px;
+display: grid;
+grid-template-columns: repeat(3, 54px);
+gap: 10px;
+justify-content: center;
+}
+.aurora-key-btn {
+width: 54px;
+height: 54px;
+border-radius: var(--aurora-r-md);
+border: 1px solid var(--aurora-border);
+background: var(--aurora-surface);
+color: var(--aurora-text);
+font-size: 17px;
+font-weight: 700;
+transition: all 0.15s var(--aurora-ease);
+}
+.aurora-key-btn:hover {
+background: var(--aurora-surface-2);
+border-color: rgba(99, 102, 241, 0.3);
+}
+.aurora-key-btn:active {
+transform: scale(0.94);
+}
+.aurora-key-ghost {
+width: 54px;
+height: 54px;
+border-radius: var(--aurora-r-md);
+border: 1px solid var(--aurora-border);
+background: transparent;
+color: var(--aurora-text-muted);
+font-size: 12px;
+font-weight: 700;
+}
+
+.aurora-login-footer {
+margin-top: 22px;
+font-size: 10px;
+color: var(--aurora-text-dim);
+position: relative;
+z-index: 1;
+letter-spacing: 0.04em;
+}
+
+/* ═══ App Layout ═══ */
+.aurora-app {
+display: flex;
+min-height: 100vh;
+background: var(--aurora-bg);
+direction: rtl;
+color: var(--aurora-text);
+position: relative;
+}
+.aurora-app::before {
+content: '';
+position: fixed;
+inset: 0;
+background:
+radial-gradient(1200px 600px at 70% -10%, rgba(99, 102, 241, 0.08), transparent 60%),
+radial-gradient(900px 500px at 10% 110%, rgba(6, 182, 212, 0.06), transparent 55%);
+pointer-events: none;
+z-index: 0;
+}
+
+.aurora-sidebar {
+width: 260px;
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border-left: 1px solid var(--aurora-border);
+display: flex;
+flex-direction: column;
+padding: 16px 12px;
+flex-shrink: 0;
+position: relative;
+z-index: 1;
+}
+
+.aurora-sidebar-header {
+display: flex;
+align-items: center;
+gap: 11px;
+padding: 4px 8px 16px;
+border-bottom: 1px solid var(--aurora-border);
+margin-bottom: 12px;
+}
+.aurora-brand-name {
+font-size: 17px;
+font-weight: 900;
+color: var(--aurora-text);
+background: linear-gradient(135deg, #F8FAFC 0%, #94A3B8 100%);
+-webkit-background-clip: text;
+background-clip: text;
+-webkit-text-fill-color: transparent;
+letter-spacing: -0.02em;
+}
+.aurora-brand-sub {
+font-size: 9px;
+color: var(--aurora-text-dim);
+letter-spacing: 0.1em;
+text-transform: uppercase;
+font-weight: 700;
+}
+
+.aurora-sidebar-nav {
+display: flex;
+flex-direction: column;
+gap: 3px;
+flex: 1;
+}
+
+.aurora-nav-item {
+display: flex;
+align-items: center;
+gap: 11px;
+padding: 10px 12px;
+border-radius: var(--aurora-r-md);
+border: 1px solid transparent;
+background: transparent;
+color: var(--aurora-text-muted);
+font-size: 13.5px;
+font-weight: 600;
+text-align: right;
+position: relative;
+transition: all 0.2s var(--aurora-ease);
+cursor: pointer;
+}
+.aurora-nav-item:hover {
+background: rgba(255, 255, 255, 0.04);
+color: var(--aurora-text-2);
+}
+.aurora-nav-item.active {
+background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+border-color: rgba(99, 102, 241, 0.25);
+color: var(--aurora-text);
+font-weight: 700;
+box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.aurora-nav-icon-wrap {
+width: 32px;
+height: 32px;
+border-radius: 10px;
+background: rgba(255, 255, 255, 0.04);
+display: flex;
+align-items: center;
+justify-content: center;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-nav-icon-wrap.active {
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.aurora-nav-indicator {
+position: absolute;
+right: -12px;
+top: 50%;
+transform: translateY(-50%);
+width: 3px;
+height: 18px;
+border-radius: 4px;
+background: var(--aurora-primary-grad);
+box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+}
+
+.aurora-sidebar-footer {
+padding-top: 12px;
+border-top: 1px solid var(--aurora-border);
+}
+.aurora-user-badge {
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 8px;
+margin-bottom: 8px;
+border-radius: var(--aurora-r-md);
+background: rgba(255, 255, 255, 0.03);
+}
+.aurora-user-avatar {
+width: 36px;
+height: 36px;
+border-radius: 50%;
+background: var(--aurora-primary-grad);
+color: white;
+display: flex;
+align-items: center;
+justify-content: center;
+font-weight: 800;
+font-size: 14px;
+flex-shrink: 0;
+box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+.aurora-user-info { flex: 1; min-width: 0; }
+.aurora-user-name {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+.aurora-user-role { font-size: 10px; color: var(--aurora-text-dim); }
+
+.aurora-logout-btn {
+display: flex;
+align-items: center;
+gap: 8px;
+width: 100%;
+padding: 10px 12px;
+background: rgba(239, 68, 68, 0.08);
+border: 1px solid rgba(239, 68, 68, 0.2);
+border-radius: var(--aurora-r-md);
+color: var(--aurora-danger);
+font-size: 12.5px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-logout-btn:hover {
+background: rgba(239, 68, 68, 0.15);
+border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ═══ Mobile ═══ */
+.aurora-mobile-header {
+position: fixed;
+top: 0; right: 0; left: 0;
+height: 54px;
+z-index: 100;
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: rgba(22, 27, 46, 0.85);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border-bottom: 1px solid var(--aurora-border);
+padding: 0 14px;
+direction: rtl;
+padding-top: env(safe-area-inset-top, 0px);
+}
+.aurora-mobile-brand {
+display: flex;
+align-items: center;
+gap: 9px;
+font-size: 16px;
+font-weight: 900;
+color: var(--aurora-text);
+}
+.aurora-mobile-logout {
+width: 34px; height: 34px;
+border-radius: 10px;
+background: rgba(239, 68, 68, 0.1);
+border: none;
+color: var(--aurora-danger);
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+}
+
+.aurora-bottom-nav {
+position: fixed;
+bottom: 0; right: 0; left: 0;
+z-index: 100;
+display: flex;
+justify-content: space-around;
+align-items: center;
+background: rgba(22, 27, 46, 0.9);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border-top: 1px solid var(--aurora-border);
+padding: 7px 4px;
+padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+direction: rtl;
+}
+.aurora-bottom-item {
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 3px;
+background: transparent;
+border: none;
+color: var(--aurora-text-dim);
+padding: 6px 8px;
+flex: 1;
+min-width: 0;
+position: relative;
+font-size: 10px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-bottom-item.active {
+color: var(--aurora-primary);
+}
+.aurora-bottom-item.active::before {
+content: '';
+position: absolute;
+top: -7px;
+left: 50%;
+transform: translateX(-50%);
+width: 24px;
+height: 3px;
+border-radius: 0 0 4px 4px;
+background: var(--aurora-primary-grad);
+box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+}
+
+/* ═══ Main Area ═══ */
+.aurora-main {
+flex: 1;
+overflow: auto;
+padding: 0;
+position: relative;
+background: var(--aurora-bg);
+z-index: 1;
+}
+.aurora-main.conv {
+overflow: hidden;
+display: flex;
+flex-direction: column;
+}
+.aurora-main.full {
+margin-right: 0;
+width: 100%;
+}
+
+.aurora-view {
+animation: auroraFadeUp 0.3s var(--aurora-ease-bounce) both;
+max-width: 1480px;
+margin: 0 auto;
+padding: 20px 22px;
+}
+@keyframes auroraFadeUp {
+from { opacity: 0; transform: translateY(10px); }
+to { opacity: 1; transform: translateY(0); }
+}
+
+.aurora-view-header {
+display: flex;
+justify-content: space-between;
+align-items: flex-end;
+margin-bottom: 18px;
+flex-wrap: wrap;
+gap: 12px;
+}
+.aurora-view-title {
+font-size: 22px;
+font-weight: 900;
+color: var(--aurora-text);
+margin: 0;
+letter-spacing: -0.02em;
+background: linear-gradient(135deg, #F8FAFC 0%, #94A3B8 100%);
+-webkit-background-clip: text;
+background-clip: text;
+-webkit-text-fill-color: transparent;
+}
+.aurora-view-subtitle {
+font-size: 12.5px;
+color: var(--aurora-text-dim);
+margin: 4px 0 0;
+font-weight: 500;
+}
+.aurora-view-actions {
+display: flex;
+gap: 8px;
+flex-wrap: wrap;
+align-items: center;
+justify-content: flex-end;
+}
+
+/* ═══ Buttons ═══ */
+button {
+font-family: 'Cairo', sans-serif;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+will-change: transform;
+}
+button:active:not(:disabled) {
+transform: scale(0.96);
+transition-duration: 0.08s;
+}
+button:disabled {
+opacity: 0.42;
+cursor: default;
+}
+
+.aurora-btn {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+gap: 6px;
+padding: 10px 16px;
+border-radius: var(--aurora-r-md);
+font-size: 13px;
+font-weight: 700;
+border: none;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+white-space: nowrap;
+}
+.aurora-btn.primary {
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+.aurora-btn.primary:hover {
+box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+transform: translateY(-1px);
+}
+.aurora-btn.ghost {
+background: rgba(255, 255, 255, 0.05);
+border: 1px solid var(--aurora-border);
+color: var(--aurora-text-2);
+}
+.aurora-btn.ghost:hover {
+background: rgba(255, 255, 255, 0.08);
+border-color: var(--aurora-border-strong);
+}
+.aurora-btn.danger {
+background: var(--aurora-danger-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+}
+.aurora-btn.success {
+background: var(--aurora-success-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+.aurora-btn.warn {
+background: var(--aurora-warn-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+}
+.aurora-btn.fb {
+background: linear-gradient(135deg, #1877F2, #0D5FBF);
+color: white;
+box-shadow: 0 4px 14px rgba(24, 119, 242, 0.4);
+}
+.aurora-btn.wa {
+background: linear-gradient(135deg, #25D366, #128C7E);
+color: white;
+box-shadow: 0 4px 14px rgba(37, 211, 102, 0.35);
+}
+.aurora-btn.small {
+padding: 7px 12px;
+font-size: 12px;
+}
+.aurora-btn.full { width: 100%; }
+
+.aurora-action-btn {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+padding: 9px 14px;
+border-radius: var(--aurora-r-md);
+font-size: 12.5px;
+font-weight: 700;
+border: none;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+white-space: nowrap;
+}
+.aurora-action-btn.primary {
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+.aurora-action-btn.primary:hover {
+box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+transform: translateY(-1px);
+}
+.aurora-action-btn.secondary {
+background: rgba(99, 102, 241, 0.12);
+border: 1px solid rgba(99, 102, 241, 0.25);
+color: var(--aurora-primary);
+}
+.aurora-action-btn.success {
+background: var(--aurora-success-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+.aurora-action-btn.ghost {
+background: rgba(255, 255, 255, 0.05);
+border: 1px solid var(--aurora-border);
+color: var(--aurora-text-2);
+}
+.aurora-action-btn.fb {
+background: linear-gradient(135deg, #1877F2, #0D5FBF);
+color: white;
+box-shadow: 0 4px 14px rgba(24, 119, 242, 0.4);
+}
+
+.aurora-icon-btn {
+width: 30px; height: 30px;
+border-radius: 9px;
+background: rgba(99, 102, 241, 0.1);
+border: 1px solid rgba(99, 102, 241, 0.2);
+color: var(--aurora-primary);
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-icon-btn:hover {
+background: rgba(99, 102, 241, 0.2);
+transform: translateY(-1px);
+}
+.aurora-icon-btn.danger {
+background: rgba(239, 68, 68, 0.1);
+border-color: rgba(239, 68, 68, 0.2);
+color: var(--aurora-danger);
+}
+.aurora-icon-btn.danger:hover {
+background: rgba(239, 68, 68, 0.2);
+}
+.aurora-icon-btn.success {
+background: rgba(16, 185, 129, 0.1);
+border-color: rgba(16, 185, 129, 0.2);
+color: var(--aurora-success);
+}
+
+/* ═══ Stats Cards ═══ */
+.aurora-stats-row {
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 12px;
+margin-bottom: 18px;
+}
+.aurora-stat-card {
+display: flex;
+align-items: center;
+gap: 12px;
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 16px 18px;
+box-shadow: var(--aurora-shadow-sm);
+transition: all 0.25s var(--aurora-ease);
+position: relative;
+overflow: hidden;
+}
+.aurora-stat-card::before {
+content: '';
+position: absolute;
+top: 0; right: 0;
+width: 100%; height: 2px;
+background: linear-gradient(90deg, transparent, var(--accent, var(--aurora-primary)), transparent);
+opacity: 0.6;
+}
+.aurora-stat-card.clickable { cursor: pointer; }
+.aurora-stat-card.clickable:hover {
+transform: translateY(-2px);
+border-color: color-mix(in srgb, var(--accent, var(--aurora-primary)) 40%, transparent);
+box-shadow: var(--aurora-shadow-md), 0 0 20px color-mix(in srgb, var(--accent, var(--aurora-primary)) 20%, transparent);
+}
+.aurora-stat-card.active {
+border-color: color-mix(in srgb, var(--accent, var(--aurora-primary)) 50%, transparent);
+background: linear-gradient(180deg, color-mix(in srgb, var(--accent, var(--aurora-primary)) 12%, transparent), rgba(22, 27, 46, 0.6));
+}
+.aurora-stat-icon {
+width: 42px; height: 42px;
+border-radius: 12px;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+background: color-mix(in srgb, var(--accent, var(--aurora-primary)) 15%, transparent);
+color: var(--accent, var(--aurora-primary));
+box-shadow: 0 4px 12px color-mix(in srgb, var(--accent, var(--aurora-primary)) 30%, transparent);
+}
+.aurora-stat-info { flex: 1; min-width: 0; }
+.aurora-stat-value {
+font-size: 22px;
+font-weight: 900;
+color: var(--aurora-text);
+line-height: 1.1;
+letter-spacing: -0.02em;
+}
+.aurora-stat-label {
+font-size: 11px;
+color: var(--aurora-text-muted);
+margin-top: 3px;
+font-weight: 600;
+}
+
+/* ═══ Section Tabs ═══ */
+.aurora-section-tabs {
+display: flex;
+gap: 6px;
+margin-bottom: 14px;
+padding: 4px;
+background: rgba(22, 27, 46, 0.4);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+width: fit-content;
+}
+.aurora-section-tab {
+display: flex;
+align-items: center;
+gap: 7px;
+padding: 8px 14px;
+background: transparent;
+border: none;
+border-radius: var(--aurora-r-md);
+color: var(--aurora-text-muted);
+font-size: 12.5px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-section-tab:hover {
+background: rgba(255, 255, 255, 0.04);
+color: var(--aurora-text-2);
+}
+.aurora-section-tab.active {
+background: var(--aurora-primary-grad);
+color: white;
+font-weight: 700;
+box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+.aurora-tab-count {
+background: rgba(255, 255, 255, 0.15);
+border-radius: var(--aurora-r-full);
+padding: 1px 7px;
+font-size: 10px;
+font-weight: 800;
+}
+.aurora-section-tab.active .aurora-tab-count {
+background: rgba(255, 255, 255, 0.25);
+}
+
+/* ═══ Filters ═══ */
+.aurora-filters {
+display: flex;
+flex-direction: column;
+gap: 8px;
+margin-bottom: 14px;
+background: rgba(22, 27, 46, 0.4);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 10px;
+}
+.aurora-filters-row {
+display: flex;
+gap: 8px;
+flex-wrap: wrap;
+align-items: center;
+}
+.aurora-filter-select {
+display: flex;
+align-items: center;
+gap: 7px;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 7px 12px;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-filter-select:hover {
+border-color: var(--aurora-border-strong);
+}
+.aurora-filter-select select {
+background: transparent;
+border: none;
+color: var(--aurora-text);
+font-size: 12.5px;
+font-weight: 600;
+appearance: none;
+cursor: pointer;
+font-family: 'Cairo', sans-serif;
+padding-left: 4px;
+}
+.aurora-compact-select {
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 7px 11px;
+color: var(--aurora-text);
+font-size: 12px;
+font-family: 'Cairo', sans-serif;
+min-width: 110px;
+}
+.aurora-search-box {
+display: flex;
+align-items: center;
+gap: 8px;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 8px 12px;
+flex: 1;
+min-width: 180px;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-search-box.flex { flex: 1; min-width: 160px; }
+.aurora-search-box:focus-within {
+border-color: var(--aurora-primary);
+box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+.aurora-search-box input {
+background: transparent;
+border: none;
+color: var(--aurora-text);
+font-size: 12.5px;
+width: 100%;
+font-family: 'Cairo', sans-serif;
+}
+
+/* ═══ Chips ═══ */
+.aurora-chips {
+display: flex;
+gap: 6px;
+margin-bottom: 14px;
+flex-wrap: wrap;
+}
+.aurora-chip {
+padding: 7px 14px;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-full);
+color: var(--aurora-text-muted);
+font-size: 12px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-chip:hover {
+background: var(--aurora-surface-2);
+color: var(--aurora-text-2);
+}
+.aurora-chip.active {
+background: var(--aurora-primary-grad);
+border-color: transparent;
+color: white;
+font-weight: 700;
+box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* ═══ Orders Grid ═══ */
+.aurora-orders-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+gap: 12px;
+}
+.aurora-order-card {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 0;
+display: flex;
+flex-direction: column;
+overflow: hidden;
+box-shadow: var(--aurora-shadow-sm);
+transition: all 0.25s var(--aurora-ease);
+position: relative;
+animation: auroraCardEnter 0.3s var(--aurora-ease-bounce) both;
+}
+@keyframes auroraCardEnter {
+from { opacity: 0; transform: translateY(12px) scale(0.98); }
+to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.aurora-order-card:hover {
+transform: translateY(-3px);
+border-color: rgba(99, 102, 241, 0.3);
+box-shadow: var(--aurora-shadow-md), 0 0 20px rgba(99, 102, 241, 0.15);
+}
+.aurora-order-card.rejected {
+border-color: rgba(239, 68, 68, 0.4);
+box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1), 0 4px 14px -6px rgba(239, 68, 68, 0.3);
+}
+.aurora-order-card.prep {
+border-color: rgba(245, 158, 11, 0.3);
+}
+
+.aurora-order-strip {
+height: 3px;
+width: 100%;
+}
+
+.aurora-rejected-banner {
+display: flex;
+align-items: center;
+gap: 7px;
+justify-content: center;
+background: linear-gradient(90deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9));
+color: white;
+font-size: 12px;
+font-weight: 800;
+padding: 9px 12px;
+}
+
+.aurora-order-head {
+display: flex;
+align-items: center;
+gap: 11px;
+padding: 14px 14px 10px;
+}
+.aurora-order-avatar {
+width: 40px; height: 40px;
+border-radius: 12px;
+flex-shrink: 0;
+background: rgba(99, 102, 241, 0.15);
+color: var(--aurora-primary);
+display: flex;
+align-items: center;
+justify-content: center;
+font-weight: 800;
+font-size: 16px;
+border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.aurora-order-avatar.done {
+background: rgba(16, 185, 129, 0.15);
+color: var(--aurora-success);
+border-color: rgba(16, 185, 129, 0.3);
+}
+.aurora-order-avatar.rej {
+background: rgba(239, 68, 68, 0.15);
+color: var(--aurora-danger);
+border-color: rgba(239, 68, 68, 0.3);
+}
+.aurora-order-head-info { flex: 1; min-width: 0; }
+.aurora-order-customer {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+.aurora-order-customer span {
+font-size: 12px;
+color: var(--aurora-text-dim);
+font-weight: 600;
+margin-right: 4px;
+}
+.aurora-order-page {
+font-size: 11px;
+color: var(--aurora-text-muted);
+margin-top: 2px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.aurora-stage-badge {
+font-size: 11px;
+font-weight: 700;
+border-radius: var(--aurora-r-full);
+padding: 4px 10px;
+flex-shrink: 0;
+white-space: nowrap;
+}
+
+.aurora-reject-reason {
+margin: 0 14px 10px;
+padding: 9px 11px;
+background: rgba(239, 68, 68, 0.08);
+border: 1px solid rgba(239, 68, 68, 0.2);
+border-radius: var(--aurora-r-md);
+font-size: 12px;
+color: var(--aurora-text);
+display: flex;
+flex-direction: column;
+gap: 3px;
+}
+.aurora-reject-label {
+font-size: 11px;
+color: var(--aurora-danger);
+font-weight: 700;
+}
+
+.aurora-reprep-note {
+display: flex;
+align-items: flex-start;
+gap: 7px;
+margin: 0 14px 10px;
+background: rgba(245, 158, 11, 0.08);
+border: 1px solid rgba(245, 158, 11, 0.25);
+color: #FCD34D;
+border-radius: var(--aurora-r-md);
+padding: 9px 11px;
+font-size: 12px;
+line-height: 1.6;
+}
+
+.aurora-order-body {
+padding: 0 14px 10px;
+display: flex;
+flex-direction: column;
+gap: 6px;
+}
+.aurora-order-row {
+display: flex;
+align-items: center;
+gap: 7px;
+font-size: 12px;
+color: var(--aurora-text-muted);
+}
+.aurora-order-items {
+font-size: 12px;
+color: var(--aurora-text-2);
+background: var(--aurora-surface);
+border-radius: var(--aurora-r-sm);
+padding: 9px 11px;
+margin-top: 3px;
+line-height: 1.6;
+border: 1px solid var(--aurora-border);
+white-space: pre-wrap;
+}
+
+.aurora-warehouse-warn {
+font-size: 11.5px;
+color: var(--aurora-warn);
+background: rgba(245, 158, 11, 0.08);
+border: 1px solid rgba(245, 158, 11, 0.2);
+border-radius: var(--aurora-r-sm);
+padding: 7px 10px;
+margin-top: 5px;
+}
+.aurora-warehouse-match {
+border-radius: var(--aurora-r-md);
+padding: 9px 11px;
+margin-top: 6px;
+border: 1px solid;
+}
+.aurora-warehouse-match.high {
+background: rgba(16, 185, 129, 0.08);
+border-color: rgba(16, 185, 129, 0.25);
+}
+.aurora-warehouse-match.medium, .aurora-warehouse-match.low {
+background: rgba(99, 102, 241, 0.08);
+border-color: rgba(99, 102, 241, 0.25);
+}
+.aurora-warehouse-match-title {
+font-size: 11.5px;
+font-weight: 800;
+margin-bottom: 4px;
+}
+.aurora-warehouse-match.high .aurora-warehouse-match-title { color: var(--aurora-success); }
+.aurora-warehouse-match.medium .aurora-warehouse-match-title,
+.aurora-warehouse-match.low .aurora-warehouse-match-title { color: var(--aurora-primary); }
+.aurora-warehouse-match-name {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-warehouse-match-loc {
+font-size: 11.5px;
+color: var(--aurora-primary);
+margin-top: 3px;
+font-weight: 700;
+}
+.aurora-warehouse-match-qty {
+font-size: 11px;
+color: var(--aurora-text-muted);
+margin-top: 2px;
+}
+
+.aurora-jenni-info {
+margin-top: 9px;
+padding: 9px 11px;
+background: rgba(99, 102, 241, 0.05);
+border: 1px solid rgba(99, 102, 241, 0.15);
+border-radius: var(--aurora-r-md);
+}
+.aurora-jenni-head {
+display: flex;
+align-items: center;
+gap: 6px;
+margin-bottom: 5px;
+font-size: 11.5px;
+font-weight: 700;
+color: var(--aurora-primary);
+}
+.aurora-jenni-status {
+font-size: 10.5px;
+font-weight: 700;
+padding: 2px 8px;
+border-radius: var(--aurora-r-full);
+margin-right: auto;
+}
+.aurora-jenni-note {
+font-size: 11px;
+color: var(--aurora-text-muted);
+margin-bottom: 2px;
+}
+.aurora-jenni-track {
+font-size: 10px;
+color: var(--aurora-text-dim);
+font-family: monospace;
+}
+.aurora-jenni-updated {
+font-size: 10px;
+color: var(--aurora-text-dim);
+margin-top: 2px;
+}
+.aurora-jenni-actions {
+margin-top: 10px;
+display: flex;
+flex-direction: column;
+gap: 6px;
+}
+.aurora-jenni-label {
+font-size: 11px;
+color: var(--aurora-text-dim);
+font-weight: 600;
+margin-bottom: 2px;
+}
+
+.aurora-jenni-error {
+margin: 0 14px 8px;
+border-radius: var(--aurora-r-md);
+overflow: hidden;
+border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.aurora-jenni-error-body {
+background: rgba(239, 68, 68, 0.1);
+padding: 8px 11px;
+font-size: 11.5px;
+color: var(--aurora-danger);
+display: flex;
+align-items: flex-start;
+gap: 6px;
+}
+.aurora-jenni-error-fix {
+width: 100%;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 6px;
+padding: 8px;
+background: rgba(239, 68, 68, 0.08);
+border: none;
+border-top: 1px solid rgba(239, 68, 68, 0.2);
+color: var(--aurora-danger);
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+}
+
+.aurora-order-actions {
+display: flex;
+gap: 6px;
+padding: 10px 14px;
+border-top: 1px solid var(--aurora-border);
+background: rgba(0, 0, 0, 0.15);
+}
+.aurora-order-action-btn {
+flex: 1;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 5px;
+height: 32px;
+border-radius: var(--aurora-r-sm);
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+color: var(--aurora-text-muted);
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-order-action-btn:hover {
+background: var(--aurora-surface-2);
+color: var(--aurora-text);
+border-color: var(--aurora-border-strong);
+}
+.aurora-order-action-btn.primary {
+background: var(--aurora-primary-grad);
+border-color: transparent;
+color: white;
+flex: 1.6;
+box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.aurora-order-status-readonly {
+flex: 1.4;
+display: flex;
+align-items: center;
+gap: 5px;
+justify-content: center;
+border-radius: var(--aurora-r-sm);
+padding: 6px 9px;
+font-size: 12px;
+font-weight: 700;
+cursor: default;
+}
+.aurora-order-status-select {
+flex: 1.4;
+border: 1px solid;
+border-radius: var(--aurora-r-sm);
+padding: 6px 9px;
+font-size: 12px;
+font-weight: 700;
+appearance: none;
+cursor: pointer;
+font-family: 'Cairo', sans-serif;
+}
+
+/* ═══ Batches ═══ */
+.aurora-batches {
+display: flex;
+flex-direction: column;
+gap: 22px;
+}
+.aurora-batch {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 16px;
+box-shadow: var(--aurora-shadow-sm);
+}
+.aurora-batch-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 14px;
+flex-wrap: wrap;
+gap: 9px;
+}
+.aurora-batch-info {
+display: flex;
+align-items: center;
+gap: 8px;
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-batch-time {
+font-size: 11px;
+color: var(--aurora-text-dim);
+font-weight: 500;
+}
+
+/* ═══ Global Search ═══ */
+.aurora-global-search {
+position: relative;
+display: flex;
+align-items: center;
+gap: 7px;
+width: 220px;
+min-height: 36px;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 0 11px;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-global-search:focus-within {
+border-color: var(--aurora-primary);
+box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+.aurora-global-search input {
+width: 100%;
+background: transparent;
+border: none;
+outline: none;
+color: var(--aurora-text);
+font-size: 12.5px;
+font-family: 'Cairo', sans-serif;
+}
+.aurora-global-results {
+position: absolute;
+top: calc(100% + 6px);
+left: 0; right: 0;
+z-index: 50;
+background: rgba(22, 27, 46, 0.95);
+backdrop-filter: blur(20px);
+border: 1px solid var(--aurora-border-strong);
+border-radius: var(--aurora-r-md);
+box-shadow: var(--aurora-shadow-lg);
+overflow: hidden;
+}
+.aurora-global-result {
+width: 100%;
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 9px 11px;
+border: none;
+background: transparent;
+border-radius: 0;
+text-align: right;
+color: var(--aurora-text);
+cursor: pointer;
+transition: background 0.15s;
+}
+.aurora-global-result:hover {
+background: rgba(99, 102, 241, 0.1);
+}
+.aurora-global-result-info { min-width: 0; flex: 1; }
+.aurora-global-result-title {
+font-size: 12.5px;
+font-weight: 700;
+color: var(--aurora-text);
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+}
+.aurora-global-result-title span {
+color: var(--aurora-text-dim);
+font-weight: 600;
+margin-right: 4px;
+}
+.aurora-global-result-meta {
+font-size: 10.5px;
+color: var(--aurora-text-muted);
+margin-top: 2px;
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+}
+.aurora-global-empty {
+padding: 12px;
+color: var(--aurora-text-dim);
+font-size: 12px;
+text-align: center;
+}
+
+/* ═══ Status Pills ═══ */
+.aurora-status-pill, .aurora-stage-pill {
+display: inline-flex;
+align-items: center;
+gap: 5px;
+padding: 4px 11px;
+border-radius: var(--aurora-r-full);
+font-size: 11.5px;
+font-weight: 700;
+border: 1px solid;
+white-space: nowrap;
+}
+
+/* ═══ Modals ═══ */
+.aurora-modal-overlay {
+position: fixed;
+inset: 0;
+background: rgba(0, 0, 0, 0.7);
+backdrop-filter: blur(8px);
+-webkit-backdrop-filter: blur(8px);
+display: flex;
+align-items: center;
+justify-content: center;
+z-index: 1000;
+padding: 20px;
+animation: auroraFadeIn 0.2s var(--aurora-ease);
+}
+@keyframes auroraFadeIn {
+from { opacity: 0; }
+to { opacity: 1; }
+}
+
+.aurora-modal {
+background: rgba(22, 27, 46, 0.95);
+backdrop-filter: blur(30px) saturate(1.4);
+-webkit-backdrop-filter: blur(30px) saturate(1.4);
+border: 1px solid var(--aurora-border-strong);
+border-radius: var(--aurora-r-xl);
+width: 100%;
+max-width: 480px;
+max-height: 88vh;
+overflow-y: auto;
+box-shadow: var(--aurora-shadow-lg), var(--aurora-glow-primary);
+position: relative;
+z-index: 1;
+animation: auroraModalIn 0.3s var(--aurora-ease-bounce) both;
+}
+.aurora-modal.small { max-width: 420px; }
+.aurora-modal.tall { max-height: 85vh; }
+
+@keyframes auroraModalIn {
+from { opacity: 0; transform: translateY(20px) scale(0.97); }
+to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.aurora-modal-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 16px 20px;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-modal-header h3 {
+font-size: 16px;
+font-weight: 800;
+color: var(--aurora-text);
+margin: 0;
+}
+.aurora-modal-header button {
+background: transparent;
+border: none;
+color: var(--aurora-text-muted);
+display: flex;
+cursor: pointer;
+padding: 4px;
+border-radius: 8px;
+transition: all 0.15s;
+}
+.aurora-modal-header button:hover {
+background: rgba(255, 255, 255, 0.08);
+color: var(--aurora-text);
+}
+
+.aurora-modal-body {
+padding: 18px 20px;
+display: flex;
+flex-direction: column;
+gap: 14px;
+}
+.aurora-modal-sub {
+font-size: 12.5px;
+color: var(--aurora-text-muted);
+margin-bottom: 4px;
+}
+.aurora-modal-section {
+display: flex;
+flex-direction: column;
+gap: 6px;
+}
+.aurora-modal-section label {
+font-size: 12px;
+color: var(--aurora-text-2);
+font-weight: 700;
+}
+.aurora-modal-footer {
+display: flex;
+gap: 9px;
+padding: 14px 20px;
+border-top: 1px solid var(--aurora-border);
+}
+.aurora-modal-footer.wrap { flex-wrap: wrap; }
+
+/* ═══ Forms ═══ */
+.aurora-form-group {
+display: flex;
+flex-direction: column;
+gap: 6px;
+}
+.aurora-form-group label {
+font-size: 12px;
+font-weight: 700;
+color: var(--aurora-text-2);
+display: flex;
+align-items: center;
+gap: 4px;
+}
+.aurora-form-group input,
+.aurora-form-group select,
+.aurora-form-group textarea {
+background: var(--aurora-surface);
+border: 1.5px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 10px 13px;
+color: var(--aurora-text);
+font-size: 13px;
+font-family: 'Cairo', sans-serif;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-form-group input:focus,
+.aurora-form-group select:focus,
+.aurora-form-group textarea:focus {
+border-color: var(--aurora-primary);
+box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+background: var(--aurora-surface-2);
+}
+.aurora-form-group input.invalid,
+.aurora-form-group select.invalid {
+border-color: rgba(239, 68, 68, 0.5);
+}
+.aurora-form-group input.valid,
+.aurora-form-group select.valid {
+border-color: rgba(16, 185, 129, 0.5);
+}
+.aurora-form-group textarea {
+min-height: 75px;
+resize: vertical;
+line-height: 1.6;
+}
+
+.aurora-required { color: var(--aurora-danger); font-weight: 800; font-size: 14px; }
+.aurora-hint { color: var(--aurora-text-dim); font-size: 10.5px; font-weight: 500; }
+.aurora-field-hint {
+font-size: 10px;
+color: var(--aurora-text-dim);
+font-weight: 500;
+margin-right: auto;
+}
+.aurora-field-error {
+font-size: 11px;
+color: var(--aurora-danger);
+margin-top: 2px;
+font-weight: 600;
+}
+.aurora-field-success {
+font-size: 11px;
+color: var(--aurora-success);
+margin-top: 2px;
+font-weight: 600;
+}
+
+.aurora-grid-2 {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 12px;
+}
+
+.aurora-role-toggle {
+display: flex;
+gap: 7px;
+}
+.aurora-role-btn {
+flex: 1;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 6px;
+padding: 10px;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+color: var(--aurora-text-muted);
+font-size: 12px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-role-btn.active {
+background: rgba(99, 102, 241, 0.15);
+border-color: rgba(99, 102, 241, 0.4);
+color: var(--aurora-primary);
+font-weight: 700;
+}
+
+.aurora-perms-grid {
+display: flex;
+flex-direction: column;
+gap: 5px;
+}
+.aurora-perm-check {
+display: flex;
+align-items: center;
+gap: 9px;
+font-size: 12.5px;
+color: var(--aurora-text-2);
+padding: 6px 0;
+cursor: pointer;
+}
+.aurora-perm-check input {
+width: 15px; height: 15px;
+accent-color: var(--aurora-primary);
+cursor: pointer;
+}
+
+.aurora-warehouse-note {
+display: flex;
+gap: 9px;
+align-items: flex-start;
+background: rgba(245, 158, 11, 0.06);
+border: 1px solid rgba(245, 158, 11, 0.2);
+border-radius: var(--aurora-r-md);
+padding: 11px 13px;
+font-size: 12px;
+color: var(--aurora-text-muted);
+line-height: 1.6;
+}
+
+.aurora-jenni-banner {
+margin: 0 20px 4px;
+padding: 9px 12px;
+background: rgba(99, 102, 241, 0.08);
+border: 1px solid rgba(99, 102, 241, 0.22);
+border-radius: var(--aurora-r-md);
+font-size: 11.5px;
+color: var(--aurora-primary);
+display: flex;
+align-items: center;
+gap: 7px;
+font-weight: 600;
+}
+
+.aurora-jenni-status {
+padding: 11px 14px;
+border-radius: var(--aurora-r-md);
+display: flex;
+align-items: center;
+gap: 9px;
+font-size: 12.5px;
+font-weight: 700;
+}
+.aurora-jenni-status.ready {
+background: rgba(16, 185, 129, 0.1);
+border: 1px solid rgba(16, 185, 129, 0.3);
+color: var(--aurora-success);
+}
+.aurora-jenni-status.error {
+background: rgba(239, 68, 68, 0.1);
+border: 1px solid rgba(239, 68, 68, 0.3);
+color: var(--aurora-danger);
+}
+
+.aurora-auto-extract {
+display: flex;
+align-items: center;
+gap: 6px;
+margin-bottom: 7px;
+padding: 7px 11px;
+background: rgba(99, 102, 241, 0.1);
+border: 1px solid rgba(99, 102, 241, 0.25);
+border-radius: var(--aurora-r-sm);
+color: var(--aurora-primary);
+font-size: 11.5px;
+font-weight: 700;
+cursor: pointer;
+width: 100%;
+justify-content: center;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-auto-extract:hover {
+background: rgba(99, 102, 241, 0.18);
+}
+
+.aurora-date-options {
+display: flex;
+gap: 7px;
+}
+.aurora-date-option {
+flex: 1;
+padding: 9px 5px;
+border-radius: var(--aurora-r-sm);
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+background: rgba(255, 255, 255, 0.04);
+border: 1.5px solid var(--aurora-border);
+color: var(--aurora-text-muted);
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-date-option.active {
+background: rgba(99, 102, 241, 0.18);
+border-color: var(--aurora-primary);
+color: var(--aurora-primary);
+}
+
+/* ═══ Detail Modal ═══ */
+.aurora-detail-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+gap: 12px;
+padding-bottom: 11px;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-detail-row:last-child { border-bottom: none; }
+.aurora-detail-row.column {
+flex-direction: column;
+align-items: flex-start;
+gap: 7px;
+}
+.aurora-detail-row > span:first-child {
+font-size: 12px;
+color: var(--aurora-text-muted);
+flex-shrink: 0;
+font-weight: 600;
+}
+.aurora-detail-row > span:last-child, .aurora-detail-row .aurora-pre {
+font-size: 13px;
+color: var(--aurora-text);
+font-weight: 600;
+text-align: left;
+overflow-wrap: anywhere;
+}
+.aurora-detail-row .aurora-pre {
+white-space: pre-wrap;
+}
+.aurora-accent {
+color: var(--aurora-primary) !important;
+font-weight: 700 !important;
+}
+.aurora-mono { font-family: monospace; }
+
+.aurora-amount-lg {
+font-size: 19px;
+font-weight: 900;
+}
+.aurora-amount-glow {
+background: linear-gradient(135deg, #FCD34D, #F59E0B);
+-webkit-background-clip: text;
+background-clip: text;
+-webkit-text-fill-color: transparent;
+font-weight: 900;
+}
+.aurora-amount-lg span:last-child {
+font-size: 12px;
+color: var(--aurora-text-muted);
+font-weight: 600;
+margin-right: 3px;
+}
+
+.aurora-prep-done {
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 10px 13px;
+background: rgba(16, 185, 129, 0.1);
+border: 1px solid rgba(16, 185, 129, 0.25);
+border-radius: var(--aurora-r-md);
+margin-bottom: 6px;
+color: var(--aurora-text);
+font-size: 13px;
+}
+.aurora-prep-done svg { color: var(--aurora-success); }
+
+.aurora-detail-timeline {
+padding-top: 12px;
+display: flex;
+flex-direction: column;
+gap: 0;
+}
+.aurora-timeline-title {
+font-size: 12px;
+color: var(--aurora-text-muted);
+font-weight: 700;
+margin-bottom: 12px;
+}
+.aurora-timeline {
+position: relative;
+padding-right: 5px;
+}
+.aurora-timeline-item {
+display: flex;
+gap: 11px;
+position: relative;
+padding-bottom: 16px;
+}
+.aurora-timeline-item:last-child { padding-bottom: 0; }
+.aurora-timeline-dot-wrap {
+display: flex;
+flex-direction: column;
+align-items: center;
+flex-shrink: 0;
+}
+.aurora-timeline-dot {
+width: 12px; height: 12px;
+border-radius: 50%;
+background: var(--aurora-primary);
+margin-top: 3px;
+box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+.aurora-timeline-dot.last {
+background: var(--aurora-success);
+box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+.aurora-timeline-line {
+width: 2px;
+flex: 1;
+background: rgba(99, 102, 241, 0.3);
+margin-top: 3px;
+}
+.aurora-timeline-content { flex: 1; min-width: 0; }
+.aurora-timeline-step {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-timeline-step.last { color: var(--aurora-success); }
+.aurora-timeline-branch {
+font-size: 11px;
+color: var(--aurora-text-muted);
+margin-top: 2px;
+}
+.aurora-timeline-date {
+font-size: 10.5px;
+color: var(--aurora-text-dim);
+margin-top: 2px;
+font-family: monospace;
+}
+.aurora-timeline-note {
+font-size: 11px;
+color: var(--aurora-warn);
+margin-top: 3px;
+}
+
+.aurora-detail-action-btn, .aurora-btn.ghost {
+flex: 1;
+min-width: 88px;
+}
+
+/* ═══ Conversations ═══ */
+.aurora-conv-fullscreen {
+display: flex;
+overflow: hidden;
+direction: rtl;
+background: var(--aurora-bg);
+width: 100%;
+height: 100%;
+flex: 1;
+}
+
+.aurora-conv-list {
+width: 340px;
+min-width: 280px;
+max-width: 360px;
+display: flex;
+flex-direction: column;
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border-left: 1px solid var(--aurora-border);
+height: 100%;
+overflow: hidden;
+flex-shrink: 0;
+}
+
+.aurora-conv-list-header {
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 14px 15px 12px;
+border-bottom: 1px solid var(--aurora-border);
+flex-shrink: 0;
+}
+.aurora-conv-brand {
+font-size: 16px;
+font-weight: 900;
+color: var(--aurora-text);
+letter-spacing: -0.01em;
+flex-shrink: 0;
+background: linear-gradient(135deg, #F8FAFC 0%, #94A3B8 100%);
+-webkit-background-clip: text;
+background-clip: text;
+-webkit-text-fill-color: transparent;
+}
+.aurora-page-filter {
+flex: 1;
+display: flex;
+justify-content: center;
+}
+.aurora-page-filter > div,
+.aurora-page-filter {
+display: flex;
+align-items: center;
+gap: 6px;
+background: var(--aurora-surface);
+border-radius: var(--aurora-r-full);
+padding: 7px 13px;
+border: 1px solid var(--aurora-border);
+}
+.aurora-page-filter select {
+background: transparent;
+border: none;
+color: var(--aurora-text);
+font-size: 12px;
+font-weight: 600;
+appearance: none;
+cursor: pointer;
+font-family: 'Cairo', sans-serif;
+}
+
+.aurora-search-wrap {
+padding: 9px 11px 5px;
+flex-shrink: 0;
+}
+
+.aurora-conv-tabs {
+display: flex;
+flex-shrink: 0;
+border-bottom: 1px solid var(--aurora-border);
+padding: 7px 9px 0;
+gap: 4px;
+}
+.aurora-conv-tab {
+flex: 1;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 4px;
+padding: 8px 4px 10px;
+background: transparent;
+border: none;
+border-bottom: 2px solid transparent;
+color: var(--aurora-text-dim);
+font-size: 10px;
+font-weight: 700;
+transition: all 0.2s var(--aurora-ease);
+position: relative;
+cursor: pointer;
+}
+.aurora-conv-tab:hover {
+color: var(--aurora-text-muted);
+}
+.aurora-conv-tab.active {
+color: var(--aurora-primary);
+border-bottom-color: var(--aurora-primary);
+}
+.aurora-tab-icon-wrap {
+position: relative;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.aurora-tab-badge {
+position: absolute;
+top: -7px;
+right: -11px;
+min-width: 17px;
+height: 17px;
+padding: 0 4px;
+border-radius: var(--aurora-r-full);
+background: var(--aurora-danger);
+color: white;
+font-size: 9px;
+font-weight: 800;
+display: flex;
+align-items: center;
+justify-content: center;
+border: 2px solid var(--aurora-surface);
+line-height: 1;
+box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+}
+
+.aurora-conv-scroll {
+flex: 1;
+overflow-y: auto;
+overflow-x: hidden;
+}
+.aurora-mark-all-btn {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 7px;
+width: 100%;
+padding: 8px;
+background: rgba(99, 102, 241, 0.08);
+border: none;
+color: var(--aurora-primary);
+font-size: 12px;
+font-weight: 600;
+cursor: pointer;
+transition: background 0.15s;
+}
+.aurora-mark-all-btn:hover {
+background: rgba(99, 102, 241, 0.15);
+}
+
+.aurora-conv-item {
+display: flex;
+gap: 12px;
+padding: 12px 15px;
+width: 100%;
+background: transparent;
+border: none;
+border-right: 3px solid transparent;
+border-radius: 0;
+text-align: right;
+align-items: center;
+transition: all 0.15s var(--aurora-ease);
+min-height: 76px;
+cursor: pointer;
+position: relative;
+}
+.aurora-conv-item:hover {
+background: rgba(255, 255, 255, 0.03);
+}
+.aurora-conv-item.active {
+background: rgba(99, 102, 241, 0.12);
+border-right-color: var(--aurora-primary);
+}
+
+.aurora-conv-content {
+flex: 1;
+min-width: 0;
+text-align: right;
+}
+.aurora-conv-top {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 4px;
+}
+.aurora-conv-name {
+font-size: 14px;
+font-weight: 700;
+color: var(--aurora-text);
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+max-width: calc(100% - 60px);
+}
+.aurora-conv-name.unread { font-weight: 800; }
+.aurora-conv-time {
+font-size: 11px;
+color: var(--aurora-text-dim);
+flex-shrink: 0;
+font-weight: 500;
+}
+.aurora-conv-time.unread {
+color: var(--aurora-primary);
+font-weight: 700;
+}
+.aurora-conv-bottom {
+display: flex;
+justify-content: space-between;
+gap: 7px;
+align-items: center;
+}
+.aurora-conv-last {
+font-size: 12.5px;
+color: var(--aurora-text-muted);
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+flex: 1;
+font-weight: 500;
+}
+.aurora-conv-last.unread {
+color: var(--aurora-text-2);
+font-weight: 600;
+}
+.aurora-unread-badge {
+background: var(--aurora-danger);
+color: white;
+border-radius: var(--aurora-r-full);
+font-size: 11px;
+font-weight: 800;
+padding: 2px 8px;
+min-width: 21px;
+height: 21px;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+}
+.aurora-pinned-tag {
+margin-top: 4px;
+display: inline-flex;
+align-items: center;
+gap: 3px;
+font-size: 10px;
+color: var(--aurora-primary);
+font-weight: 600;
+background: rgba(99, 102, 241, 0.12);
+border-radius: var(--aurora-r-full);
+padding: 2px 7px;
+}
+
+/* ═══ Avatar ═══ */
+.aurora-avatar {
+position: relative;
+flex-shrink: 0;
+}
+.aurora-avatar.lg { width: 46px; height: 46px; }
+.aurora-avatar:not(.lg) { width: 42px; height: 42px; }
+.aurora-avatar-letter {
+width: 100%;
+height: 100%;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+font-weight: 700;
+font-size: 16px;
+}
+.aurora-avatar-img {
+width: 100%;
+height: 100%;
+border-radius: 50%;
+object-fit: cover;
+}
+.aurora-platform-badge {
+position: absolute;
+bottom: 0;
+left: 0;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+border: 2.5px solid var(--aurora-bg-elev);
+box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.aurora-platform-badge.wa { background: #25D366; }
+.aurora-platform-badge.fb { background: #0A8CFF; }
+
+/* ═══ Chat Detail ═══ */
+.aurora-conv-detail {
+flex: 1;
+display: flex;
+flex-direction: column;
+background: var(--aurora-bg);
+height: 100%;
+overflow: hidden;
+min-width: 0;
+}
+.aurora-conv-detail.empty {
+display: flex;
+align-items: center;
+justify-content: center;
+}
+
+.aurora-chat-header {
+display: flex;
+align-items: center;
+gap: 12px;
+padding: 13px 17px;
+border-bottom: 1px solid var(--aurora-border);
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+flex-shrink: 0;
+}
+.aurora-back-btn {
+display: none;
+width: 34px; height: 34px;
+border-radius: 10px;
+background: var(--aurora-surface);
+border: none;
+color: var(--aurora-text-muted);
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+cursor: pointer;
+}
+.aurora-chat-header-info {
+flex: 1;
+min-width: 0;
+}
+.aurora-chat-name {
+font-size: 15px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-chat-page {
+font-size: 11px;
+color: var(--aurora-text-muted);
+font-weight: 500;
+}
+.aurora-pin-btn {
+display: flex;
+align-items: center;
+gap: 6px;
+padding: 7px 13px;
+background: rgba(99, 102, 241, 0.12);
+border: 1px solid rgba(99, 102, 241, 0.25);
+border-radius: var(--aurora-r-full);
+color: var(--aurora-primary);
+font-size: 12px;
+font-weight: 700;
+flex-shrink: 0;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-pin-btn:hover {
+background: rgba(99, 102, 241, 0.2);
+}
+
+.aurora-linked-order {
+background: rgba(99, 102, 241, 0.06);
+border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+padding: 11px 17px;
+flex-shrink: 0;
+}
+.aurora-linked-header {
+display: flex;
+align-items: center;
+gap: 7px;
+font-size: 11.5px;
+font-weight: 700;
+color: var(--aurora-primary);
+margin-bottom: 9px;
+}
+.aurora-linked-body {
+display: flex;
+flex-direction: column;
+gap: 7px;
+}
+.aurora-linked-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.aurora-linked-row > span:first-child {
+font-size: 11.5px;
+color: var(--aurora-text-muted);
+}
+.aurora-linked-row > span:last-child {
+font-size: 12.5px;
+color: var(--aurora-text);
+font-weight: 600;
+}
+.aurora-amount {
+color: var(--aurora-primary) !important;
+font-weight: 700 !important;
+}
+.aurora-linked-detail-btn {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 7px;
+width: 100%;
+margin-top: 10px;
+padding: 8px;
+background: rgba(99, 102, 241, 0.12);
+border: none;
+border-radius: var(--aurora-r-sm);
+color: var(--aurora-primary);
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+transition: background 0.15s;
+}
+.aurora-linked-detail-btn:hover {
+background: rgba(99, 102, 241, 0.2);
+}
+
+.aurora-chat-scroll {
+flex: 1;
+overflow-y: auto;
+overflow-x: hidden;
+display: flex;
+flex-direction: column;
+padding: 15px 17px;
+background: var(--aurora-bg);
+}
+
+.aurora-day-divider {
+align-self: center;
+margin: 5px 0 11px;
+padding: 4px 13px;
+border-radius: var(--aurora-r-full);
+background: rgba(22, 27, 46, 0.9);
+backdrop-filter: blur(10px);
+color: var(--aurora-text-muted);
+font-size: 11px;
+font-weight: 700;
+}
+
+.aurora-msg-row {
+display: flex;
+width: 100%;
+min-width: 0;
+animation: auroraMsgIn 0.25s var(--aurora-ease-bounce) both;
+}
+@keyframes auroraMsgIn {
+from { opacity: 0; transform: translateY(6px) scale(0.98); }
+to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.aurora-msg-row.outgoing { justify-content: flex-end; }
+.aurora-msg-row.incoming { justify-content: flex-start; }
+
+.aurora-msg-bubble {
+max-width: 74%;
+padding: 9px 13px;
+font-size: 13.5px;
+line-height: 1.6;
+display: flex;
+flex-direction: column;
+gap: 4px;
+box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+overflow-wrap: anywhere;
+word-break: break-word;
+min-width: 0;
+}
+.aurora-msg-bubble.incoming {
+background: var(--aurora-surface-2);
+border-radius: 16px 16px 16px 4px;
+color: var(--aurora-text);
+border: 1px solid var(--aurora-border);
+}
+.aurora-msg-bubble.outgoing {
+background: linear-gradient(135deg, #6366F1, #8B5CF6);
+border-radius: 16px 16px 4px 16px;
+color: white;
+}
+.aurora-msg-text {
+white-space: pre-wrap;
+}
+.aurora-msg-image {
+width: 100%;
+max-width: 270px;
+border-radius: var(--aurora-r-md);
+display: block;
+}
+.aurora-msg-audio {
+width: 245px;
+max-width: 100%;
+height: 36px;
+}
+.aurora-msg-time {
+font-size: 10px;
+opacity: 0.6;
+align-self: flex-end;
+font-weight: 500;
+}
+
+.aurora-composer {
+display: flex;
+align-items: center;
+gap: 7px;
+background: rgba(22, 27, 46, 0.8);
+backdrop-filter: blur(10px);
+border-top: 1px solid var(--aurora-border);
+padding: 11px 15px;
+flex-shrink: 0;
+}
+.aurora-composer-icon {
+width: 36px; height: 36px;
+border-radius: 10px;
+background: transparent;
+border: none;
+color: var(--aurora-text-muted);
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+transition: all 0.15s;
+}
+.aurora-composer-icon:hover {
+background: rgba(255, 255, 255, 0.06);
+color: var(--aurora-primary);
+}
+.aurora-composer-input {
+flex: 1;
+background: transparent;
+border: none;
+color: var(--aurora-text);
+font-size: 13.5px;
+padding: 6px 5px;
+font-family: 'Cairo', sans-serif;
+}
+.aurora-composer-send {
+width: 38px; height: 38px;
+border-radius: 50%;
+background: var(--aurora-surface);
+border: none;
+color: var(--aurora-text-dim);
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-composer-send.active {
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+.aurora-composer-send.active:hover {
+transform: scale(1.05);
+}
+
+.aurora-recording-bar {
+display: flex;
+align-items: center;
+gap: 12px;
+width: 100%;
+padding: 4px 6px;
+}
+.aurora-rec-cancel {
+width: 38px; height: 38px;
+border-radius: 10px;
+background: rgba(239, 68, 68, 0.1);
+border: none;
+color: var(--aurora-danger);
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+}
+.aurora-rec-info {
+flex: 1;
+display: flex;
+align-items: center;
+gap: 9px;
+justify-content: center;
+}
+.aurora-rec-dot {
+width: 10px; height: 10px;
+border-radius: 50%;
+background: var(--aurora-danger);
+animation: auroraRecPulse 1s ease-in-out infinite;
+}
+@keyframes auroraRecPulse {
+0%, 100% { opacity: 1; transform: scale(1); }
+50% { opacity: 0.4; transform: scale(0.8); }
+}
+.aurora-rec-time {
+font-size: 15px;
+font-weight: 800;
+color: var(--aurora-text);
+font-family: monospace;
+}
+.aurora-rec-label {
+font-size: 12px;
+color: var(--aurora-text-muted);
+}
+.aurora-rec-send {
+width: 40px; height: 40px;
+border-radius: 50%;
+background: var(--aurora-primary-grad);
+border: none;
+color: white;
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+
+/* ═══ Empty States ═══ */
+.aurora-empty-state {
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 12px;
+padding: 50px 20px;
+color: var(--aurora-text-dim);
+font-size: 13.5px;
+font-weight: 500;
+text-align: center;
+}
+.aurora-empty-state.large { flex: 1; justify-content: center; }
+.aurora-empty-state.small { padding: 30px 20px; }
+.aurora-empty-state.success svg { color: var(--aurora-success); }
+.aurora-empty-state svg { color: var(--aurora-text-dim); }
+.aurora-empty-icon {
+width: 70px; height: 70px;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: 4px;
+}
+.aurora-empty-icon.fb {
+background: rgba(24, 119, 242, 0.12);
+color: #1877F2;
+}
+.aurora-empty-title {
+font-size: 16px;
+font-weight: 700;
+color: var(--aurora-text-muted);
+margin-bottom: 5px;
+}
+.aurora-empty-sub {
+font-size: 12.5px;
+color: var(--aurora-text-dim);
+}
+
+.aurora-loading {
+display: flex;
+align-items: center;
+justify-content: center;
+flex: 1;
+gap: 10px;
+color: var(--aurora-text-dim);
+font-size: 13px;
+}
+.aurora-spin { animation: auroraSpin 1s linear infinite; }
+@keyframes auroraSpin { to { transform: rotate(360deg); } }
+
+/* ═══ Charts ═══ */
+.aurora-chart-card {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 18px;
+margin-bottom: 14px;
+box-shadow: var(--aurora-shadow-sm);
+}
+.aurora-chart-title {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+margin: 0 0 14px;
+}
+
+.aurora-bar-chart {
+display: flex;
+flex-direction: column;
+gap: 13px;
+}
+.aurora-bar-row {
+display: grid;
+grid-template-columns: 170px 1fr 110px;
+gap: 12px;
+align-items: center;
+}
+.aurora-bar-label {
+display: flex;
+align-items: center;
+gap: 8px;
+font-size: 12.5px;
+color: var(--aurora-text-muted);
+overflow: hidden;
+white-space: nowrap;
+text-overflow: ellipsis;
+}
+.aurora-bar-track {
+height: 6px;
+background: var(--aurora-surface);
+border-radius: var(--aurora-r-full);
+overflow: hidden;
+}
+.aurora-bar-fill {
+height: 100%;
+background: var(--aurora-primary-grad);
+border-radius: var(--aurora-r-full);
+transition: width 0.5s var(--aurora-ease);
+box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+.aurora-bar-value {
+font-size: 12px;
+font-weight: 700;
+color: var(--aurora-primary);
+text-align: left;
+}
+
+.aurora-stats-grid-2 {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 14px;
+margin-bottom: 14px;
+}
+
+.aurora-donut-wrap {
+display: flex;
+justify-content: center;
+padding: 10px 0;
+}
+.aurora-donut {
+display: flex;
+align-items: center;
+gap: 26px;
+}
+.aurora-donut-legend {
+display: flex;
+flex-direction: column;
+gap: 11px;
+}
+.aurora-donut-legend-item {
+display: flex;
+align-items: center;
+gap: 9px;
+font-size: 12px;
+color: var(--aurora-text-muted);
+}
+.aurora-donut-legend-dot {
+width: 11px; height: 11px;
+border-radius: 3px;
+}
+.aurora-donut-legend-value {
+font-size: 12px;
+font-weight: 700;
+color: var(--aurora-text);
+margin-right: auto;
+}
+
+.aurora-page-stats {
+display: flex;
+flex-direction: column;
+gap: 14px;
+margin-top: 9px;
+}
+.aurora-page-stat-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.aurora-page-stat-info {
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.aurora-page-stat-avatar {
+font-size: 22px;
+}
+.aurora-page-stat-name {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-page-stat-count {
+font-size: 11px;
+color: var(--aurora-text-dim);
+}
+.aurora-page-stat-badge {
+background: var(--aurora-surface);
+padding: 5px 10px;
+border-radius: var(--aurora-r-full);
+font-size: 11px;
+font-weight: 700;
+color: var(--aurora-text-muted);
+border: 1px solid var(--aurora-border);
+}
+
+.aurora-top-areas {
+display: flex;
+flex-direction: column;
+gap: 11px;
+margin-top: 9px;
+}
+.aurora-top-area-row {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 9px;
+}
+.aurora-top-area-info {
+display: flex;
+align-items: center;
+gap: 11px;
+min-width: 0;
+}
+.aurora-top-area-rank {
+width: 24px; height: 24px;
+border-radius: 7px;
+flex-shrink: 0;
+background: rgba(255, 255, 255, 0.05);
+color: var(--aurora-text-muted);
+font-size: 11px;
+font-weight: 800;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.aurora-top-area-rank.top {
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+.aurora-top-area-name {
+font-size: 12.5px;
+color: var(--aurora-text);
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+.aurora-top-area-count {
+font-size: 12px;
+font-weight: 700;
+color: var(--aurora-primary);
+flex-shrink: 0;
+}
+
+.aurora-stats-bottom-btns {
+display: flex;
+gap: 9px;
+margin-top: 14px;
+}
+.aurora-stats-btn {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 7px;
+padding: 11px;
+border-radius: var(--aurora-r-md);
+font-size: 13px;
+font-weight: 700;
+border: none;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-stats-btn.ghost {
+flex: 1;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+color: var(--aurora-text-muted);
+}
+.aurora-stats-btn.ghost:hover {
+background: var(--aurora-surface-2);
+color: var(--aurora-text);
+}
+.aurora-stats-btn.primary {
+flex: 1.4;
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.aurora-summary-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+gap: 12px;
+padding: 11px 13px;
+border-radius: var(--aurora-r-md);
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+margin-bottom: 7px;
+transition: all 0.15s;
+}
+.aurora-summary-row.clickable { cursor: pointer; }
+.aurora-summary-row.clickable:hover {
+background: var(--aurora-surface-2);
+border-color: var(--aurora-border-strong);
+}
+.aurora-summary-row.sub {
+background: transparent;
+border: none;
+padding: 5px 16px;
+margin-bottom: 2px;
+}
+.aurora-summary-label {
+font-size: 13px;
+font-weight: 600;
+display: flex;
+align-items: center;
+gap: 5px;
+}
+.aurora-summary-row:not(.sub) .aurora-summary-label { color: var(--aurora-text); }
+.aurora-summary-row.sub .aurora-summary-label { color: var(--aurora-text-muted); }
+.aurora-summary-value {
+font-size: 17px;
+font-weight: 800;
+}
+.aurora-summary-hint {
+font-size: 11px;
+color: var(--aurora-text-dim);
+text-align: center;
+margin-top: 10px;
+}
+
+.aurora-best-seller-row {
+display: flex;
+align-items: center;
+gap: 11px;
+margin-bottom: 12px;
+}
+.aurora-best-seller-rank {
+width: 26px; height: 26px;
+border-radius: 8px;
+background: rgba(99, 102, 241, 0.12);
+color: var(--aurora-primary);
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 12px;
+font-weight: 800;
+flex-shrink: 0;
+}
+.aurora-best-seller-info { flex: 1; min-width: 0; }
+.aurora-best-seller-type {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+margin-bottom: 5px;
+overflow-wrap: anywhere;
+}
+.aurora-best-seller-track {
+height: 5px;
+background: var(--aurora-surface);
+border-radius: var(--aurora-r-full);
+overflow: hidden;
+}
+.aurora-best-seller-fill {
+height: 100%;
+background: var(--aurora-primary-grad);
+border-radius: var(--aurora-r-full);
+box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+}
+.aurora-best-seller-count {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-primary);
+min-width: 25px;
+text-align: center;
+flex-shrink: 0;
+}
+
+.aurora-converted-row {
+display: flex;
+align-items: center;
+gap: 11px;
+padding: 11px 0;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-converted-info { flex: 1; min-width: 0; }
+.aurora-converted-customer {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-converted-customer span {
+font-size: 11px;
+color: var(--aurora-text-dim);
+font-weight: 600;
+margin-right: 4px;
+}
+.aurora-converted-sub {
+font-size: 11px;
+color: var(--aurora-primary);
+margin-top: 2px;
+}
+.aurora-converted-meta {
+font-size: 10.5px;
+color: var(--aurora-text-muted);
+margin-top: 2px;
+}
+.aurora-converted-total {
+font-size: 13px;
+font-weight: 800;
+color: var(--aurora-primary);
+flex-shrink: 0;
+}
+
+.aurora-neglected-row {
+display: flex;
+align-items: center;
+gap: 11px;
+padding: 11px;
+margin-bottom: 6px;
+border-radius: var(--aurora-r-md);
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+cursor: pointer;
+transition: all 0.15s;
+}
+.aurora-neglected-row:hover {
+background: var(--aurora-surface-2);
+}
+.aurora-neglected-row.selected {
+background: rgba(99, 102, 241, 0.12);
+border-color: rgba(99, 102, 241, 0.35);
+}
+.aurora-neglected-check {
+width: 22px; height: 22px;
+border-radius: 7px;
+border: 1.5px solid var(--aurora-border);
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+color: white;
+transition: all 0.15s;
+}
+.aurora-neglected-check.on {
+background: var(--aurora-primary-grad);
+border-color: var(--aurora-primary);
+}
+.aurora-neglected-info { flex: 1; min-width: 0; }
+
+/* ═══ Pages ═══ */
+.aurora-alert {
+display: flex;
+align-items: flex-start;
+gap: 10px;
+margin-bottom: 16px;
+padding: 13px 15px;
+border-radius: var(--aurora-r-md);
+font-size: 13px;
+line-height: 1.6;
+}
+.aurora-alert.error {
+background: rgba(239, 68, 68, 0.08);
+border: 1px solid rgba(239, 68, 68, 0.25);
+color: var(--aurora-danger);
+}
+.aurora-alert.error svg { flex-shrink: 0; margin-top: 2px; }
+.aurora-alert.info {
+background: rgba(99, 102, 241, 0.08);
+border: 1px solid rgba(99, 102, 241, 0.22);
+color: var(--aurora-primary);
+}
+.aurora-alert.warn {
+background: rgba(239, 68, 68, 0.06);
+border: 1px solid rgba(239, 68, 68, 0.22);
+border-radius: var(--aurora-r-md);
+padding: 14px;
+margin-bottom: 16px;
+color: var(--aurora-text);
+font-size: 12px;
+}
+.aurora-alert-title {
+color: var(--aurora-danger);
+font-weight: 800;
+margin-bottom: 8px;
+display: flex;
+align-items: center;
+gap: 6px;
+}
+
+.aurora-candidates {
+margin-bottom: 22px;
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid rgba(99, 102, 241, 0.25);
+border-radius: var(--aurora-r-lg);
+padding: 17px;
+}
+.aurora-candidates-title {
+font-size: 13px;
+font-weight: 800;
+color: var(--aurora-text);
+margin-bottom: 13px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.aurora-candidates-title svg { color: var(--aurora-primary); }
+.aurora-candidate-row {
+display: flex;
+align-items: center;
+gap: 13px;
+padding: 11px 0;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-candidate-row:last-child { border-bottom: none; }
+.aurora-candidate-avatar {
+width: 46px; height: 46px;
+border-radius: 50%;
+object-fit: cover;
+flex-shrink: 0;
+}
+.aurora-candidate-avatar.fb {
+background: linear-gradient(135deg, #1877F2, #0D5FBF);
+display: flex;
+align-items: center;
+justify-content: center;
+color: white;
+}
+.aurora-candidate-info { flex: 1; min-width: 0; }
+.aurora-candidate-name {
+font-size: 14px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-candidate-id {
+font-size: 10.5px;
+color: var(--aurora-text-dim);
+margin-top: 2px;
+font-family: monospace;
+}
+
+.aurora-pages-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+gap: 16px;
+}
+.aurora-page-card {
+position: relative;
+overflow: hidden;
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+box-shadow: var(--aurora-shadow-sm);
+transition: all 0.25s var(--aurora-ease);
+}
+.aurora-page-card:hover {
+transform: translateY(-3px);
+border-color: rgba(99, 102, 241, 0.3);
+box-shadow: var(--aurora-shadow-md);
+}
+.aurora-page-card.connected {
+border-color: rgba(16, 185, 129, 0.25);
+}
+.aurora-page-card-top {
+position: absolute;
+top: 0; right: 0; left: 0;
+height: 3px;
+background: linear-gradient(90deg, transparent, var(--aurora-primary), transparent);
+opacity: 0.7;
+}
+.aurora-page-card.connected .aurora-page-card-top {
+background: linear-gradient(90deg, transparent, var(--aurora-success), transparent);
+}
+.aurora-page-card-header {
+padding: 19px 17px 15px;
+display: flex;
+align-items: center;
+gap: 14px;
+}
+.aurora-page-avatar-wrap {
+position: relative;
+flex-shrink: 0;
+}
+.aurora-page-avatar {
+width: 58px; height: 58px;
+border-radius: 16px;
+background: linear-gradient(135deg, #1877F2, #0D5FBF);
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 26px;
+color: white;
+border: 2px solid rgba(24, 119, 242, 0.3);
+box-shadow: 0 4px 14px rgba(24, 119, 242, 0.3);
+}
+.aurora-page-status-dot {
+position: absolute;
+bottom: -2px; left: -2px;
+width: 17px; height: 17px;
+border-radius: 50%;
+background: var(--aurora-text-dim);
+border: 2.5px solid var(--aurora-bg-elev);
+}
+.aurora-page-status-dot.on {
+background: var(--aurora-success);
+animation: auroraStatusPulse 2s var(--aurora-ease) infinite;
+}
+@keyframes auroraStatusPulse {
+0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.aurora-page-info { flex: 1; min-width: 0; }
+.aurora-page-name {
+font-size: 15px;
+font-weight: 800;
+color: var(--aurora-text);
+margin-bottom: 3px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+.aurora-page-id {
+display: flex;
+align-items: center;
+gap: 5px;
+font-size: 10.5px;
+color: var(--aurora-text-dim);
+font-family: monospace;
+}
+.aurora-page-status-pill {
+display: inline-flex;
+align-items: center;
+gap: 5px;
+margin-top: 6px;
+padding: 3px 10px;
+border-radius: var(--aurora-r-full);
+font-size: 10.5px;
+font-weight: 700;
+background: rgba(100, 116, 139, 0.15);
+color: var(--aurora-text-muted);
+}
+.aurora-page-status-pill.on {
+background: rgba(16, 185, 129, 0.12);
+color: var(--aurora-success);
+}
+.aurora-page-status-dot-small {
+width: 6px; height: 6px;
+border-radius: 50%;
+background: currentColor;
+flex-shrink: 0;
+}
+.aurora-page-card-divider {
+height: 1px;
+background: var(--aurora-border);
+margin: 0 17px;
+}
+.aurora-page-card-actions {
+padding: 13px 17px;
+display: flex;
+flex-direction: column;
+gap: 9px;
+}
+.aurora-page-action-btn {
+width: 100%;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+padding: 10px;
+border-radius: var(--aurora-r-md);
+font-size: 12.5px;
+font-weight: 700;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+border: 1px solid;
+background: transparent;
+}
+.aurora-page-action-btn.primary {
+background: rgba(99, 102, 241, 0.1);
+border-color: rgba(99, 102, 241, 0.25);
+color: var(--aurora-primary);
+}
+.aurora-page-action-btn.primary:hover {
+background: rgba(99, 102, 241, 0.18);
+}
+.aurora-page-action-btn.success {
+background: rgba(16, 185, 129, 0.1);
+border-color: rgba(16, 185, 129, 0.25);
+color: var(--aurora-success);
+}
+.aurora-page-action-btn.wa {
+background: rgba(255, 255, 255, 0.04);
+border-color: var(--aurora-border);
+color: var(--aurora-text-muted);
+}
+.aurora-page-action-btn.wa.on {
+background: rgba(37, 211, 102, 0.1);
+border-color: rgba(37, 211, 102, 0.3);
+color: #25D366;
+}
+
+.aurora-wa-dot {
+color: #25D366;
+margin-left: 7px;
+}
+.aurora-wa-help {
+background: rgba(37, 211, 102, 0.08);
+border: 1px solid rgba(37, 211, 102, 0.22);
+border-radius: var(--aurora-r-md);
+padding: 11px 14px;
+margin-bottom: 14px;
+font-size: 12px;
+color: #25D366;
+line-height: 1.7;
+}
+.aurora-wa-help-title {
+font-weight: 700;
+margin-bottom: 4px;
+}
+.aurora-webhook-row {
+display: flex;
+gap: 8px;
+align-items: center;
+}
+.aurora-webhook-row input {
+flex: 1;
+font-size: 10px;
+}
+
+/* ═══ Users ═══ */
+.aurora-users-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+gap: 12px;
+}
+.aurora-user-card {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 15px;
+box-shadow: var(--aurora-shadow-sm);
+transition: all 0.25s var(--aurora-ease);
+}
+.aurora-user-card:hover {
+transform: translateY(-2px);
+border-color: rgba(99, 102, 241, 0.3);
+box-shadow: var(--aurora-shadow-md);
+}
+.aurora-user-card.inactive { opacity: 0.55; }
+.aurora-user-card-top {
+display: flex;
+align-items: center;
+gap: 11px;
+margin-bottom: 11px;
+}
+.aurora-user-card-avatar {
+width: 42px; height: 42px;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+font-weight: 800;
+font-size: 15px;
+flex-shrink: 0;
+background: var(--aurora-surface);
+color: var(--aurora-primary);
+}
+.aurora-user-card-avatar.admin {
+background: var(--aurora-primary-grad);
+color: white;
+box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+.aurora-user-card-info { flex: 1; min-width: 0; }
+.aurora-user-card-name {
+font-size: 13.5px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-user-card-role {
+display: flex;
+align-items: center;
+gap: 5px;
+font-size: 10.5px;
+color: var(--aurora-text-muted);
+margin-top: 2px;
+}
+.aurora-active-dot {
+width: 8px; height: 8px;
+border-radius: 50%;
+flex-shrink: 0;
+background: var(--aurora-text-dim);
+}
+.aurora-active-dot.on {
+background: var(--aurora-success);
+box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+.aurora-user-card-meta {
+display: flex;
+gap: 7px;
+flex-wrap: wrap;
+margin-bottom: 11px;
+}
+.aurora-code-tag {
+font-size: 10.5px;
+color: var(--aurora-text-muted);
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: 7px;
+padding: 3px 9px;
+font-family: monospace;
+}
+.aurora-user-perms {
+display: flex;
+flex-wrap: wrap;
+gap: 5px;
+margin-bottom: 11px;
+padding-bottom: 11px;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-perm-tag {
+background: rgba(99, 102, 241, 0.1);
+color: var(--aurora-primary);
+font-size: 10px;
+font-weight: 600;
+padding: 3px 8px;
+border-radius: 6px;
+border: 1px solid rgba(99, 102, 241, 0.2);
+}
+.aurora-user-card-actions {
+display: flex;
+gap: 6px;
+}
+.aurora-user-action-btn {
+flex: 1;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 5px;
+padding: 8px;
+background: var(--aurora-surface);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-sm);
+color: var(--aurora-text-muted);
+font-size: 11px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.15s;
+}
+.aurora-user-action-btn:hover {
+background: var(--aurora-surface-2);
+color: var(--aurora-text);
+}
+.aurora-user-action-btn.danger {
+color: var(--aurora-danger);
+}
+.aurora-user-action-btn.danger:hover {
+background: rgba(239, 68, 68, 0.1);
+}
+
+.aurora-prep-time {
+display: flex;
+align-items: center;
+gap: 6px;
+font-size: 11.5px;
+color: var(--aurora-text-dim);
+margin: 0 14px 9px;
+padding-top: 2px;
+}
+
+/* ═══ Notifications ═══ */
+.aurora-notif-bell-wrap {
+position: fixed;
+top: 13px; left: 13px;
+z-index: 9999;
+}
+.aurora-notif-bell {
+position: relative;
+width: 44px; height: 44px;
+border-radius: 50%;
+background: rgba(22, 27, 46, 0.95);
+backdrop-filter: blur(10px);
+border: 1px solid rgba(99, 102, 241, 0.3);
+color: var(--aurora-text);
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+box-shadow: var(--aurora-shadow-md);
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-notif-bell:hover {
+transform: translateY(-2px);
+box-shadow: var(--aurora-shadow-lg);
+}
+.aurora-notif-bell.active {
+animation: auroraBellGlow 1.6s var(--aurora-ease) infinite;
+}
+@keyframes auroraBellGlow {
+0%, 100% { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+50% { box-shadow: 0 4px 22px rgba(239, 68, 68, 0.5); }
+}
+.aurora-notif-count {
+position: absolute;
+top: 6px; right: 6px;
+min-width: 17px; height: 17px;
+padding: 0 4px;
+border-radius: 9px;
+background: var(--aurora-danger);
+color: white;
+font-size: 10px;
+font-weight: 800;
+display: flex;
+align-items: center;
+justify-content: center;
+box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+}
+.aurora-notif-panel {
+position: absolute;
+top: 52px; left: 0;
+width: 330px;
+max-height: 430px;
+overflow-y: auto;
+background: rgba(22, 27, 46, 0.98);
+backdrop-filter: blur(20px);
+border: 1px solid var(--aurora-border-strong);
+border-radius: var(--aurora-r-lg);
+box-shadow: var(--aurora-shadow-lg);
+padding: 9px;
+animation: auroraFadeUp 0.2s var(--aurora-ease-bounce);
+}
+.aurora-notif-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 7px 9px 11px;
+}
+.aurora-notif-header span {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-notif-header button {
+font-size: 11px;
+color: var(--aurora-text-dim);
+background: none;
+border: none;
+cursor: pointer;
+}
+.aurora-notif-header button:hover { color: var(--aurora-text); }
+.aurora-notif-empty {
+padding: 26px 13px;
+text-align: center;
+color: var(--aurora-text-dim);
+font-size: 12.5px;
+}
+.aurora-notif-item {
+padding: 11px 13px;
+margin-bottom: 6px;
+border-radius: var(--aurora-r-md);
+border: 1px solid;
+}
+.aurora-notif-item.delivered {
+background: rgba(16, 185, 129, 0.07);
+border-color: rgba(16, 185, 129, 0.2);
+}
+.aurora-notif-item.returned {
+background: rgba(239, 68, 68, 0.08);
+border-color: rgba(239, 68, 68, 0.25);
+}
+.aurora-notif-title {
+font-size: 13px;
+font-weight: 700;
+margin-bottom: 3px;
+}
+.aurora-notif-item.delivered .aurora-notif-title { color: var(--aurora-success); }
+.aurora-notif-item.returned .aurora-notif-title { color: var(--aurora-danger); }
+.aurora-notif-body {
+font-size: 11.5px;
+color: var(--aurora-text-muted);
+line-height: 1.5;
+}
+.aurora-notif-time {
+font-size: 10px;
+color: var(--aurora-text-dim);
+margin-top: 4px;
+}
+
+/* ═══ Prep Worker ═══ */
+.aurora-prep-header {
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 14px 17px;
+border-bottom: 1px solid var(--aurora-border);
+background: rgba(22, 27, 46, 0.7);
+backdrop-filter: blur(10px);
+}
+.aurora-prep-brand {
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.aurora-prep-icon {
+width: 38px; height: 38px;
+border-radius: 11px;
+background: rgba(245, 158, 11, 0.15);
+color: var(--aurora-warn);
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.aurora-prep-title {
+font-size: 15px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-prep-name {
+font-size: 11px;
+color: var(--aurora-text-muted);
+}
+.aurora-prep-counter {
+padding: 13px 17px 5px;
+display: flex;
+align-items: center;
+gap: 9px;
+}
+.aurora-prep-counter > span:first-child {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-prep-count {
+min-width: 24px; height: 24px;
+padding: 0 8px;
+border-radius: var(--aurora-r-full);
+background: rgba(255, 255, 255, 0.05);
+color: var(--aurora-text-dim);
+font-size: 12px;
+font-weight: 800;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.aurora-prep-count.has {
+background: rgba(245, 158, 11, 0.18);
+color: var(--aurora-warn);
+}
+.aurora-prep-content {
+padding: 9px 17px 26px;
+overflow-y: auto;
+flex: 1;
+}
+
+.aurora-prep-card-body { padding: 15px; }
+.aurora-prep-card-head {
+display: flex;
+align-items: center;
+gap: 11px;
+margin-bottom: 13px;
+}
+.aurora-prep-card-icon {
+width: 42px; height: 42px;
+border-radius: 12px;
+background: rgba(99, 102, 241, 0.12);
+color: var(--aurora-primary);
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+}
+.aurora-prep-card-info { flex: 1; min-width: 0; }
+.aurora-prep-card-customer {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-prep-card-customer span {
+font-size: 11.5px;
+color: var(--aurora-text-dim);
+font-weight: 600;
+margin-right: 4px;
+}
+.aurora-prep-card-loc {
+font-size: 11.5px;
+color: var(--aurora-text-muted);
+}
+.aurora-prep-items {
+background: rgba(255, 255, 255, 0.03);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 11px 13px;
+margin-bottom: 13px;
+}
+.aurora-prep-items-label {
+font-size: 10.5px;
+color: var(--aurora-text-dim);
+font-weight: 700;
+margin-bottom: 5px;
+}
+.aurora-prep-items > div:last-child {
+font-size: 13px;
+color: var(--aurora-text);
+line-height: 1.6;
+white-space: pre-wrap;
+}
+.aurora-prep-type {
+font-size: 12px;
+color: var(--aurora-text-muted);
+margin-bottom: 13px;
+}
+.aurora-prep-type span {
+color: var(--aurora-text);
+font-weight: 600;
+}
+.aurora-prep-note {
+background: rgba(245, 158, 11, 0.1);
+border: 1px solid rgba(245, 158, 11, 0.28);
+border-radius: var(--aurora-r-md);
+padding: 10px 13px;
+margin-bottom: 13px;
+}
+.aurora-prep-note-title {
+font-size: 11px;
+color: var(--aurora-warn);
+font-weight: 700;
+margin-bottom: 3px;
+}
+.aurora-prep-note > div:last-child {
+font-size: 12.5px;
+color: var(--aurora-text);
+}
+.aurora-prep-actions {
+display: flex;
+gap: 9px;
+}
+.aurora-prep-btn {
+flex: 1;
+padding: 13px;
+border-radius: var(--aurora-r-md);
+font-size: 13.5px;
+font-weight: 800;
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 7px;
+border: 1.5px solid;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-prep-btn.done {
+background: rgba(16, 185, 129, 0.14);
+border-color: rgba(16, 185, 129, 0.4);
+color: var(--aurora-success);
+}
+.aurora-prep-btn.done:hover {
+background: rgba(16, 185, 129, 0.22);
+transform: translateY(-1px);
+}
+.aurora-prep-btn.reject {
+background: rgba(239, 68, 68, 0.1);
+border-color: rgba(239, 68, 68, 0.35);
+color: var(--aurora-danger);
+}
+.aurora-prep-btn.reject:hover {
+background: rgba(239, 68, 68, 0.18);
+transform: translateY(-1px);
+}
+
+/* ═══ Warehouse ═══ */
+.aurora-wh-layout {
+display: flex;
+flex-direction: row;
+height: 100%;
+direction: rtl;
+}
+.aurora-wh-layout.mobile { flex-direction: column; }
+.aurora-wh-sidebar {
+width: 210px;
+flex-shrink: 0;
+background: linear-gradient(180deg, rgba(22, 27, 46, 0.8), rgba(17, 22, 38, 0.8));
+backdrop-filter: blur(10px);
+border-left: 1px solid var(--aurora-border);
+display: flex;
+flex-direction: column;
+padding: 15px 11px;
+gap: 4px;
+overflow-y: auto;
+}
+.aurora-wh-sidebar-title {
+font-size: 13px;
+font-weight: 800;
+color: var(--aurora-text-muted);
+padding: 0 7px 11px;
+border-bottom: 1px solid var(--aurora-border);
+margin-bottom: 7px;
+}
+.aurora-wh-sidebar-alerts {
+background: rgba(239, 68, 68, 0.08);
+border: 1px solid rgba(239, 68, 68, 0.2);
+border-radius: var(--aurora-r-sm);
+padding: 8px 11px;
+margin-bottom: 9px;
+font-size: 11px;
+}
+.aurora-wh-sidebar-alerts > div:first-child {
+color: var(--aurora-warn);
+margin-bottom: 3px;
+}
+.aurora-wh-sidebar-alerts > div:last-child {
+color: var(--aurora-danger);
+}
+.aurora-wh-nav-item {
+display: flex;
+align-items: center;
+gap: 9px;
+width: 100%;
+padding: 10px 11px;
+border-radius: var(--aurora-r-md);
+background: transparent;
+border: 1px solid transparent;
+color: var(--aurora-text-muted);
+font-size: 12.5px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s var(--aurora-ease);
+text-align: right;
+}
+.aurora-wh-nav-item:hover {
+background: rgba(255, 255, 255, 0.04);
+color: var(--aurora-text);
+}
+.aurora-wh-nav-item.active {
+background: rgba(99, 102, 241, 0.15);
+border-color: rgba(99, 102, 241, 0.3);
+color: var(--aurora-primary);
+font-weight: 700;
+}
+
+.aurora-wh-mobile-tabs {
+display: flex;
+overflow-x: auto;
+background: rgba(22, 27, 46, 0.8);
+backdrop-filter: blur(10px);
+border-bottom: 1px solid var(--aurora-border);
+padding: 9px 11px;
+gap: 7px;
+flex-shrink: 0;
+-webkit-overflow-scrolling: touch;
+}
+.aurora-wh-mobile-tab {
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 4px;
+padding: 8px 13px;
+border-radius: var(--aurora-r-md);
+background: rgba(255, 255, 255, 0.04);
+border: 1px solid transparent;
+color: var(--aurora-text-muted);
+font-size: 10px;
+font-weight: 600;
+cursor: pointer;
+flex-shrink: 0;
+min-width: 60px;
+transition: all 0.15s;
+}
+.aurora-wh-mobile-tab.active {
+background: rgba(99, 102, 241, 0.18);
+border-color: rgba(99, 102, 241, 0.4);
+color: var(--aurora-primary);
+font-weight: 800;
+}
+
+.aurora-wh-content {
+flex: 1;
+overflow-y: auto;
+padding: 20px;
+}
+.aurora-wh-layout.mobile .aurora-wh-content {
+padding: 15px 13px;
+}
+
+.aurora-wh-header {
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+margin-bottom: 16px;
+flex-wrap: wrap;
+gap: 9px;
+}
+.aurora-wh-header h3 {
+margin: 0;
+font-size: 18px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-wh-header-actions {
+display: flex;
+gap: 8px;
+}
+
+.aurora-wh-stats-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+gap: 12px;
+margin-bottom: 19px;
+}
+.aurora-wh-stats-grid.small {
+grid-template-columns: 1fr 1fr 1fr;
+}
+.aurora-wh-stat {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 14px 16px;
+box-shadow: var(--aurora-shadow-sm);
+position: relative;
+overflow: hidden;
+}
+.aurora-wh-stat::before {
+content: '';
+position: absolute;
+top: 0; right: 0;
+width: 100%; height: 2px;
+background: linear-gradient(90deg, transparent, var(--accent, var(--aurora-primary)), transparent);
+opacity: 0.5;
+}
+.aurora-wh-stat > svg {
+color: var(--accent, var(--aurora-primary));
+margin-bottom: 9px;
+}
+.aurora-wh-stat-value {
+font-size: 18px;
+font-weight: 800;
+color: var(--accent, var(--aurora-primary));
+}
+.aurora-wh-stat-label {
+font-size: 11px;
+color: var(--aurora-text-dim);
+margin-top: 3px;
+}
+.aurora-wh-stat.small {
+padding: 13px 15px;
+text-align: center;
+}
+.aurora-wh-stat.danger { --accent: var(--aurora-danger); }
+.aurora-wh-stat.warn { --accent: var(--aurora-warn); }
+
+.aurora-wh-section {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+padding: 15px;
+margin-bottom: 15px;
+}
+.aurora-wh-section.danger {
+border-color: rgba(239, 68, 68, 0.25);
+}
+.aurora-wh-section-title {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+margin: 0 0 12px;
+}
+.aurora-wh-section.danger .aurora-wh-section-title {
+color: var(--aurora-danger);
+}
+
+.aurora-wh-low-item {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 9px 11px;
+background: rgba(239, 68, 68, 0.06);
+border-radius: var(--aurora-r-sm);
+margin-bottom: 7px;
+border: 1px solid rgba(239, 68, 68, 0.18);
+}
+.aurora-wh-low-name {
+font-size: 12.5px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-wh-low-loc {
+font-size: 11px;
+color: var(--aurora-text-dim);
+margin-top: 2px;
+}
+.aurora-wh-low-qty {
+font-size: 22px;
+font-weight: 800;
+color: var(--aurora-warn);
+}
+.aurora-wh-low-qty.zero {
+color: var(--aurora-danger);
+}
+
+.aurora-wh-sale-row {
+display: flex;
+justify-content: space-between;
+padding: 9px 0;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-wh-sale-row:last-child { border-bottom: none; }
+.aurora-wh-sale-name {
+font-size: 12.5px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-wh-sale-meta {
+font-size: 11px;
+color: var(--aurora-text-dim);
+margin-top: 2px;
+}
+.aurora-wh-sale-total {
+font-size: 13px;
+font-weight: 800;
+color: var(--aurora-success);
+}
+
+.aurora-wh-filters {
+display: flex;
+gap: 8px;
+margin-bottom: 13px;
+flex-wrap: wrap;
+}
+.aurora-wh-type-chip {
+padding: 7px 12px;
+border-radius: var(--aurora-r-full);
+border: 1px solid var(--aurora-border);
+background: transparent;
+color: var(--aurora-text-muted);
+font-size: 11.5px;
+font-weight: 700;
+cursor: pointer;
+transition: all 0.15s;
+}
+.aurora-wh-type-chip:hover {
+background: rgba(255, 255, 255, 0.04);
+}
+.aurora-wh-type-chip.active {
+background: rgba(99, 102, 241, 0.15);
+border-color: var(--aurora-primary);
+color: var(--aurora-primary);
+}
+
+.aurora-wh-list {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-md);
+overflow: hidden;
+}
+.aurora-wh-product-row {
+display: flex;
+align-items: center;
+gap: 12px;
+padding: 12px 15px;
+border-bottom: 1px solid var(--aurora-border);
+transition: background 0.15s;
+}
+.aurora-wh-product-row:last-child { border-bottom: none; }
+.aurora-wh-product-row:hover {
+background: rgba(255, 255, 255, 0.02);
+}
+.aurora-wh-product-icon {
+width: 44px; height: 44px;
+border-radius: 11px;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 19px;
+flex-shrink: 0;
+}
+.aurora-wh-product-info { flex: 1; min-width: 0; }
+.aurora-wh-product-name {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-wh-product-tags {
+display: flex;
+gap: 7px;
+margin-top: 4px;
+flex-wrap: wrap;
+}
+.aurora-wh-product-tag {
+font-size: 11px;
+padding: 2px 8px;
+border-radius: var(--aurora-r-full);
+font-weight: 600;
+}
+.aurora-wh-product-loc, .aurora-wh-product-price {
+font-size: 11px;
+color: var(--aurora-text-dim);
+}
+.aurora-wh-product-qty-wrap {
+text-align: center;
+min-width: 48px;
+}
+.aurora-wh-product-qty {
+font-size: 21px;
+font-weight: 800;
+color: var(--aurora-success);
+}
+.aurora-wh-product-qty.low { color: var(--aurora-danger); }
+.aurora-wh-product-qty-label {
+font-size: 10px;
+color: var(--aurora-text-dim);
+}
+.aurora-wh-product-qty-warn {
+font-size: 10px;
+color: var(--aurora-danger);
+font-weight: 700;
+}
+.aurora-wh-product-actions {
+display: flex;
+gap: 6px;
+}
+
+.aurora-info-box {
+background: rgba(99, 102, 241, 0.08);
+border: 1px solid rgba(99, 102, 241, 0.2);
+border-radius: var(--aurora-r-sm);
+padding: 12px 14px;
+margin-bottom: 14px;
+font-size: 12px;
+color: var(--aurora-primary);
+}
+
+.aurora-wh-total-preview {
+background: rgba(16, 185, 129, 0.08);
+border: 1px solid rgba(16, 185, 129, 0.25);
+border-radius: var(--aurora-r-sm);
+padding: 11px 14px;
+margin-bottom: 13px;
+font-size: 17px;
+font-weight: 800;
+color: var(--aurora-success);
+text-align: center;
+}
+
+.aurora-wh-period-chips {
+display: flex;
+gap: 7px;
+margin-bottom: 15px;
+flex-wrap: wrap;
+}
+.aurora-wh-period-chip {
+padding: 7px 13px;
+border-radius: var(--aurora-r-full);
+border: 1px solid var(--aurora-border);
+background: transparent;
+color: var(--aurora-text-muted);
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+transition: all 0.15s;
+}
+.aurora-wh-period-chip:hover {
+background: rgba(255, 255, 255, 0.04);
+}
+.aurora-wh-period-chip.active {
+background: rgba(16, 185, 129, 0.14);
+border-color: var(--aurora-success);
+color: var(--aurora-success);
+}
+
+.aurora-wh-suppliers-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+gap: 14px;
+}
+.aurora-wh-supplier-card {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 16px;
+position: relative;
+overflow: hidden;
+transition: all 0.25s var(--aurora-ease);
+}
+.aurora-wh-supplier-card:hover {
+transform: translateY(-2px);
+border-color: rgba(99, 102, 241, 0.3);
+}
+.aurora-wh-supplier-top {
+position: absolute;
+top: 0; right: 0; left: 0;
+height: 3px;
+background: linear-gradient(90deg, transparent, var(--aurora-primary), transparent);
+opacity: 0.7;
+}
+.aurora-wh-supplier-head {
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+margin-bottom: 11px;
+}
+.aurora-wh-supplier-name {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-wh-supplier-phone {
+font-size: 12px;
+color: var(--aurora-primary);
+margin-top: 3px;
+}
+.aurora-wh-supplier-addr {
+font-size: 12px;
+color: var(--aurora-text-dim);
+margin-top: 2px;
+}
+.aurora-wh-supplier-actions {
+display: flex;
+gap: 6px;
+}
+.aurora-wh-supplier-products {
+background: rgba(99, 102, 241, 0.06);
+border: 1px solid rgba(99, 102, 241, 0.15);
+border-radius: var(--aurora-r-sm);
+padding: 9px 11px;
+}
+.aurora-wh-supplier-products-title {
+font-size: 10.5px;
+color: var(--aurora-primary);
+font-weight: 700;
+margin-bottom: 3px;
+}
+.aurora-wh-supplier-products > div:last-child {
+font-size: 12px;
+color: var(--aurora-text-muted);
+line-height: 1.5;
+}
+.aurora-wh-supplier-notes {
+font-size: 11.5px;
+color: var(--aurora-text-dim);
+margin-top: 9px;
+}
+
+.aurora-wh-debt-row {
+display: flex;
+align-items: center;
+gap: 12px;
+padding: 12px 15px;
+border-bottom: 1px solid var(--aurora-border);
+transition: background 0.15s;
+}
+.aurora-wh-debt-row:last-child { border-bottom: none; }
+.aurora-wh-debt-row:hover { background: rgba(255, 255, 255, 0.02); }
+.aurora-wh-debt-row.urgent {
+background: rgba(239, 68, 68, 0.04);
+}
+.aurora-wh-debt-dot {
+width: 9px; height: 9px;
+border-radius: 50%;
+flex-shrink: 0;
+}
+.aurora-wh-debt-info { flex: 1; min-width: 0; }
+.aurora-wh-debt-name {
+font-size: 13px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-wh-debt-tags {
+display: flex;
+gap: 7px;
+margin-top: 4px;
+flex-wrap: wrap;
+}
+.aurora-wh-debt-tag {
+font-size: 11px;
+padding: 2px 8px;
+border-radius: var(--aurora-r-full);
+font-weight: 600;
+}
+.aurora-wh-debt-date {
+font-size: 11px;
+color: var(--aurora-text-dim);
+}
+.aurora-wh-debt-date.urgent {
+color: var(--aurora-danger);
+font-weight: 700;
+}
+.aurora-wh-debt-paid {
+font-size: 11px;
+color: var(--aurora-success);
+font-weight: 700;
+}
+.aurora-wh-debt-amount {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-danger);
+}
+.aurora-wh-debt-amount.paid { color: var(--aurora-text-dim); }
+.aurora-wh-debt-actions {
+display: flex;
+gap: 6px;
+}
+
+.aurora-wh-employees-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+gap: 14px;
+}
+.aurora-wh-employee-card {
+background: rgba(22, 27, 46, 0.6);
+backdrop-filter: blur(10px);
+border: 1px solid var(--aurora-border);
+border-radius: var(--aurora-r-lg);
+padding: 16px;
+transition: all 0.25s var(--aurora-ease);
+}
+.aurora-wh-employee-card:hover {
+transform: translateY(-2px);
+border-color: rgba(139, 92, 246, 0.3);
+}
+.aurora-wh-employee-head {
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+margin-bottom: 12px;
+}
+.aurora-wh-employee-avatar {
+width: 44px; height: 44px;
+border-radius: 50%;
+background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 18px;
+font-weight: 800;
+color: white;
+box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+.aurora-wh-employee-info {
+display: flex;
+gap: 11px;
+align-items: center;
+flex: 1;
+}
+.aurora-wh-employee-name {
+font-size: 14px;
+font-weight: 800;
+color: var(--aurora-text);
+}
+.aurora-wh-employee-role {
+font-size: 11.5px;
+color: var(--aurora-text-dim);
+}
+.aurora-wh-employee-actions {
+display: flex;
+gap: 6px;
+}
+.aurora-wh-employee-salary {
+background: rgba(139, 92, 246, 0.08);
+border: 1px solid rgba(139, 92, 246, 0.18);
+border-radius: var(--aurora-r-sm);
+padding: 10px 13px;
+margin-bottom: 11px;
+}
+.aurora-wh-employee-salary-label {
+font-size: 11px;
+color: #A78BFA;
+margin-bottom: 2px;
+}
+.aurora-wh-employee-salary-value {
+font-size: 18px;
+font-weight: 800;
+color: #A78BFA;
+}
+.aurora-wh-employee-phone {
+font-size: 12px;
+color: var(--aurora-primary);
+margin-bottom: 9px;
+}
+.aurora-wh-employee-pay-btn {
+width: 100%;
+padding: 9px;
+background: rgba(16, 185, 129, 0.1);
+border: 1px solid rgba(16, 185, 129, 0.25);
+border-radius: var(--aurora-r-sm);
+color: var(--aurora-success);
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 7px;
+transition: all 0.2s var(--aurora-ease);
+}
+.aurora-wh-employee-pay-btn:hover {
+background: rgba(16, 185, 129, 0.18);
+}
+
+.aurora-wh-reports-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 14px;
+}
+.aurora-wh-report-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 10px 0;
+border-bottom: 1px solid var(--aurora-border);
+}
+.aurora-wh-report-row:last-child { border-bottom: none; }
+.aurora-wh-report-info {
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.aurora-wh-report-icon { font-size: 17px; }
+.aurora-wh-report-name {
+font-size: 12.5px;
+font-weight: 700;
+color: var(--aurora-text);
+}
+.aurora-wh-report-count {
+font-size: 11px;
+color: var(--aurora-text-dim);
+}
+.aurora-wh-report-total {
+font-size: 13px;
+font-weight: 800;
+}
+.aurora-wh-report-qty {
+font-size: 12.5px;
+font-weight: 700;
+color: var(--aurora-success);
+}
+
+/* ═══ City Picker ═══ */
+.aurora-city-picker {
+position: relative;
+}
+.aurora-city-dropdown {
+position: absolute;
+top: 100%;
+left: 0; right: 0;
+z-index: 50;
+background: rgba(22, 27, 46, 0.98);
+backdrop-filter: blur(20px);
+border: 1px solid rgba(99, 102, 241, 0.3);
+border-radius: var(--aurora-r-md);
+max-height: 230px;
+overflow-y: auto;
+margin-top: 3px;
+box-shadow: var(--aurora-shadow-lg);
+}
+.aurora-city-loading {
+padding: 11px;
+color: var(--aurora-text-dim);
+font-size: 12px;
+}
+.aurora-city-item {
+padding: 10px 13px;
+font-size: 13px;
+color: var(--aurora-text);
+cursor: pointer;
+border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+transition: background 0.12s;
+}
+.aurora-city-item:hover {
+background: rgba(99, 102, 241, 0.12);
+}
+
+/* ═══ Loading Screen ═══ */
+.aurora-loading-screen {
+min-height: 100vh;
+display: flex;
+align-items: center;
+justify-content: center;
+background: var(--aurora-bg);
+flex-direction: column;
+gap: 17px;
+color: var(--aurora-primary);
+}
+
+.aurora-error-screen {
+padding: 30px;
+background: var(--aurora-bg);
+color: var(--aurora-text);
+min-height: 100vh;
+font-family: 'Cairo', sans-serif;
+direction: rtl;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.aurora-error-card {
+background: rgba(239, 68, 68, 0.1);
+border: 1px solid rgba(239, 68, 68, 0.3);
+border-radius: var(--aurora-r-lg);
+padding: 22px;
+max-width: 600px;
+}
+.aurora-error-title {
+font-size: 18px;
+font-weight: 800;
+color: var(--aurora-danger);
+margin-bottom: 13px;
+}
+.aurora-error-msg {
+font-size: 13px;
+color: var(--aurora-warn);
+margin-bottom: 9px;
+font-family: monospace;
+direction: ltr;
+}
+.aurora-error-stack {
+font-size: 11px;
+color: var(--aurora-text-dim);
+font-family: monospace;
+direction: ltr;
+white-space: pre-wrap;
+}
+
+/* ═══ Print ═══ */
+@media print {
+body * { visibility: hidden; }
+.aurora-print-area, .aurora-print-area * { visibility: visible; }
+.aurora-print-area {
+position: absolute;
+top: 0; right: 0; left: 0;
+width: 100%;
+display: grid !important;
+grid-template-columns: repeat(2, 1fr) !important;
+}
+.aurora-orders-grid {
+display: grid !important;
+grid-template-columns: repeat(2, 1fr) !important;
+}
+}
+
+/* ═══ Responsive ═══ */
+@media (max-width: 860px) {
+.aurora-app { flex-direction: column !important; }
+.aurora-main {
+padding: 54px 0 68px !important;
+width: 100% !important;
+min-height: 100vh !important;
+}
+.aurora-main.conv {
+padding: 54px 0 68px !important;
+height: 100vh !important;
+min-height: 0 !important;
+overflow: hidden !important;
+display: flex !important;
+flex-direction: column !important;
+}
+.aurora-conv-fullscreen {
+position: static !important;
+width: 100% !important;
+height: 100% !important;
+flex: 1 !important;
+overflow: hidden !important;
+}
+.aurora-conv-list {
+max-height: none !important;
+height: 100% !important;
+width: 100% !important;
+max-width: 100% !important;
+min-width: 0 !important;
+border-left: none !important;
+}
+.aurora-conv-list.hidden-mobile { display: none !important; }
+.aurora-conv-detail.empty { display: none !important; }
+.aurora-conv-detail.active-mobile {
+position: fixed !important;
+top: 0 !important; right: 0 !important;
+left: 0 !important; bottom: 0 !important;
+z-index: 300 !important;
+width: 100% !important;
+height: 100dvh !important;
+display: flex !important;
+flex-direction: column !important;
+background: var(--aurora-bg) !important;
+animation: auroraSlideIn 0.2s ease !important;
+}
+@keyframes auroraSlideIn {
+from { opacity: 0; transform: translateX(100%); }
+to { opacity: 1; transform: translateX(0); }
+}
+.aurora-back-btn { display: flex !important; }
+.aurora-stats-row { grid-template-columns: repeat(2, 1fr) !important; }
+.aurora-stats-grid-2 { grid-template-columns: 1fr !important; }
+.aurora-view-header { flex-direction: column !important; align-items: flex-start !important; }
+.aurora-pages-grid, .aurora-users-grid { grid-template-columns: 1fr !important; }
+.aurora-bar-row { grid-template-columns: 1fr !important; gap: 5px !important; }
+.aurora-modal { max-width: 96vw !important; }
+.aurora-login-card { max-width: 92vw !important; padding: 32px 22px !important; }
+.aurora-orders-grid { grid-template-columns: 1fr !important; }
+.aurora-wh-reports-grid { grid-template-columns: 1fr !important; }
+.aurora-grid-2 { grid-template-columns: 1fr !important; }
+.aurora-notif-panel { width: calc(100vw - 26px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+*, *::before, *::after {
+animation-duration: 0.01ms !important;
+animation-iteration-count: 1 !important;
+transition-duration: 0.01ms !important;
+}
+}
+`}</style>
+);
+}
