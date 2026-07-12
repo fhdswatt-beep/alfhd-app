@@ -23,11 +23,22 @@ const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
 
 // معرّف المساحة الحالية للعزل (يُضبط عند الدخول) — null = المساحة الرئيسية
 let CURRENT_WORKSPACE = null;
-function setCurrentWorkspace(wsId) { CURRENT_WORKSPACE = wsId || null; }
-// فلتر workspace لاستعلامات REST: يجلب بيانات المساحة الحالية فقط
-function wsFilter() {
-  return CURRENT_WORKSPACE ? `&workspace_id=eq.${CURRENT_WORKSPACE}` : `&workspace_id=is.null`;
+function setCurrentWorkspace(wsId) {
+  // نقبل فقط معرّف مساحة صريح وصالح (رقم/نص غير فارغ)؛ أي شيء آخر = المساحة الرئيسية
+  CURRENT_WORKSPACE = (wsId !== undefined && wsId !== null && wsId !== '' && wsId !== 'null') ? wsId : null;
 }
+// ══════════════════════════════════════════════════════════
+// فلتر المساحة — قاعدة صارمة لمنع اختفاء الطلبات نهائياً:
+// • المساحة المعزولة (لها معرّف صريح): ترى بياناتها فقط.
+// • المدير/المساحة الرئيسية (null): ترى كل شيء — لا فلتر إطلاقاً.
+// هذا يضمن أن طلبات المدير لا تختفي أبداً تحت أي ظرف.
+// ══════════════════════════════════════════════════════════
+function wsFilter() {
+  if (!CURRENT_WORKSPACE) return ''; // المدير يرى كل الطلبات — بلا استثناء
+  return `&workspace_id=eq.${CURRENT_WORKSPACE}`;
+}
+// هل المستخدم الحالي في مساحة معزولة؟ (للاستخدام في الحمايات)
+function isIsolatedWorkspace() { return !!CURRENT_WORKSPACE; }
 
 // تحويل الأرقام العربية/الفارسية إلى إنجليزية (٠١٢٣٤٥٦٧٨٩ → 0123456789) — دالة عامة
 function arabicToEnglishDigits(str) {
@@ -6522,7 +6533,17 @@ export default function AlFhdApp() {
           }
         }
 
-        setOrders(mapped);
+        // ── حماية حرجة: امنع اختفاء الطلبات بشكل مفاجئ ──
+        // إذا رجع التحديث بأقل بكثير من الموجود (>30% نقص فجأة) وليس بسبب حذف يدوي،
+        // فهذا غالباً خطأ شبكة/فلتر — نتجاهل التحديث المشبوه ونُبقي الطلبات الحالية.
+        const prevCount = ordersRef.current?.length || 0;
+        const newCount = mapped.length;
+        const suspiciousDrop = prevCount >= 5 && newCount < prevCount * 0.7 && !isIsolatedWorkspace();
+        if (suspiciousDrop) {
+          console.warn(`⚠️ تم تجاهل تحديث مشبوه: الطلبات كانت ${prevCount} ورجعت ${newCount}. الإبقاء على الحالية لمنع الاختفاء.`);
+        } else {
+          setOrders(mapped);
+        }
       }
     } catch (e) {
       console.error('orders refresh error:', e);
