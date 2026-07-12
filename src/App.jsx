@@ -2283,10 +2283,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   const stageOrders = useMemo(() => {
     return visibleOrders.filter((o) => {
-      const stage = o.stage || (o.printed ? 'prep' : 'ready');
+      // نعتمد على stage الحقيقي فقط. الافتراضي 'ready' إن كان فارغاً (لا نخفيه بسبب printed).
+      const stage = o.stage || 'ready';
       if (stage !== section) return false;
       if (!passesCommon(o)) return false;
-      // استبعد المهملة من أقسام التجهيز/التوصيل (تظهر في قسم المهمل فقط)
       if ((section === 'prep' || section === 'delivery') && isNeglected(o)) return false;
       if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
       return true;
@@ -2522,6 +2522,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
           storage_location: editingOrder.storageLocation || null,
         };
+        // حماية: التعديل لا يغيّر المرحلة ولا يحوّل/يحذف الطلب أبداً — نُبقيها كما هي
         await sbUpdate('alfhd_orders', editingOrder.id, payload);
         const updatedOrder = {
           ...editingOrder,
@@ -3459,6 +3460,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={styles.orderCardCustomer}>{o.customer}</div>
             <div style={styles.orderTicketPage}>{page?.avatar} {page?.name || 'بدون صفحة'}</div>
+            {(o.date || o.createdAt) && (
+              <div style={{ fontSize: 10.5, color: '#5E6986', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={10} />
+                {(() => {
+                  try {
+                    const d = new Date(o.date || o.createdAt);
+                    return d.toLocaleDateString('ar-IQ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                  } catch { return o.date || ''; }
+                })()}
+              </div>
+            )}
           </div>
           <StageStatusBadge o={o} />
         </div>
@@ -8685,7 +8697,7 @@ const styles = {
 
   // ── Modal ──
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: 20, overflowY: 'auto' },
-  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginBottom: 20 },
+  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginTop: 0 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
   modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
