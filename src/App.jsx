@@ -3646,8 +3646,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <button onClick={() => setDetailOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
           </button>
-          {/* زر طباعة فردي من جيني — في قسم الطباعة والتجهيز */}
-          {(section === 'ready' || section === 'prep') && (
+          {/* زر طباعة فردي — في قسم الطباعة فقط (المطبوع له زره الخاص بالأعلى) */}
+          {section === 'ready' && (
             <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#2AABEE', borderColor: 'rgba(42,171,238,0.3)' }} title="طباعة باركود هذا الطلب">
               <Printer size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>طباعة</span>
             </button>
@@ -4447,14 +4447,6 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
   const [reprepMode, setReprepMode] = useState(false);
   const [reprepNote, setReprepNote] = useState('');
   const isRejected = o.prepStatus === 'rejected';
-  // اقفل سكرول الخلفية عند فتح المودال ليبدأ دائماً من الأعلى (يحل مشكلة الحاجة للصعود)
-  React.useEffect(() => {
-    const scrollY = window.scrollY;
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    body.style.overflow = 'hidden';
-    return () => { body.style.overflow = prevOverflow; window.scrollTo(0, scrollY); };
-  }, []);
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
       <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
@@ -8776,7 +8768,7 @@ const styles = {
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: 20, overflowY: 'auto' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
   modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginTop: 0 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 17px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
