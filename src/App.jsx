@@ -2142,6 +2142,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   // قسم المهمل
   const [neglectedOpen, setNeglectedOpen] = useState(false);
   const [neglectedSelected, setNeglectedSelected] = useState([]); // ids المحددة
+  const [prepSubTab, setPrepSubTab] = useState('all'); // 'all' | 'followup'
+  const [prepSelected, setPrepSelected] = useState([]); // طلبات محددة للطباعة
   const sendingJenniRef = React.useRef(null); // قفل ضد الإرسال المزدوج لجيني
   const citiesCacheRef = React.useRef(null); // كاش جدول مدن جيني للبحث السريع
   const [printTarget, setPrintTarget] = useState(null);
@@ -3393,6 +3395,45 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   const prepBatches = useMemo(() => groupByBatch(stageOrders), [stageOrders]);
 
+  // ── قسم "مطبوع": التبويبات الفرعية ودوال الطباعة ──
+  const HOUR = 3600000;
+  // طلب يحتاج متابعة: مطبوع ومر عليه وقت دون أن يُرسل/يُستلم من الشركة
+  function followupLevel(o) {
+    if (o.jenniSent || o.deliveryStep) return null; // أُرسل/استُلم — لا يحتاج متابعة
+    const ref = o.printedAt || o.createdAt || o.date;
+    if (!ref) return null;
+    const hrs = (Date.now() - new Date(ref).getTime()) / HOUR;
+    if (hrs >= 48) return 'red';
+    if (hrs >= 30) return 'orange';
+    return null;
+  }
+  // كل الطلبات المطبوعة (الأحدث أولاً)
+  const prepAllOrders = useMemo(() => {
+    return [...stageOrders].sort((a, b) => {
+      const ta = new Date(b.printedAt || b.createdAt || b.date || 0).getTime();
+      const tb = new Date(a.printedAt || a.createdAt || a.date || 0).getTime();
+      return ta - tb;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageOrders]);
+  // طلبات بحاجة لمتابعة (برتقالي 30س، أحمر 48س)
+  const prepFollowup = useMemo(() => prepAllOrders.filter((o) => followupLevel(o)), [prepAllOrders]);
+
+  function togglePrepSelect(id) {
+    setPrepSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  }
+  // طباعة طلب واحد
+  function printSingleOrder(o) {
+    printJenniBatch([o], { saveBatch: false });
+  }
+  // طباعة الطلبات المحددة
+  function printSelectedPrep() {
+    const chosen = prepAllOrders.filter((o) => prepSelected.includes(o.id));
+    if (chosen.length === 0) { alert('حدّد طلباً واحداً على الأقل'); return; }
+    printJenniBatch(chosen, { saveBatch: false });
+    setPrepSelected([]);
+  }
+
   function StageStatusBadge({ o }) {
     if (section === 'delivery') {
       const stepU = (o.deliveryStep || '').toUpperCase();
@@ -3424,25 +3465,53 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
   }
 
-  function renderOrderCard(o, index = 0) {
+  function renderOrderCard(o, index = 0, prepMode = false) {
     const page = pages.find((p) => p.id === o.pageId);
     const isRejected = o.prepStatus === 'rejected';
-    // لون الشريط حسب الحالة: أخضر=مستلم، أحمر=راجع، برتقالي=قيد التوصيل، أزرق=جاهز
     const stepU = (o.deliveryStep || '').toUpperCase();
-    let stripColor = '#2AABEE'; // افتراضي (جاهز/تجهيز)
+    let stripColor = '#2AABEE';
     if (o.converted) stripColor = '#4DDB6B';
     else if (isRejected) stripColor = '#F25050';
     else if (stepU.startsWith('RTO')) stripColor = '#F25050';
     else if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) stripColor = '#4DDB6B';
-    else if (stepU) stripColor = '#F0A868'; // قيد التوصيل
+    else if (stepU) stripColor = '#F0A868';
+    // في قسم المطبوع: لون حسب حاجة المتابعة
+    const fLevel = prepMode ? followupLevel(o) : null;
+    const cardBorder = fLevel === 'red' ? '2px solid #F25050' : fLevel === 'orange' ? '2px solid #F0A868' : undefined;
+    const cardBg = fLevel === 'red' ? 'rgba(242,80,80,0.06)' : fLevel === 'orange' ? 'rgba(240,168,104,0.06)' : undefined;
+    const isSel = prepSelected.includes(o.id);
     return (
       <div
         key={o.id}
-        style={{ ...styles.orderCard, ...(isRejected ? styles.rejectedCard : {}), animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
+        style={{ ...styles.orderCard, ...(isRejected ? styles.rejectedCard : {}), ...(cardBorder ? { border: cardBorder } : {}), ...(cardBg ? { background: cardBg } : {}), animationDelay: `${Math.min(index * 0.04, 0.4)}s` }}
         className="alfhd-order-card alfhd-card-enter"
       >
-        {/* شريط لوني علوي حسب الحالة */}
-        <div style={{ height: 3, background: stripColor, width: '100%' }} />
+        <div style={{ height: 3, background: fLevel === 'red' ? '#F25050' : fLevel === 'orange' ? '#F0A868' : stripColor, width: '100%' }} />
+
+        {/* شريط تحديد + طباعة فردية (قسم المطبوع فقط) */}
+        {prepMode && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <button onClick={() => togglePrepSelect(o.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <span style={{ width: 20, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isSel ? '#2AABEE' : 'transparent', border: `1.5px solid ${isSel ? '#2AABEE' : '#546880'}` }}>
+                {isSel && <CheckCircle2 size={13} color="#fff" />}
+              </span>
+              <span style={{ fontSize: 11.5, color: '#9FB0C3', fontWeight: 600 }}>تحديد</span>
+            </button>
+            {fLevel && (
+              <span style={{ fontSize: 10.5, fontWeight: 800, color: fLevel === 'red' ? '#F25050' : '#F0A868' }}>
+                {fLevel === 'red' ? '⚠️ متأخر +48س' : '⏱ متابعة +30س'}
+              </span>
+            )}
+            <div style={{ flex: 1 }} />
+            <button onClick={() => printSingleOrder(o)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+                background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', color: '#2AABEE', fontSize: 11.5, fontWeight: 700 }}>
+              <Printer size={13} /> طباعة
+            </button>
+          </div>
+        )}
 
         {isRejected && (
           <div style={styles.rejectedBanner}>
@@ -3607,26 +3676,6 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <h2 style={styles.viewTitle}>الطلبات</h2>
             <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
           </div>
-          {/* مثلث الطلبات المهملة */}
-          <button
-            onClick={() => { setNeglectedOpen(true); setNeglectedSelected([]); }}
-            title={neglectedOrders.length ? `${neglectedOrders.length} طلب مهمل` : 'الطلبات المهملة'}
-            style={{
-              position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 38, height: 38, borderRadius: 10, cursor: 'pointer',
-              background: neglectedOrders.length ? 'rgba(244,91,105,0.15)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${neglectedOrders.length ? 'rgba(244,91,105,0.45)' : 'rgba(255,255,255,0.08)'}`,
-            }}
-          >
-            <AlertTriangle size={18} color={neglectedOrders.length ? '#F45B69' : '#5E6986'} />
-            {neglectedOrders.length > 0 && (
-              <span style={{
-                position: 'absolute', top: -7, right: -7, minWidth: 19, height: 19, padding: '0 5px',
-                borderRadius: 10, background: '#F45B69', color: '#fff', fontSize: 11, fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0E1420',
-              }}>{neglectedOrders.length}</span>
-            )}
-          </button>
         </div>
         {/* أزرار الإجراءات — صف أنيق */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -3773,26 +3822,38 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       )}
 
       {isPrep ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {prepBatches.length === 0 ? (
-            <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا توجد طلبات قيد التجهيز</p></div>
-          ) : prepBatches.map((batch) => (
-            <div key={batch.batchId} style={styles.batchBlock}>
-              <div style={styles.batchHeader} className="alfhd-no-print">
-                <div style={styles.batchHeaderInfo}>
-                  <Printer size={14} color="#3B82F6" />
-                  <span>دفعة — {batch.orders.length} طلب</span>
-                  {batch.printedAt && <span style={styles.batchHeaderTime}>{new Date(batch.printedAt).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' })}</span>}
-                </div>
-                <button onClick={() => handleReprintBatch(batch.batchId, batch.orders)} style={styles.secondaryBtn}>
-                  <Printer size={14} /> إعادة طباعة
-                </button>
-              </div>
-              <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === batch.batchId ? ' alfhd-print-area' : ''}`}>
-                {batch.orders.map(renderOrderCard)}
-              </div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* التبويبات الفرعية */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => setPrepSubTab('all')}
+              style={{ padding: '7px 15px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: prepSubTab === 'all' ? '#3B82F6' : 'rgba(255,255,255,0.05)', color: prepSubTab === 'all' ? '#fff' : '#9FB0C3' }}>
+              الكل ({prepAllOrders.length})
+            </button>
+            <button onClick={() => setPrepSubTab('followup')}
+              style={{ padding: '7px 15px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, position: 'relative',
+                background: prepSubTab === 'followup' ? '#F0A868' : 'rgba(255,255,255,0.05)', color: prepSubTab === 'followup' ? '#fff' : '#9FB0C3' }}>
+              بحاجة إلى متابعة ({prepFollowup.length})
+            </button>
+            <div style={{ flex: 1 }} />
+            {/* طباعة المحدد */}
+            {prepSelected.length > 0 && (
+              <button onClick={printSelectedPrep}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg,#2AABEE,#229ED9)', color: '#fff', fontSize: 13, fontWeight: 800 }}>
+                <Printer size={15} /> طباعة المحدد ({prepSelected.length})
+              </button>
+            )}
+          </div>
+
+          {/* قائمة الطلبات */}
+          {(() => {
+            const list = prepSubTab === 'followup' ? prepFollowup : prepAllOrders;
+            if (list.length === 0) {
+              return <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>{prepSubTab === 'followup' ? 'لا توجد طلبات بحاجة لمتابعة' : 'لا توجد طلبات مطبوعة'}</p></div>;
+            }
+            return <div style={styles.ordersGrid}>{list.map((o) => renderOrderCard(o, 0, true))}</div>;
+          })()}
         </div>
       ) : (
         <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === 'ready' ? ' alfhd-print-area' : ''}`}>
@@ -4386,6 +4447,14 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
   const [reprepMode, setReprepMode] = useState(false);
   const [reprepNote, setReprepNote] = useState('');
   const isRejected = o.prepStatus === 'rejected';
+  // اقفل سكرول الخلفية عند فتح المودال ليبدأ دائماً من الأعلى (يحل مشكلة الحاجة للصعود)
+  React.useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    body.style.overflow = 'hidden';
+    return () => { body.style.overflow = prevOverflow; window.scrollTo(0, scrollY); };
+  }, []);
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
       <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
