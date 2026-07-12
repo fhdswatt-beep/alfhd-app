@@ -619,13 +619,13 @@ const DELIVERY_STATUS_CONFIG = {
 // مراحل دورة حياة الطلب
 const ORDER_STAGES = [
   { id: 'ready',    label: 'جاهزة للطباعة' },
-  { id: 'prep',     label: 'قيد التجهيز' },
+  { id: 'prep',     label: 'مطبوع' },
   { id: 'delivery', label: 'لدى شركة التوصيل' },
 ];
 
 const ORDER_STAGE_CONFIG = {
   ready: { label: 'جاهز للطباعة', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Printer },
-  prep: { label: 'قيد التجهيز', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package },
+  prep: { label: 'مطبوع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package },
   delivery: { label: 'لدى شركة التوصيل', color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', icon: Truck },
   converted: { label: 'محوّل/مؤرشف', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', icon: Send },
   rejected: { label: 'مرفوض من المخزن', color: '#F45B69', bg: 'rgba(244,91,105,0.14)', icon: XCircle },
@@ -3408,7 +3408,18 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       return <div style={{ ...styles.orderStatusPill, color, background: bg }}>{label}</div>;
     }
     if (section === 'prep') {
-      return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
+      // في قسم "مطبوع": نعرض حالة التجهيز الفعلية
+      const ps = o.prepStatus;
+      if (ps === 'done' || ps === 'prepared') {
+        return <div style={{ ...styles.orderStatusPill, color: '#4DDB6B', background: 'rgba(77,219,107,0.12)' }}>تم التجهيز</div>;
+      }
+      if (ps === 'rejected' || ps === 'not_prepared') {
+        return <div style={{ ...styles.orderStatusPill, color: '#F45B69', background: 'rgba(244,91,105,0.12)' }}>لم يتم التجهيز</div>;
+      }
+      if (ps === 'claiming' || ps === 'preparing') {
+        return <div style={{ ...styles.orderStatusPill, color: '#F0A868', background: 'rgba(240,168,104,0.12)' }}>قيد التجهيز</div>;
+      }
+      return <div style={{ ...styles.orderStatusPill, color: '#60A5FA', background: 'rgba(96,165,250,0.12)' }}>مطبوع</div>;
     }
     return <div style={{ ...styles.orderStatusPill, color: '#3B82F6', background: 'rgba(59,130,246,0.12)' }}>جديد</div>;
   }
