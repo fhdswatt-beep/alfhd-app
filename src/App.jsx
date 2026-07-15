@@ -1154,13 +1154,16 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     }
   }
 
+  const lastMsgTimeRef = React.useRef(null); // آخر وقت رسالة (للجلب التزايدي)
+
   const loadMessages = useCallback(async (convId, isCancelled) => {
     if (!convId) return;
     try {
-      const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.asc`);
-      // تجاهل النتيجة إذا بدّل المستخدم المحادثة أثناء التحميل
+      // أول تحميل: آخر 60 رسالة فقط (أسرع بكثير من جلب المحادثة كاملة)
+      const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.desc&limit=60`);
       if (isCancelled && isCancelled()) return;
-      const mapped = (dbMsgs || []).map(mapMessageFromDb);
+      const mapped = (dbMsgs || []).map(mapMessageFromDb).reverse(); // نعيد الترتيب للأقدم أولاً
+      lastMsgTimeRef.current = mapped.length ? mapped[mapped.length - 1].createdAt : null;
       setMessages(mapped);
       await maybeHandoffConversation(convId, mapped);
     } catch (e) {
@@ -1169,12 +1172,37 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations]);
 
+  // جلب تزايدي: الرسائل الجديدة فقط منذ آخر رسالة (سريع جداً — عادة 0-2 رسالة)
+  const loadNewMessages = useCallback(async (convId, isCancelled) => {
+    if (!convId) return;
+    try {
+      const since = lastMsgTimeRef.current;
+      if (!since) return loadMessages(convId, isCancelled);
+      const q = `&conversation_id=eq.${convId}&created_at=gt.${encodeURIComponent(since)}&order=created_at.asc&limit=40`;
+      const dbMsgs = await sbSelect('alfhd_messages', q);
+      if (isCancelled && isCancelled()) return;
+      if (!dbMsgs || dbMsgs.length === 0) return; // لا جديد — لا إعادة رسم
+      const fresh = dbMsgs.map(mapMessageFromDb);
+      lastMsgTimeRef.current = fresh[fresh.length - 1].createdAt;
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const add = fresh.filter((m) => !seen.has(m.id));
+        return add.length ? [...prev, ...add] : prev;
+      });
+      // مهم: افحص التحويل على الرسائل الجديدة (وإلا لن يُكتشف أثناء فتح المحادثة)
+      await maybeHandoffConversation(convId, fresh);
+    } catch (e) {
+      console.error('load new messages error:', e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadMessages]);
+
   useEffect(() => {
     if (!selectedConv) { setMessages([]); return undefined; }
     let cancelled = false;
     const convId = selectedConv.id;
     setLoadingMsgs(true);
-    // حمّل فقط إذا لم نبدّل المحادثة أثناء التحميل
+    lastMsgTimeRef.current = null; // محادثة جديدة — أعد الضبط
     loadMessages(convId, () => cancelled).finally(() => { if (!cancelled) setLoadingMsgs(false); });
     markConversationRead(convId);
     const isWA = selectedConv.isWhatsApp;
@@ -1185,9 +1213,10 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
           await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
         } catch (_e) { /* تجاهل */ }
       }
-      if (!cancelled) await loadMessages(convId, () => cancelled);
+      // جلب الجديد فقط بدل المحادثة كاملة — أسرع بكثير
+      if (!cancelled) await loadNewMessages(convId, () => cancelled);
     };
-    const interval = setInterval(refreshOpenChat, isWA ? 4000 : 3000);
+    const interval = setInterval(refreshOpenChat, isWA ? 2500 : 2500);
     return () => { cancelled = true; clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConv?.id]);
@@ -2289,7 +2318,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const stage = o.stage || 'ready';
       if (stage !== section) return false;
       if (!passesCommon(o)) return false;
-      if ((section === 'prep' || section === 'delivery') && isNeglected(o)) return false;
+      // ملاحظة: لا نخفي "المهملة" — لم يعد لها قسم بعد إزالة المثلث، فإخفاؤها = ضياع طلبات
       if (section === 'delivery' && statusFilter !== 'all' && o.status !== statusFilter) return false;
       return true;
     });
@@ -2309,8 +2338,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     const c = { ready: 0, prep: 0, delivery: 0 };
     visibleOrders.forEach((o) => {
       if (selectedPage !== 'all' && o.pageId !== selectedPage) return;
-      const stage = o.stage || (o.printed ? 'prep' : 'ready');
-      if ((stage === 'prep' || stage === 'delivery') && isNeglected(o)) return;
+      // نفس منطق stageOrders تماماً — لضمان تطابق العدّاد مع المعروض
+      const stage = o.stage || 'ready';
       if (c[stage] !== undefined) c[stage]++;
     });
     return c;
@@ -2319,13 +2348,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   const stats = useMemo(() => {
     const scoped = selectedPage === 'all' ? visibleOrders : visibleOrders.filter((o) => o.pageId === selectedPage);
+    // في قسم التوصيل: العدادات تعكس طلبات هذا القسم فقط (الأدق للمستخدم)
+    const deliveryScoped = scoped.filter((o) => (o.stage || 'ready') === 'delivery');
+    const base = section === 'delivery' ? deliveryScoped : scoped;
     return {
-      total: scoped.length,
-      pending: scoped.filter((o) => o.status === 'pending').length,
-      delivered: scoped.filter((o) => o.status === 'delivered').length,
-      returned: scoped.filter((o) => o.status === 'returned').length,
+      total: base.length,
+      pending: deliveryScoped.filter((o) => o.status === 'pending').length,
+      delivered: deliveryScoped.filter((o) => o.status === 'delivered').length,
+      returned: deliveryScoped.filter((o) => o.status === 'returned').length,
     };
-  }, [visibleOrders, selectedPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleOrders, selectedPage, section]);
 
   const updateStatus = async (id, status) => {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
@@ -3196,15 +3229,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       );
     }
 
-    // الباركود متاح دائماً طالما الطلب مُرسل لجيني (حتى لو ما في إجراءات أخرى)
+    // إجراءات شركة التوصيل (بدون طباعة — الطلب صار عند الشركة فعلياً)
     return (
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontSize: 11, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات شركة التوصيل:</div>
+        {actions.length > 0 && <div style={{ fontSize: 11, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات شركة التوصيل:</div>}
         {actions}
-        <button key="barcode" style={btnStyle('#2AABEE', '42,171,238,0.10')}
-          onClick={() => printJenniBarcode(o)}>
-          <Printer size={13} /> طباعة باركود الشحنة
-        </button>
       </div>
     );
   }
@@ -4617,6 +4646,23 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   const [timeFilter, setTimeFilter] = useState('all');
   const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  // ── الطلبات الخارجية (جاءت من خارج الموقع: واتساب مباشر، المحل...) ──
+  const [extOrders, setExtOrders] = useState([]);      // سجلات خارجية من قاعدة البيانات
+  const [extOpen, setExtOpen] = useState(false);       // نافذة الإضافة
+  const [extCount, setExtCount] = useState('');        // عدد الطلبات المُدخل
+  const [extNote, setExtNote] = useState('');          // ملاحظة اختيارية
+  const [extSaving, setExtSaving] = useState(false);
+  const [extErr, setExtErr] = useState('');
+
+  // حمّل السجلات الخارجية
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await sbSelect('alfhd_external_orders', '&order=entry_date.desc&limit=500');
+        setExtOrders(Array.isArray(rows) ? rows : []);
+      } catch (_e) { setExtOrders([]); }
+    })();
+  }, []);
 
   const years = [];
   for (let y = new Date().getFullYear(); y >= 2024; y--) years.push(y);
@@ -4635,12 +4681,28 @@ function StatsView({ orders, pages, conversations, setOrders }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, statsPage, timeFilter, customYear, customMonth]);
 
+  // الطلبات الخارجية ضمن نفس فلتر الوقت/الصفحة
+  const scopedExtCount = useMemo(() => {
+    return extOrders.reduce((sum, e) => {
+      if (statsPage !== 'all' && e.page_id && String(e.page_id) !== String(statsPage)) return sum;
+      if (!isInRange(e.entry_date)) return sum;
+      return sum + (Number(e.count) || 0);
+    }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extOrders, statsPage, timeFilter, customYear, customMonth]);
+
   const breakdown = useMemo(() => {
     const converted = scopedOrders.filter((o) => o.converted);
     const fromChat = scopedOrders.filter((o) => !o.converted && o.source === 'chat');
     const manual = scopedOrders.filter((o) => !o.converted && o.source !== 'chat');
-    return { total: scopedOrders.length, converted: converted.length, fromChat: fromChat.length, manual: manual.length };
-  }, [scopedOrders]);
+    return {
+      total: scopedOrders.length + scopedExtCount,
+      converted: converted.length,
+      fromChat: fromChat.length,
+      manual: manual.length,
+      external: scopedExtCount,
+    };
+  }, [scopedOrders, scopedExtCount]);
 
   const overall = useMemo(() => {
     const delivered = scopedOrders.filter((o) => o.status === 'delivered');
@@ -4769,6 +4831,24 @@ function StatsView({ orders, pages, conversations, setOrders }) {
         <StatCard icon={Send} label="طلبات محوّلة" value={breakdown.converted} color="#A78BFA" />
       </div>
 
+      {/* الطلبات الخارجية — جاءت من خارج الموقع */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.22)', borderRadius: 14, padding: '14px 16px' }}>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(167,139,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Package size={19} color="#A78BFA" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#E7EDF5' }}>طلبات من خارج الموقع</div>
+          <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 2 }}>
+            {scopedExtCount > 0 ? `${scopedExtCount} طلب مُضاف — محتسبة ضمن الإجمالي` : 'أضف عدد الطلبات التي جاءتك خارج الموقع'}
+          </div>
+        </div>
+        <button onClick={() => { setExtOpen(true); setExtCount(''); setExtNote(''); setExtErr(''); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
+            background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.4)', color: '#A78BFA', fontSize: 12.5, fontWeight: 800 }}>
+          <Plus size={15} /> إضافة
+        </button>
+      </div>
+
       <div style={styles.statsRow} className="alfhd-stats-row">
         <StatCard icon={Truck} label="قيد التوصيل" value={overall.pending} color="#3B82F6" />
         <StatCard icon={CheckCircle2} label="نسبة التسليم" value={`${overall.deliveryRate}%`} color="#4ADE80" />
@@ -4875,6 +4955,90 @@ function StatsView({ orders, pages, conversations, setOrders }) {
       )}
       {panel === 'neglected' && (
         <NeglectedOrdersPanel orders={neglectedOrders} pages={pages} setOrders={setOrders} onClose={() => setPanel('summary')} />
+      )}
+
+      {/* نافذة إضافة طلبات خارجية */}
+      {extOpen && (
+        <div style={styles.modalOverlay} onClick={() => setExtOpen(false)}>
+          <div style={{ ...styles.modal, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>إضافة طلبات من خارج الموقع</h3>
+              <button onClick={() => setExtOpen(false)} style={styles.modalClose}><X size={18} /></button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ fontSize: 12, color: '#9FB0C3', lineHeight: 1.7, background: 'rgba(255,255,255,0.03)', padding: '10px 12px', borderRadius: 10 }}>
+                الطلبات التي جاءتك خارج الموقع (واتساب مباشر، المحل...). تُحتسب ضمن إجمالي الطلبات في الإحصائيات.
+              </div>
+              <div>
+                <label style={styles.formLabel}>عدد الطلبات</label>
+                <input type="number" min="1" value={extCount} inputMode="numeric"
+                  onChange={(e) => { setExtCount(e.target.value); setExtErr(''); }}
+                  placeholder="مثال: 15" style={styles.formInput} autoFocus />
+              </div>
+              <div>
+                <label style={styles.formLabel}>ملاحظة (اختياري)</label>
+                <input type="text" value={extNote} onChange={(e) => setExtNote(e.target.value)}
+                  placeholder="مثال: طلبات واتساب الشهر" style={styles.formInput} />
+              </div>
+              {statsPage !== 'all' && (
+                <div style={{ fontSize: 11.5, color: '#F0A868' }}>ستُنسب لصفحة محددة (حسب الفلتر الحالي)</div>
+              )}
+              {extErr && <p style={{ color: '#F45B69', fontSize: 12, margin: 0 }}>{extErr}</p>}
+
+              {/* السجلات السابقة */}
+              {extOrders.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 11.5, color: '#546880', fontWeight: 700, marginBottom: 6 }}>الإضافات السابقة</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
+                    {extOrders.slice(0, 10).map((e) => (
+                      <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '7px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                        <span style={{ color: '#A78BFA', fontWeight: 800 }}>{e.count}</span>
+                        <span style={{ color: '#9FB0C3', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.note || 'بدون ملاحظة'}
+                        </span>
+                        <span style={{ color: '#546880', fontSize: 10.5 }}>
+                          {e.entry_date ? new Date(e.entry_date).toLocaleDateString('ar-IQ', { day: '2-digit', month: '2-digit' }) : ''}
+                        </span>
+                        <button title="حذف" onClick={async () => {
+                          if (!window.confirm(`حذف إضافة ${e.count} طلب؟`)) return;
+                          try {
+                            await sbDelete('alfhd_external_orders', e.id);
+                            setExtOrders((prev) => prev.filter((x) => x.id !== e.id));
+                          } catch (_err) { alert('تعذّر الحذف'); }
+                        }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F45B69', padding: 2, display: 'flex' }}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setExtOpen(false)} style={styles.modalCancelBtn}>إلغاء</button>
+              <button disabled={extSaving} style={styles.modalSaveBtn} onClick={async () => {
+                const n = parseInt(String(extCount).replace(/[^0-9]/g, ''), 10);
+                if (!n || n < 1) { setExtErr('أدخل عدداً صحيحاً أكبر من صفر'); return; }
+                setExtSaving(true); setExtErr('');
+                try {
+                  const payload = {
+                    count: n,
+                    note: extNote.trim() || null,
+                    page_id: statsPage !== 'all' ? statsPage : null,
+                    entry_date: new Date().toISOString(),
+                  };
+                  const [created] = await sbInsert('alfhd_external_orders', payload);
+                  if (created) setExtOrders((prev) => [created, ...prev]);
+                  setExtOpen(false);
+                } catch (err) {
+                  setExtErr('تعذّر الحفظ — تأكد من إنشاء الجدول أولاً');
+                } finally { setExtSaving(false); }
+              }}>
+                {extSaving ? 'جارٍ الحفظ...' : 'إضافة'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -6494,7 +6658,7 @@ export default function AlFhdApp() {
     try {
       const dbConversations = await sbSelect(
         'alfhd_conversations',
-        wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc'
+        wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc&limit=500'
       );
       if (dbConversations) {
         const sig = dbConversations.map((c) => `${c.id}:${c.last_message_time}:${c.last_message}:${c.unread_count}:${c.tab}:${c.order_id}:${c.avatar_url || ''}`).join('|');
@@ -6549,7 +6713,7 @@ export default function AlFhdApp() {
 
   const refreshOrders = useCallback(async () => {
     try {
-      const dbOrders = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc');
+      const dbOrders = await sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc&limit=1000');
       if (!dbOrders) return;
       const mapped = dbOrders.map(mapOrderFromDb);
       // كشف طلب جديد مثبّت من المحادثات لتشغيل صوت الإشعار
@@ -6689,7 +6853,7 @@ export default function AlFhdApp() {
       try {
         const [dbPages, dbOrders, dbUsers] = await Promise.all([
           sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at,workspace_id', wsFilter() + '&order=created_at.asc'),
-          sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc'),
+          sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc&limit=1000'),
           sbSelect('alfhd_users', '&order=created_at.asc'),
         ]);
 
