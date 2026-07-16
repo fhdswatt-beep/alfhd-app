@@ -432,81 +432,110 @@ function extractYear(text) {
 // دالة المطابقة الذكية الرئيسية
 // تأخذ: نص الطلب (اسم المنتج + نوع الطلب + المنتجات)
 // ترجع: أفضل منتج مطابق من المخزن + درجة الثقة
-function matchOrderToWarehouseProduct(order, warehouseProducts) {
+// ══════════════════════════════════════════════════════════════
+// مطابقة الطلب مع منتج المخزن — نسخة احترافية عالية الدقة
+// المبادئ:
+//  • نبحث في نص الطلب فقط (نوع الطلب + المنتجات) — لا اسم الزبون ولا عنوانه
+//    (زبون اسمه "حيدر كيا" أو عنوانه "شارع النترا" كان يسبب مطابقات خاطئة)
+//  • المطابقة تعتمد على اسم السيارة ككلمة كاملة — لا احتواء أعمى
+//  • تعارض السنة أو النوع = رفض قاطع، لا مجرد خصم نقاط
+//  • التعادل بين منتجين = لا مطابقة (نطلب تدخل بشري بدل التخمين)
+//  • الكمية لا ترجّح منتجاً على آخر أبداً (الدقة قبل التوفر)
+// ══════════════════════════════════════════════════════════════
+function matchOrderToWarehouseProduct(order, warehouseProducts, opts = {}) {
   if (!warehouseProducts?.length) return null;
+  const includeEmpty = opts.includeEmpty === true;
 
-  // النص الكامل للبحث
-  const searchText = normalizeText(
-    [order.orderType, order.items, order.customer, order.address].filter(Boolean).join(' ')
-  );
-
-  if (!searchText) return null;
+  // نص الطلب: نوع الطلب + المنتجات فقط (مصادر موثوقة لوصف البضاعة)
+  const searchText = normalizeText([order.orderType, order.items].filter(Boolean).join(' '));
+  if (!searchText || searchText.length < 2) return null;
 
   const orderYear = extractYear(searchText);
-
-  let bestMatch = null;
-  let bestScore = 0;
-
-  for (const product of warehouseProducts) {
-    if (product.quantity <= 0) continue; // تجاهل المنتجات الفارغة
-
-    let score = 0;
-    const productName = normalizeText(product.car_name);
-    const productYear = extractYear(product.car_name);
-
-    // ١ — مطابقة اسم السيارة المباشرة
-    if (searchText.includes(productName)) {
-      score += 50;
-    } else {
-      // ٢ — مطابقة عبر المرادفات
-      for (const [canonical, aliases] of Object.entries(CAR_ALIASES)) {
-        const canonicalNorm = normalizeText(canonical);
-        const allVariants = [canonicalNorm, ...aliases.map(normalizeText)];
-
-        const productMatchesCanonical = allVariants.some(v => productName.includes(v) || v.includes(productName));
-        const searchMatchesCanonical  = allVariants.some(v => searchText.includes(v));
-
-        if (productMatchesCanonical && searchMatchesCanonical) {
-          score += 40;
-          break;
-        }
-      }
-
-      // ٣ — مطابقة جزئية (أي كلمة مشتركة)
-      if (score === 0) {
-        const productWords = productName.split(' ').filter(w => w.length > 2);
-        for (const word of productWords) {
-          if (searchText.includes(word)) { score += 20; break; }
-        }
-      }
-    }
-
-    // لا تكمل إذا ما في مطابقة للسيارة
-    if (score === 0) continue;
-
-    // ٤ — مطابقة السنة
-    if (orderYear && productYear) {
-      if (orderYear === productYear) score += 20;
-      else score -= 10; // عقوبة لو السنة مختلفة
-    }
-
-    // ٥ — مطابقة نوع المنتج
-    const typeKeywords = PRODUCT_TYPE_KEYWORDS[product.type] || [];
-    for (const kw of typeKeywords) {
-      if (searchText.includes(normalizeText(kw))) { score += 30; break; }
-    }
-
-    // ٦ — مكافأة لو المنتج فيه مخزون كافٍ
-    if (product.quantity > 3) score += 5;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = { product, score, confidence: score >= 50 ? 'high' : score >= 30 ? 'medium' : 'low' };
-    }
+  // نوع المنتج المطلوب صراحةً في الطلب (جلد / أم الدوسة / ربل حوضي)
+  let requestedType = null;
+  for (const [type, kws] of Object.entries(PRODUCT_TYPE_KEYWORDS)) {
+    if (kws.some((kw) => searchText.includes(normalizeText(kw)))) { requestedType = type; break; }
   }
 
-  // لا نقبل مطابقة بدرجة أقل من 20
-  return bestScore >= 20 ? bestMatch : null;
+  // مطابقة كلمة كاملة (تمنع "كيا" داخل "سكيا" أو مطابقات جزئية عشوائية)
+  const hasWord = (haystack, needle) => {
+    if (!needle || needle.length < 2) return false;
+    const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|\\s)${esc}(\\s|$)`).test(haystack);
+  };
+
+  // الاسم القياسي للسيارة من النص (عبر المرادفات)
+  const canonicalOf = (text) => {
+    for (const [canonical, aliases] of Object.entries(CAR_ALIASES)) {
+      const variants = [normalizeText(canonical), ...aliases.map(normalizeText)];
+      if (variants.some((v) => hasWord(text, v))) return canonical;
+    }
+    return null;
+  };
+  const orderCar = canonicalOf(searchText);
+
+  const scored = [];
+  for (const product of warehouseProducts) {
+    if (!includeEmpty && product.quantity <= 0) continue;
+
+    const productName = normalizeText(product.car_name);
+    const productYear = extractYear(product.car_name);
+    const productCar = canonicalOf(productName);
+
+    // ── 1. مطابقة السيارة (شرط أساسي) ──
+    let carScore = 0;
+    if (productName && hasWord(searchText, productName)) {
+      carScore = 60;                                   // اسم المنتج كاملاً داخل الطلب
+    } else if (orderCar && productCar && orderCar === productCar) {
+      carScore = 50;                                   // نفس السيارة عبر المرادفات
+    } else {
+      // كلمات مميّزة (≥3 أحرف) مشتركة — نتجاهل الأرقام والسنوات
+      const words = productName.split(' ').filter((w) => w.length >= 3 && !/^\d+$/.test(w));
+      const hits = words.filter((w) => hasWord(searchText, w)).length;
+      if (hits > 0 && words.length > 0) {
+        const ratio = hits / words.length;
+        if (ratio >= 0.5) carScore = 35;               // نصف كلمات الاسم على الأقل
+      }
+    }
+    if (carScore === 0) continue;                      // لا سيارة مطابقة = تجاهل
+
+    // ── 2. تعارض السيارة = رفض قاطع ──
+    // (الطلب يذكر سيارة معروفة والمنتج سيارة معروفة مختلفة)
+    if (orderCar && productCar && orderCar !== productCar) continue;
+
+    // ── 3. تعارض السنة = رفض قاطع (النترا 2020 ≠ النترا 2023) ──
+    if (orderYear && productYear && orderYear !== productYear) continue;
+
+    // ── 4. تعارض النوع = رفض قاطع (جلد ≠ أم الدوسة) ──
+    if (requestedType && product.type && requestedType !== product.type) continue;
+
+    let score = carScore;
+    if (orderYear && productYear && orderYear === productYear) score += 25;  // تطابق السنة
+    if (requestedType && product.type === requestedType) score += 30;        // تطابق النوع
+
+    scored.push({ product, score });
+  }
+
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  const runnerUp = scored[1];
+
+  // ── 5. التعادل = لا مطابقة (لا نخمّن بين منتجين متساويين) ──
+  if (runnerUp && top.score === runnerUp.score) {
+    const sameProduct = runnerUp.product.id === top.product.id;
+    if (!sameProduct) return { product: top.product, score: top.score, confidence: 'low', ambiguous: true, alternatives: scored.slice(0, 3).map((s) => s.product) };
+  }
+
+  // ── 6. الثقة: عالية فقط عند تطابق السيارة + (السنة أو النوع) ──
+  const decisive = top.score >= 80;                    // سيارة + نوع، أو سيارة + سنة
+  const confidence = decisive ? 'high' : top.score >= 55 ? 'medium' : 'low';
+
+  // عتبة القبول: 50 (مطابقة سيارة حقيقية على الأقل — لا مطابقات جزئية ضعيفة)
+  if (top.score < 50) return null;
+
+  return { product: top.product, score: top.score, confidence, ambiguous: false };
 }
 
 // دالة حساب الربح
@@ -6236,7 +6265,18 @@ function PrepWorkerView({ currentUser, onLogout }) {
   const [rejectTarget, setRejectTarget] = useState(null); // الطلب الجاري رفضه
   const [rejectReason, setRejectReason] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [whProducts, setWhProducts] = useState([]); // منتجات المخزن (لعرض موقع التخزين)
   const knownIdsRef = React.useRef(new Set());
+
+  // حمّل منتجات المخزن مرة واحدة — لمطابقة الطلب وإظهار مكان البضاعة
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await sbSelect('wh_products', wsFilter() + '&order=car_name.asc');
+        setWhProducts(Array.isArray(rows) ? rows : []);
+      } catch (_e) { setWhProducts([]); }
+    })();
+  }, []);
 
   // جلب الطلبات المثبتة التي تحتاج تجهيز (غير مُجهّزة بعد)
   const loadOrders = useCallback(async () => {
@@ -6411,6 +6451,37 @@ function PrepWorkerView({ currentUser, onLogout }) {
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
                         <div style={{ fontSize: 10.5, color: '#546880', fontWeight: 700, marginBottom: 4 }}>المنتجات المطلوبة</div>
                         <div style={{ fontSize: 13, color: '#EAF0FB', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{o.items}</div>
+                        {/* موقع البضاعة في المخزن — مطابقة تلقائية */}
+                        {(() => {
+                          const m = matchOrderToWarehouseProduct(o, whProducts, { includeEmpty: true });
+                          if (!m?.product) return null;
+                          const loc = m.product.location;
+                          const isSure = m.confidence === 'high';
+                          return (
+                            <div style={{ marginTop: 9, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                                <MapPin size={13} color={m.ambiguous ? '#F0A868' : (loc ? '#4DDB6B' : '#546880')} />
+                                {loc ? (
+                                  <span style={{ fontSize: 13.5, fontWeight: 800, color: m.ambiguous ? '#F0A868' : '#4DDB6B' }}>{loc}</span>
+                                ) : (
+                                  <span style={{ fontSize: 12, color: '#9FB0C3' }}>لا يوجد عنوان مخزن لهذا المنتج</span>
+                                )}
+                                {m.ambiguous ? (
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#F0A868', background: 'rgba(240,168,104,0.15)', padding: '2px 7px', borderRadius: 5 }}>
+                                    ⚠️ عدة احتمالات — تحقّق
+                                  </span>
+                                ) : !isSure && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#F0A868', background: 'rgba(240,168,104,0.12)', padding: '2px 6px', borderRadius: 5 }}>
+                                    مطابقة تقريبية
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#546880', marginTop: 3 }}>
+                                {m.product.car_name}{m.product.quantity <= 0 ? ' — ⚠️ المخزون صفر' : ''}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                     {o.orderType && (
@@ -6565,10 +6636,10 @@ export default function AlFhdApp() {
         return;
       }
 
-      const { product, confidence } = match;
-      // لا نخصم من المخزن إذا كانت الثقة منخفضة (قد يكون منتج خطأ)
-      if (confidence === 'low') {
-        console.warn('⚠️ ثقة المطابقة منخفضة — لن يُخصم من المخزن:', order.orderNo);
+      const { product, confidence, ambiguous } = match;
+      // لا نخصم من المخزن إذا كانت الثقة منخفضة أو المطابقة غامضة (عدة منتجات محتملة)
+      if (confidence === 'low' || ambiguous) {
+        console.warn('⚠️ مطابقة غير مؤكدة — لن يُخصم من المخزن:', order.orderNo, ambiguous ? '(عدة احتمالات)' : '(ثقة منخفضة)');
         return;
       }
       console.log(`✅ مطابقة المخزن: ${product.car_name} (${PRODUCT_TYPE_LABELS[product.type]}) — ثقة: ${confidence}`);
