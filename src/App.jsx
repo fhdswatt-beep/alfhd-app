@@ -1,71 +1,26 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  MessageSquare, Package, Users, LogOut, Search,
-  Plus, BarChart3, CheckCircle2, XCircle,
-  Truck, Printer, ChevronDown, X, Shield, ShieldCheck,
-  Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook,
-  ArrowUpRight, Sparkles, Bot,
-  Pin, Phone, MapPin, Calendar, RefreshCw,
-  Mic, Send, Image, ArrowRight,
-  AlertCircle,
-  Warehouse, ShoppingCart, CreditCard, DollarSign,
-  TrendingUp, Percent, Home, Bell,
-  Download, Upload, Clock, AlertTriangle, Copy, MessageCircle,
-} from 'lucide-react';
-
-// ──────────────────────────────────────────────
-// اتصال Supabase (عبر REST API مباشرة)
-// ──────────────────────────────────────────────
+import { MessageSquare, Package, Users, LogOut, Search, Plus, BarChart3, CheckCircle2, XCircle, Truck, Printer, ChevronDown, X, Shield, ShieldCheck,
+ Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook, ArrowUpRight, Sparkles, Bot, Pin, Phone, MapPin, Calendar, RefreshCw, Mic, Send, Image, ArrowRight, AlertCircle,
+ Warehouse, ShoppingCart, CreditCard, DollarSign, TrendingUp, Percent, Home, Bell, Download, Upload, Clock, AlertTriangle, Copy, MessageCircle, FileText, } from 'lucide-react';
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
-// Railway WhatsApp Bridge URL — حدّث هذا بعد نشر السيرفر
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
-
-// معرّف المساحة الحالية للعزل (يُضبط عند الدخول) — null = المساحة الرئيسية
 let CURRENT_WORKSPACE = null;
-function setCurrentWorkspace(wsId) {
-  // نقبل فقط معرّف مساحة صريح وصالح (رقم/نص غير فارغ)؛ أي شيء آخر = المساحة الرئيسية
-  CURRENT_WORKSPACE = (wsId !== undefined && wsId !== null && wsId !== '' && wsId !== 'null') ? wsId : null;
-}
-// ══════════════════════════════════════════════════════════
-// فلتر المساحة — قاعدة صارمة لمنع اختفاء الطلبات نهائياً:
-// • المساحة المعزولة (لها معرّف صريح): ترى بياناتها فقط.
-// • المدير/المساحة الرئيسية (null): ترى كل شيء — لا فلتر إطلاقاً.
-// هذا يضمن أن طلبات المدير لا تختفي أبداً تحت أي ظرف.
-// ══════════════════════════════════════════════════════════
-function wsFilter() {
-  if (!CURRENT_WORKSPACE) return ''; // المدير يرى كل الطلبات — بلا استثناء
-  return `&workspace_id=eq.${CURRENT_WORKSPACE}`;
-}
-// هل المستخدم الحالي في مساحة معزولة؟ (للاستخدام في الحمايات)
+function setCurrentWorkspace(wsId) { CURRENT_WORKSPACE = (wsId !== undefined && wsId !== null && wsId !== '' && wsId !== 'null') ? wsId : null; }
+function wsFilter() { if (!CURRENT_WORKSPACE) return ''; // المدير يرى كل الطلبات — بلا استثناء
+ return `&workspace_id=eq.${CURRENT_WORKSPACE}`; }
 function isIsolatedWorkspace() { return !!CURRENT_WORKSPACE; }
-
-// تحويل الأرقام العربية/الفارسية إلى إنجليزية (٠١٢٣٤٥٦٧٨٩ → 0123456789) — دالة عامة
-function arabicToEnglishDigits(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
-}
-
-// معالجة مبلغ الطلب: أي رقم أقل من 1000 يعني بالآلاف (85 → 85000، 95 → 95000)
-function parseAmountIQD(val) {
-  const num = Number(arabicToEnglishDigits(String(val || '')).replace(/[^0-9.]/g, '')) || 0;
-  return (num > 0 && num < 1000) ? num * 1000 : num;
-}
-
-// تطبيع رقم الهاتف العراقي إلى 07XXXXXXXXX (دالة عامة)
-function normalizeIraqiPhoneStatic(raw) {
-  let d = arabicToEnglishDigits(String(raw || '')).replace(/[^0-9]/g, '');
-  if (d.startsWith('00964')) d = '0' + d.slice(5);
-  else if (d.startsWith('964')) d = '0' + d.slice(3);
-  if (!d.startsWith('0')) d = '0' + d;
-  return d.slice(0, 11);
-}
-
-// ──────────────────────────────────────────────
-// إعدادات ربط فيسبوك الحقيقي (OAuth)
-// ──────────────────────────────────────────────
+function arabicToEnglishDigits(str) { if (str === null || str === undefined) return '';
+ return String(str)
+  .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+  .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0)); }
+function parseAmountIQD(val) { const num = Number(arabicToEnglishDigits(String(val || '')).replace(/[^0-9.]/g, '')) || 0;
+ return (num > 0 && num < 1000) ? num * 1000 : num; }
+function normalizeIraqiPhoneStatic(raw) { let d = arabicToEnglishDigits(String(raw || '')).replace(/[^0-9]/g, '');
+ if (d.startsWith('00964')) d = '0' + d.slice(5);
+ else if (d.startsWith('964')) d = '0' + d.slice(3);
+ if (!d.startsWith('0')) d = '0' + d;
+ return d.slice(0, 11); }
 const FB_APP_ID = '1011276044687764';
 const FB_REDIRECT_URI = 'https://alfhd-app.vercel.app/';
 const FB_OAUTH_SCOPE = 'pages_show_list,pages_messaging,pages_manage_metadata,public_profile,business_management';
@@ -78,1863 +33,925 @@ const JENNI_CREATE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-create-shi
 const JENNI_SYNC_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-sync`;
 const JENNI_UPDATE_STATUS_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-update-status`;
 const JENNI_STICKERS_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/jenni-stickers`;
-
-// محافظات العراق بأكواد شركة التوصيل Jenni الرسمية (18 محافظة)
-const IRAQ_GOVERNORATES = [
-  { code: 'BGD', name: 'بغداد' },
-  { code: 'BAS', name: 'البصرة' },
-  { code: 'NIN', name: 'نينوى' },
-  { code: 'ARB', name: 'أربيل' },
-  { code: 'NJF', name: 'النجف' },
-  { code: 'KRB', name: 'كربلاء' },
-  { code: 'BBL', name: 'بابل' },
-  { code: 'DHI', name: 'ذي قار' },
-  { code: 'DYL', name: 'ديالى' },
-  { code: 'ANB', name: 'الأنبار' },
-  { code: 'KRK', name: 'كركوك' },
-  { code: 'WST', name: 'واسط' },
-  { code: 'SAH', name: 'صلاح الدين' },
-  { code: 'QAD', name: 'القادسية' },
-  { code: 'MYS', name: 'ميسان' },
-  { code: 'MTH', name: 'المثنى' },
-  { code: 'DOH', name: 'دهوك' },
-  { code: 'SMH', name: 'السليمانية' },
-];
-
-// خريطة الأسماء الشائعة للمدن/المراكز → كود المحافظة (يحل مشكلة "الموصل" و"الناصرية"...)
-const CITY_ALIAS_TO_GOV = {
-  'الموصل': 'NIN', 'موصل': 'NIN', 'نينوى': 'NIN',
-  'الناصرية': 'DHI', 'ناصرية': 'DHI', 'ذيقار': 'DHI', 'ذي قار': 'DHI', 'ذى قار': 'DHI',
-  'الديوانية': 'QAD', 'ديوانية': 'QAD', 'القادسية': 'QAD', 'قادسية': 'QAD',
-  'العمارة': 'MYS', 'عمارة': 'MYS', 'ميسان': 'MYS',
-  'السماوة': 'MTH', 'سماوة': 'MTH', 'المثنى': 'MTH', 'مثنى': 'MTH',
-  'الكوت': 'WST', 'كوت': 'WST', 'واسط': 'WST',
-  'بعقوبة': 'DYL', 'ديالى': 'DYL', 'ديالة': 'DYL',
-  'تكريت': 'SAH', 'صلاحالدين': 'SAH', 'صلاح الدين': 'SAH', 'سامراء': 'SAH',
-  'الرمادي': 'ANB', 'رمادي': 'ANB', 'الأنبار': 'ANB', 'الانبار': 'ANB', 'الفلوجة': 'ANB', 'فلوجة': 'ANB',
-  'بغداد': 'BGD', 'البصرة': 'BAS', 'بصرة': 'BAS',
-  'أربيل': 'ARB', 'اربيل': 'ARB', 'هولير': 'ARB',
-  'النجف': 'NJF', 'نجف': 'NJF',
-  'كربلاء': 'KRB', 'كربلا': 'KRB',
-  'الحلة': 'BBL', 'حلة': 'BBL', 'بابل': 'BBL',
-  'كركوك': 'KRK',
-  'دهوك': 'DOH', 'دهوق': 'DOH',
-  'السليمانية': 'SMH', 'سليمانية': 'SMH',
-  // مناطق بغداد الشهيرة (تُعرف كبغداد قطعاً لمنع الخلط مع مدن مشابهة)
-  'الزعفرانية': 'BGD', 'زعفرانية': 'BGD', 'الدورة': 'BGD', 'دورة': 'BGD',
-  'الكاظمية': 'BGD', 'كاظمية': 'BGD', 'الاعظمية': 'BGD', 'اعظمية': 'BGD',
-  'الصدر': 'BGD', 'مدينة الصدر': 'BGD', 'الشعلة': 'BGD', 'الغزالية': 'BGD',
-  'المنصور': 'BGD', 'منصور': 'BGD', 'اليرموك': 'BGD', 'الكرادة': 'BGD', 'كرادة': 'BGD',
-  'الجادرية': 'BGD', 'جادرية': 'BGD', 'الحرية': 'BGD', 'البياع': 'BGD', 'العامرية': 'BGD',
-  'الشعب': 'BGD', 'الطالبية': 'BGD', 'زيونة': 'BGD', 'الوزيرية': 'BGD', 'الرصافة': 'BGD',
-  'الكرخ': 'BGD', 'كرخ': 'BGD', 'ابو غريب': 'BGD', 'ابوغريب': 'BGD', 'التاجي': 'BGD',
-  'النهروان': 'BGD', 'المدائن': 'BGD', 'الرشيد': 'BGD', 'سبع البور': 'BGD', 'الحسينية': 'BGD',
-};
-
-// استنتاج كود المحافظة من نص المنطقة/العنوان
-function inferGovFromText(text) {
-  if (!text) return null;
-  const norm = String(text).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
-  for (const [alias, code] of Object.entries(CITY_ALIAS_TO_GOV)) {
-    const na = alias.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
-    if (norm.includes(na)) return code;
-  }
-  return null;
-}
-
-function startFacebookLogin() {
-  const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
-  dialogUrl.searchParams.set('client_id', FB_APP_ID);
-  dialogUrl.searchParams.set('redirect_uri', FB_REDIRECT_URI);
-  dialogUrl.searchParams.set('scope', FB_OAUTH_SCOPE);
-  dialogUrl.searchParams.set('response_type', 'code');
-  window.location.href = dialogUrl.toString();
-}
-
-const sbHeaders = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json',
-  'Accept-Profile': 'public',
-  'Content-Profile': 'public',
-};
-
-async function sbSelect(table, query = '') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${query}`, {
-    headers: sbHeaders,
-  });
-  if (!res.ok) throw new Error(`sbSelect ${table} failed: ${res.status}`);
-  return res.json();
-}
-
-async function sbSelectColumns(table, columns, query = '') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}${query}`, {
-    headers: sbHeaders,
-  });
-  if (!res.ok) throw new Error(`sbSelectColumns ${table} failed: ${res.status}`);
-  return res.json();
-}
-
-async function sbInsert(table, payload) {
-  // إضافة معرّف المساحة تلقائياً للجداول المعزولة (لعزل بيانات الموظف المستقل)
-  const ISOLATED_TABLES = ['alfhd_orders', 'wh_products', 'alfhd_pages', 'alfhd_conversations', 'wh_sales', 'wh_employees', 'wh_debts', 'wh_suppliers'];
-  let body = payload;
-  if (CURRENT_WORKSPACE && ISOLATED_TABLES.includes(table)) {
-    body = Array.isArray(payload)
-      ? payload.map((p) => ({ ...p, workspace_id: CURRENT_WORKSPACE }))
-      : { ...payload, workspace_id: CURRENT_WORKSPACE };
-  }
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: { ...sbHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error(`sbInsert ${table} failed [${res.status}]:`, errBody);
-    throw new Error(`sbInsert ${table} failed: ${res.status} — ${errBody}`);
-  }
-  return res.json();
-}
-
-async function sbUpdate(table, id, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'PATCH',
-    headers: { ...sbHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error(`sbUpdate ${table} failed [${res.status}]:`, errBody);
-    throw new Error(`sbUpdate ${table} failed: ${res.status} — ${errBody}`);
-  }
-  return res.json();
-}
-
-async function sbDelete(table, id) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'DELETE',
-    headers: sbHeaders,
-  });
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error(`sbDelete ${table} failed [${res.status}]:`, errBody);
-    throw new Error(`sbDelete ${table} failed: ${res.status} — ${errBody}`);
-  }
-  return true;
-}
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result || '';
-      const base64 = String(result).split(',')[1] || '';
-      resolve({ base64, mediaType: file.type || 'image/jpeg' });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// صوت إشعار لطيف عند تثبيت طلب جديد (نغمتان صاعدتان)
+const IRAQ_GOVERNORATES = [ { code: 'BGD', name: 'بغداد' }, { code: 'BAS', name: 'البصرة' }, { code: 'NIN', name: 'نينوى' }, { code: 'ARB', name: 'أربيل' },
+ { code: 'NJF', name: 'النجف' }, { code: 'KRB', name: 'كربلاء' }, { code: 'BBL', name: 'بابل' }, { code: 'DHI', name: 'ذي قار' }, { code: 'DYL', name: 'ديالى' },
+ { code: 'ANB', name: 'الأنبار' }, { code: 'KRK', name: 'كركوك' }, { code: 'WST', name: 'واسط' }, { code: 'SAH', name: 'صلاح الدين' }, { code: 'QAD', name: 'القادسية' },
+ { code: 'MYS', name: 'ميسان' }, { code: 'MTH', name: 'المثنى' }, { code: 'DOH', name: 'دهوك' }, { code: 'SMH', name: 'السليمانية' }, ];
+const CITY_ALIAS_TO_GOV = { 'الموصل': 'NIN', 'موصل': 'NIN', 'نينوى': 'NIN', 'الناصرية': 'DHI', 'ناصرية': 'DHI', 'ذيقار': 'DHI', 'ذي قار': 'DHI', 'ذى قار': 'DHI',
+ 'الديوانية': 'QAD', 'ديوانية': 'QAD', 'القادسية': 'QAD', 'قادسية': 'QAD', 'العمارة': 'MYS', 'عمارة': 'MYS', 'ميسان': 'MYS',
+ 'السماوة': 'MTH', 'سماوة': 'MTH', 'المثنى': 'MTH', 'مثنى': 'MTH', 'الكوت': 'WST', 'كوت': 'WST', 'واسط': 'WST', 'بعقوبة': 'DYL', 'ديالى': 'DYL', 'ديالة': 'DYL',
+ 'تكريت': 'SAH', 'صلاحالدين': 'SAH', 'صلاح الدين': 'SAH', 'سامراء': 'SAH', 'الرمادي': 'ANB', 'رمادي': 'ANB', 'الأنبار': 'ANB', 'الانبار': 'ANB', 'الفلوجة': 'ANB', 'فلوجة': 'ANB',
+ 'بغداد': 'BGD', 'البصرة': 'BAS', 'بصرة': 'BAS', 'أربيل': 'ARB', 'اربيل': 'ARB', 'هولير': 'ARB', 'النجف': 'NJF', 'نجف': 'NJF', 'كربلاء': 'KRB', 'كربلا': 'KRB',
+ 'الحلة': 'BBL', 'حلة': 'BBL', 'بابل': 'BBL', 'كركوك': 'KRK', 'دهوك': 'DOH', 'دهوق': 'DOH', 'السليمانية': 'SMH', 'سليمانية': 'SMH',
+ 'الزعفرانية': 'BGD', 'زعفرانية': 'BGD', 'الدورة': 'BGD', 'دورة': 'BGD', 'الكاظمية': 'BGD', 'كاظمية': 'BGD', 'الاعظمية': 'BGD', 'اعظمية': 'BGD',
+ 'الصدر': 'BGD', 'مدينة الصدر': 'BGD', 'الشعلة': 'BGD', 'الغزالية': 'BGD', 'المنصور': 'BGD', 'منصور': 'BGD', 'اليرموك': 'BGD', 'الكرادة': 'BGD', 'كرادة': 'BGD',
+ 'الجادرية': 'BGD', 'جادرية': 'BGD', 'الحرية': 'BGD', 'البياع': 'BGD', 'العامرية': 'BGD', 'الشعب': 'BGD', 'الطالبية': 'BGD', 'زيونة': 'BGD', 'الوزيرية': 'BGD', 'الرصافة': 'BGD',
+ 'الكرخ': 'BGD', 'كرخ': 'BGD', 'ابو غريب': 'BGD', 'ابوغريب': 'BGD', 'التاجي': 'BGD', 'النهروان': 'BGD', 'المدائن': 'BGD', 'الرشيد': 'BGD', 'سبع البور': 'BGD', 'الحسينية': 'BGD', };
+function inferGovFromText(text) { if (!text) return null;
+ const norm = String(text).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
+ for (const [alias, code] of Object.entries(CITY_ALIAS_TO_GOV)) { const na = alias.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
+  if (norm.includes(na)) return code; }
+ return null; }
+function startFacebookLogin() { const dialogUrl = new URL('https://www.facebook.com/v23.0/dialog/oauth');
+ dialogUrl.searchParams.set('client_id', FB_APP_ID);
+ dialogUrl.searchParams.set('redirect_uri', FB_REDIRECT_URI);
+ dialogUrl.searchParams.set('scope', FB_OAUTH_SCOPE);
+ dialogUrl.searchParams.set('response_type', 'code');
+ window.location.href = dialogUrl.toString(); }
+const sbHeaders = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Accept-Profile': 'public', 'Content-Profile': 'public', };
+async function sbSelect(table, query = '') { const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${query}`, { headers: sbHeaders, });
+ if (!res.ok) throw new Error(`sbSelect ${table} failed: ${res.status}`);
+ return res.json(); }
+async function sbSelectColumns(table, columns, query = '') { const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}${query}`, { headers: sbHeaders, });
+ if (!res.ok) throw new Error(`sbSelectColumns ${table} failed: ${res.status}`);
+ return res.json(); }
+async function sbInsert(table, payload) { const ISOLATED_TABLES = ['alfhd_orders', 'wh_products', 'alfhd_pages', 'alfhd_conversations', 'wh_sales', 'wh_employees', 'wh_debts', 'wh_suppliers'];
+ let body = payload;
+ if (CURRENT_WORKSPACE && ISOLATED_TABLES.includes(table)) { body = Array.isArray(payload) ? payload.map((p) => ({ ...p, workspace_id: CURRENT_WORKSPACE }))
+   : { ...payload, workspace_id: CURRENT_WORKSPACE }; }
+ const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...sbHeaders, 'Prefer': 'return=representation' }, body: JSON.stringify(body), });
+ if (!res.ok) { const errBody = await res.text();
+  console.error(`sbInsert ${table} failed [${res.status}]:`, errBody);
+  throw new Error(`sbInsert ${table} failed: ${res.status} — ${errBody}`); }
+ return res.json(); }
+async function sbUpdate(table, id, payload) { const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'PATCH',
+  headers: { ...sbHeaders, 'Prefer': 'return=representation' }, body: JSON.stringify(payload), });
+ if (!res.ok) { const errBody = await res.text();
+  console.error(`sbUpdate ${table} failed [${res.status}]:`, errBody);
+  throw new Error(`sbUpdate ${table} failed: ${res.status} — ${errBody}`); }
+ return res.json(); }
+async function sbDelete(table, id) { const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'DELETE', headers: sbHeaders, });
+ if (!res.ok) { const errBody = await res.text();
+  console.error(`sbDelete ${table} failed [${res.status}]:`, errBody);
+  throw new Error(`sbDelete ${table} failed: ${res.status} — ${errBody}`); }
+ return true; }
+function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader();
+  reader.onload = () => { const result = reader.result || '';
+   const base64 = String(result).split(',')[1] || '';
+   resolve({ base64, mediaType: file.type || 'image/jpeg' }); };
+  reader.onerror = reject;
+  reader.readAsDataURL(file); }); }
 let _audioCtx = null;
-function ensureAudioReady() {
-  // يجب استدعاؤها عند أول تفاعل من المستخدم (مثل الضغط) حتى يسمح المتصفح بالصوت
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_audioCtx) _audioCtx = new Ctx();
-    if (_audioCtx.state === 'suspended') _audioCtx.resume();
-  } catch (_e) { /* تجاهل */ }
-}
-function playNotificationSound() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_audioCtx) _audioCtx = new Ctx();
-    const ctx = _audioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
-    const notes = [
-      { freq: 660, start: 0, dur: 0.16 },
-      { freq: 880, start: 0.14, dur: 0.24 },
-    ];
-    notes.forEach(({ freq, start, dur }) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.42, now + start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + start);
-      osc.stop(now + start + dur);
-    });
-  } catch (_e) {
-    // تجاهل لو المتصفح منع الصوت
-  }
-}
-
-// صوت إنذار قوي وواضح لطلب مرفوض (ثلاث نغمات حادّة متكررة)
-function playAlarmSound() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_audioCtx) _audioCtx = new Ctx();
-    const ctx = _audioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
-    // ثلاث نبضات حادّة متتالية بنبرة تحذيرية
-    const beeps = [0, 0.22, 0.44];
-    beeps.forEach((start) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(880, now + start);
-      osc.frequency.setValueAtTime(740, now + start + 0.09);
-      gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.55, now + start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + start);
-      osc.stop(now + start + 0.18);
-    });
-  } catch (_e) {
-    // تجاهل
-  }
-}
-
-// ── تحويل بين أعمدة قاعدة البيانات (snake_case) وحقول الواجهة (camelCase) ──
-function mapPageFromDb(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    avatar: row.avatar || '📄',
-    source: row.source,
-    connected: row.connected,
-    fbPageId: row.fb_page_id,
-    waPhoneNumberId: row.wa_phone_number_id || null,
-    waToken: row.wa_token || null,
-    waConnected: !!(row.wa_phone_number_id && row.wa_token),
-  };
-}
-
-function mapOrderFromDb(row) {
-  return {
-    id: row.id,
-    orderNo: row.order_no,
-    sourceMessageId: row.source_message_id || null,
-    pageId: row.page_id,
-    customer: row.customer_name,
-    phone: row.phone,
-    address: row.address,
-    items: row.items,
-    orderType: row.order_type || '',
-    total: Number(row.total) || 0,
-    status: row.status,
-    date: row.order_date,
-    fahdRef: row.fahd_ref,
-    source: row.source || 'manual',
-    conversationId: row.conversation_id || null,
-    converted: !!row.converted,
-    convertedAt: row.converted_at || null,
-    convertedBy: row.converted_by || null,
-    convertedByName: row.converted_by_name || null,
-    createdAt: row.created_at || row.order_date,
-    printed: !!row.printed,
-    printBatchId: row.print_batch_id || null,
-    printedAt: row.printed_at || null,
-    // مرحلة الطلب: ready (جاهز للطباعة) → prep (قيد التجهيز) → delivery (لدى شركة التوصيل)
-    stage: row.stage || (row.printed ? 'prep' : 'ready'),
-    // التجهيز
-    prepStatus: row.prep_status || null, // null | 'done' | 'rejected'
-    prepBy: row.prep_by || null,
-    prepByName: row.prep_by_name || null,
-    prepReason: row.prep_reason || null,
-    prepAt: row.prep_at || null,
-    reprepNote: row.reprep_note || null,
-    reprepByName: row.reprep_by_name || null,
-    storageLocation: row.storage_location || null,
-    // شركة التوصيل
-    deliveryStatus: row.delivery_status || null,
-    governorateCode: row.governorate_code || '',
-    governorateName: row.governorate_name || '',
-    area: row.area || '',
-    cityId: row.city_id || null,
-    jenniShipmentId: row.jenni_shipment_id || null,
-    jenniSent: !!row.jenni_sent,
-    jenniTracking: row.jenni_tracking || null,
-    jenniError: null, // خطأ مؤقت في الذاكرة فقط (مو بقاعدة البيانات)
-    deliveryStep: row.delivery_step || null,
-    deliveryStepAr: row.delivery_step_ar || null,
-    deliveryNote: row.delivery_note || null,
-    deliveryUpdatedAt: row.delivery_updated_at || null,
-    deliveryHistory: (() => {
-      if (!row.delivery_history) return [];
-      try { return typeof row.delivery_history === 'string' ? JSON.parse(row.delivery_history) : row.delivery_history; }
-      catch { return []; }
-    })(),
-  };
-}
-
-// ══════════════════════════════════════════════════════════════════
-// نظام المطابقة الذكية بين الطلبات والمخزن
-// ══════════════════════════════════════════════════════════════════
-
-// كلمات مفتاحية لأنواع المنتجات
-const PRODUCT_TYPE_KEYWORDS = {
-  mother_dosah: ['ام الدوسة', 'أم الدوسة', 'ام دوسة', 'أم دوسه', 'دوسة', 'دوسه', 'mother', 'full', 'كاملة'],
-  rubble_hodi:  ['ربل حوضي', 'ربل', 'حوضي', 'rubble', 'بدون دوسة', 'بدون دوسه'],
-  leather:      ['جلد', 'leather', 'جلود', 'جلدي'],
-};
-
-// مرادفات أسماء السيارات الشائعة
-const CAR_ALIASES = {
-  'تاهو':      ['tahoe', 'تاهوي', 'tahoe', 'تاهو'],
-  'كامري':     ['camry', 'كامرى', 'camery'],
-  'كورولا':    ['corolla', 'كورولا'],
-  'لاندكروزر': ['land cruiser', 'lc', 'لاند كروزر', 'لاند', 'كروزر', 'landcruiser'],
-  'باترول':    ['patrol', 'نيسان باترول'],
-  'برادو':     ['prado', 'برادو'],
-  'هايلكس':   ['hilux', 'هايلوكس', 'هايلكس'],
-  'سيفيك':    ['civic', 'سيفك'],
-  'اكورد':     ['accord', 'أكورد'],
-  'سنتافي':   ['santa fe', 'سانتافي', 'سنتا في'],
-  'سبورتاج':  ['sportage', 'سبورتاج'],
-  'تكسون':    ['tucson', 'توكسون'],
-  'كوليوس':   ['koleos', 'كوليوس'],
-  'باجيرو':   ['pajero', 'باچيرو'],
-  'مكس':      ['yaris', 'يارس'],
-};
-
-// دالة تنظيف النص للمقارنة
-function normalizeText(text) {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .replace(/[أإآا]/g, 'ا')
-    .replace(/[ةه]/g, 'ه')
-    .replace(/[يى]/g, 'ي')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// دالة استخراج سنة الموديل من النص
-function extractYear(text) {
-  const match = text?.match(/20\d{2}/);
-  return match ? match[0] : null;
-}
-
-// دالة المطابقة الذكية الرئيسية
-// تأخذ: نص الطلب (اسم المنتج + نوع الطلب + المنتجات)
-// ترجع: أفضل منتج مطابق من المخزن + درجة الثقة
-// ══════════════════════════════════════════════════════════════
-// مطابقة الطلب مع منتج المخزن — نسخة احترافية عالية الدقة
-// المبادئ:
-//  • نبحث في نص الطلب فقط (نوع الطلب + المنتجات) — لا اسم الزبون ولا عنوانه
-//    (زبون اسمه "حيدر كيا" أو عنوانه "شارع النترا" كان يسبب مطابقات خاطئة)
-//  • المطابقة تعتمد على اسم السيارة ككلمة كاملة — لا احتواء أعمى
-//  • تعارض السنة أو النوع = رفض قاطع، لا مجرد خصم نقاط
-//  • التعادل بين منتجين = لا مطابقة (نطلب تدخل بشري بدل التخمين)
-//  • الكمية لا ترجّح منتجاً على آخر أبداً (الدقة قبل التوفر)
-// ══════════════════════════════════════════════════════════════
-function matchOrderToWarehouseProduct(order, warehouseProducts, opts = {}) {
-  if (!warehouseProducts?.length) return null;
-  const includeEmpty = opts.includeEmpty === true;
-
-  // نص الطلب: نوع الطلب + المنتجات فقط (مصادر موثوقة لوصف البضاعة)
-  const searchText = normalizeText([order.orderType, order.items].filter(Boolean).join(' '));
-  if (!searchText || searchText.length < 2) return null;
-
-  const orderYear = extractYear(searchText);
-  // نوع المنتج المطلوب صراحةً في الطلب (جلد / أم الدوسة / ربل حوضي)
-  let requestedType = null;
-  for (const [type, kws] of Object.entries(PRODUCT_TYPE_KEYWORDS)) {
-    if (kws.some((kw) => searchText.includes(normalizeText(kw)))) { requestedType = type; break; }
-  }
-
-  // مطابقة كلمة كاملة (تمنع "كيا" داخل "سكيا" أو مطابقات جزئية عشوائية)
-  const hasWord = (haystack, needle) => {
-    if (!needle || needle.length < 2) return false;
-    const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(^|\\s)${esc}(\\s|$)`).test(haystack);
-  };
-
-  // الاسم القياسي للسيارة من النص (عبر المرادفات)
-  const canonicalOf = (text) => {
-    for (const [canonical, aliases] of Object.entries(CAR_ALIASES)) {
-      const variants = [normalizeText(canonical), ...aliases.map(normalizeText)];
-      if (variants.some((v) => hasWord(text, v))) return canonical;
-    }
-    return null;
-  };
-  const orderCar = canonicalOf(searchText);
-
-  const scored = [];
-  for (const product of warehouseProducts) {
-    if (!includeEmpty && product.quantity <= 0) continue;
-
-    const productName = normalizeText(product.car_name);
-    const productYear = extractYear(product.car_name);
-    const productCar = canonicalOf(productName);
-
-    // ── 1. مطابقة السيارة (شرط أساسي) ──
-    let carScore = 0;
-    if (productName && hasWord(searchText, productName)) {
-      carScore = 60;                                   // اسم المنتج كاملاً داخل الطلب
-    } else if (orderCar && productCar && orderCar === productCar) {
-      carScore = 50;                                   // نفس السيارة عبر المرادفات
-    } else {
-      // كلمات مميّزة (≥3 أحرف) مشتركة — نتجاهل الأرقام والسنوات
-      const words = productName.split(' ').filter((w) => w.length >= 3 && !/^\d+$/.test(w));
-      const hits = words.filter((w) => hasWord(searchText, w)).length;
-      if (hits > 0 && words.length > 0) {
-        const ratio = hits / words.length;
-        if (ratio >= 0.5) carScore = 35;               // نصف كلمات الاسم على الأقل
-      }
-    }
-    if (carScore === 0) continue;                      // لا سيارة مطابقة = تجاهل
-
-    // ── 2. تعارض السيارة = رفض قاطع ──
-    // (الطلب يذكر سيارة معروفة والمنتج سيارة معروفة مختلفة)
-    if (orderCar && productCar && orderCar !== productCar) continue;
-
-    // ── 3. تعارض السنة = رفض قاطع (النترا 2020 ≠ النترا 2023) ──
-    if (orderYear && productYear && orderYear !== productYear) continue;
-
-    // ── 4. تعارض النوع = رفض قاطع (جلد ≠ أم الدوسة) ──
-    if (requestedType && product.type && requestedType !== product.type) continue;
-
-    let score = carScore;
-    if (orderYear && productYear && orderYear === productYear) score += 25;  // تطابق السنة
-    if (requestedType && product.type === requestedType) score += 30;        // تطابق النوع
-
-    scored.push({ product, score });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => b.score - a.score);
-
-  const top = scored[0];
-  const runnerUp = scored[1];
-
-  // ── 5. التعادل = لا مطابقة (لا نخمّن بين منتجين متساويين) ──
-  if (runnerUp && top.score === runnerUp.score) {
-    const sameProduct = runnerUp.product.id === top.product.id;
-    if (!sameProduct) return { product: top.product, score: top.score, confidence: 'low', ambiguous: true, alternatives: scored.slice(0, 3).map((s) => s.product) };
-  }
-
-  // ── 6. الثقة: عالية فقط عند تطابق السيارة + (السنة أو النوع) ──
-  const decisive = top.score >= 80;                    // سيارة + نوع، أو سيارة + سنة
-  const confidence = decisive ? 'high' : top.score >= 55 ? 'medium' : 'low';
-
-  // عتبة القبول: 50 (مطابقة سيارة حقيقية على الأقل — لا مطابقات جزئية ضعيفة)
-  if (top.score < 50) return null;
-
-  return { product: top.product, score: top.score, confidence, ambiguous: false };
-}
-
-// دالة حساب الربح
-function calcProfit(salePrice, costPrice) {
-  const profit = Number(salePrice) - Number(costPrice);
-  const margin = costPrice > 0 ? Number(((profit / costPrice) * 100).toFixed(1)) : 0;
-  return { profit, margin };
-}
-
-const PRODUCT_TYPE_LABELS = {
-  mother_dosah: 'أم الدوسة',
-  rubble_hodi:  'ربل حوضي',
-  leather:      'جلد',
-};
-
-function mapUserFromDb(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    role: row.role,
-    permissions: row.permissions || [],
-    active: row.active,
-    jobTitle: row.job_title || '',
-    whatsapp: row.whatsapp || '',
-    workspaceId: row.workspace_id || null,
-  };
-}
-
-function mapConversationFromDb(row) {
-  // استخراج اسم صحيح للمحادثات من واتساب
-  let customerName = row.customer_name || '';
-  const psid = row.customer_psid || '';
-  const isWA = row.source === 'whatsapp' || psid.startsWith('wa_');
-
-  // لو الاسم هو نفس الـ psid أو فارغ — عرّض الرقم بشكل مقروء
-  if (!customerName || customerName === psid) {
-    const phone = psid.replace('wa_', '');
-    customerName = phone ? `+${phone}` : 'واتساب';
-  }
-
-  return {
-    id: row.id,
-    pageId: row.page_id,
-    customer: customerName,
-    phone: row.phone || psid.replace('wa_', ''),
-    customerPsid: psid,
-    avatar: row.avatar || (isWA ? '📱' : '👤'),
-    avatarUrl: row.avatar_url || null,
-    platform: row.source || 'facebook',
-    isWhatsApp: isWA,
-    lastMsg: row.last_message || '',
-    lastMsgTimeRaw: row.last_message_time || row.created_at || '',
-    time: row.last_message_time
-      ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
-      : '',
-    unread: row.unread_count || 0,
-    tab: row.tab || 'normal',
-    orderId: row.order_id,
-  };
-}
-
-function mapMessageFromDb(row) {
-  return {
-    id: row.id,
-    conversationId: row.conversation_id,
-    direction: row.direction || 'incoming',
-    content: row.content || null,
-    type: row.type || row.message_type || 'text',
-    mediaUrl: row.media_url || null,
-    source: row.source || 'facebook',
-    createdAt: row.created_at || null,
-    time: row.created_at
-      ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
-      : '',
-  };
-}
-
-// ──────────────────────────────────────────────
-// ثوابت التصميم
-// ──────────────────────────────────────────────
-const STATUS_CONFIG = {
-  pending:   { label: 'قيد التوصيل', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Truck },
-  returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
-  delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 },
-};
-
-// حالات شركة التوصيل (تُحدَّث لاحقاً عبر الربط مع الشركة)
-// حالات شركة التوصيل — مطابقة لـ step statuses من جيني
-const DELIVERY_STATUS_CONFIG = {
-  // حالات جيني الرسمية
-  NEW_ORDER_TO_PRINT:     { label: 'جاهز للطباعة عند جيني', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
-  READY_TO_PICKUP:        { label: 'جاهز للاستلام من المخزن', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
-  IN_SC:                  { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' },
-  OUT_FOR_DELIVERY:       { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
-  OFD:                    { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
-  DELIVERED:              { label: 'مستلم ✓', color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' },
-  FAILED_DELIVERY:        { label: 'فشل التوصيل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
-  RETURNED_TO_MERCHANT:   { label: 'راجع للمرسل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
-  RETURN_IN_PROGRESS:     { label: 'جارٍ الإرجاع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
-  CANCELLED:              { label: 'ملغي', color: '#546880', bg: 'rgba(84,104,128,0.12)' },
-  ON_HOLD:                { label: 'معلّق', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
-  // حالات قديمة للتوافق
-  sorting:   { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' },
-  shipping:  { label: 'قيد التوصيل',     color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
-  delivered: { label: 'مستلم ✓',         color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' },
-  returned:  { label: 'راجع',            color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
-};
-
-// مراحل دورة حياة الطلب
-const ORDER_STAGES = [
-  { id: 'ready',    label: 'جاهزة للطباعة' },
-  { id: 'prep',     label: 'مطبوع' },
-  { id: 'delivery', label: 'لدى شركة التوصيل' },
-];
-
-const ORDER_STAGE_CONFIG = {
-  ready: { label: 'جاهز للطباعة', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Printer },
-  prep: { label: 'مطبوع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package },
-  delivery: { label: 'لدى شركة التوصيل', color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', icon: Truck },
-  converted: { label: 'محوّل/مؤرشف', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', icon: Send },
-  rejected: { label: 'مرفوض من المخزن', color: '#F45B69', bg: 'rgba(244,91,105,0.14)', icon: XCircle },
-};
-
-function getOrderStageInfo(o) {
-  if (!o) return ORDER_STAGE_CONFIG.ready;
-  if (o.converted) return ORDER_STAGE_CONFIG.converted;
-  if (o.prepStatus === 'rejected') return ORDER_STAGE_CONFIG.rejected;
-  const stage = o.stage || (o.printed ? 'prep' : 'ready');
-  if (stage === 'delivery' && o.deliveryStepAr) return { ...ORDER_STAGE_CONFIG.delivery, label: o.deliveryStepAr };
-  return ORDER_STAGE_CONFIG[stage] || ORDER_STAGE_CONFIG.ready;
-}
-
-const CONV_TABS = [
-  { id: 'normal',  label: 'محادثات اعتيادية',         icon: MessageSquare },
-  { id: 'pinned',  label: 'محادثات مثبّت بها طلب',     icon: Pin },
-  { id: 'handoff', label: 'محوّلة من الذكاء الاصطناعي', icon: Bot },
-];
-
-// ──────────────────────────────────────────────
-// أداة كشف حجم الشاشة (للتصميم المتجاوب)
-// ──────────────────────────────────────────────
-function useIsMobile(breakpoint = 860) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  );
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
-  }, [breakpoint]);
-  return isMobile;
-}
-
-// ──────────────────────────────────────────────
-// شعار AlFhd (SVG مخصص)
-// ──────────────────────────────────────────────
-function FahdLogo({ size = 56 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <defs>
-        <linearGradient id="fahdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#60A5FA" />
-          <stop offset="100%" stopColor="#1D4ED8" />
-        </linearGradient>
-      </defs>
-      <circle cx="50" cy="50" r="48" stroke="url(#fahdGrad)" strokeWidth="1.5" opacity="0.4" />
-      <path
-        d="M50 18 C35 18 24 30 22 45 C21 52 24 58 28 63 L32 58 C29 54 27 50 28 45 C29 35 38 26 50 26 C62 26 71 35 72 45 C73 50 71 54 68 58 L72 63 C76 58 79 52 78 45 C76 30 65 18 50 18 Z"
-        fill="url(#fahdGrad)"
-      />
-      <circle cx="40" cy="42" r="3" fill="#0A0E17" />
-      <circle cx="60" cy="42" r="3" fill="#0A0E17" />
-      <path d="M50 48 L46 55 L54 55 Z" fill="#0A0E17" opacity="0.7" />
-      <path
-        d="M30 68 Q50 78 70 68 L66 82 Q50 90 34 82 Z"
-        fill="url(#fahdGrad)"
-        opacity="0.85"
-      />
-    </svg>
-  );
-}
-
-// ──────────────────────────────────────────────
-// شاشة تسجيل الدخول
-// ──────────────────────────────────────────────
-function LoginScreen({ users, onLogin }) {
-  const [code, setCode] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState(false);
-  const [shake, setShake] = useState(false);
-  const hiddenInputRef = React.useRef(null);
-
-  const activeUsers = useMemo(() => users.filter((u) => u.active), [users]);
-
-  const attemptLogin = (value) => {
-    const entered = value.trim();
-    if (entered.length !== 4) return;
-    const match = entered === '4444'
-      ? (activeUsers.find((u) => u.role === 'admin') || activeUsers[0])
-      : activeUsers.find((u) => String(u.code || '') === entered);
-    if (match) {
-      onLogin({ ...match, code: '4444' }, rememberMe);
-    } else {
-      setError(true);
-      setShake(true);
-      setCode('');
-      setTimeout(() => setShake(false), 520);
-    }
-  };
-
-  const handleChange = (e) => {
-    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-    setCode(value);
-    setError(false);
-    if (value.length === 4) attemptLogin(value);
-  };
-
-  const handleKeypad = (digit) => {
-    if (digit === 'back') {
-      const next = code.slice(0, -1);
-      setCode(next);
-      setError(false);
-      return;
-    }
-    if (code.length >= 4) return;
-    const next = `${code}${digit}`;
-    setCode(next);
-    setError(false);
-    if (next.length === 4) attemptLogin(next);
-  };
-
-  return (
-    <div style={styles.loginWrap} onClick={() => hiddenInputRef.current?.focus()}>
-      <div style={styles.loginSpaceBg} />
-      <div style={styles.loginNebulaOne} />
-      <div style={styles.loginNebulaTwo} />
-      <div style={styles.loginOrbit} className="alfhd-login-orbit" />
-      <div style={styles.loginStarsLayer} className="alfhd-stars-layer" />
-      <div style={styles.loginStarsLayer2} className="alfhd-stars-layer-2" />
-
-      <div style={styles.loginBrandTop}>
-        <Sparkles size={16} />
-        <span>ALFHD COMMAND CENTER</span>
-      </div>
-
-      <div
-        className="alfhd-login-card"
-        style={{
-          ...styles.loginCard,
-          animation: shake ? 'shake 0.42s ease' : 'loginFloat 5.5s ease-in-out infinite',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={styles.loginGlassShine} />
-        <div style={styles.loginCardAccent} />
-        <div style={styles.loginLogoArea}>
-          <div style={styles.logoGlow} />
-          <FahdLogo size={78} />
-        </div>
-        <h1 style={styles.loginTitle}>AlFhd</h1>
-        <p style={styles.loginSubtitle}>نظام قيادة الطلبات والمحادثات</p>
-        <div style={styles.loginMicroCopy}>دخول آمن برمز من 4 أرقام</div>
-
-        <div style={{ width: '100%', marginTop: 34 }}>
-          <label style={styles.inputLabel}>رمز الدخول</label>
-          <div style={styles.pinBoxesWrap} onClick={() => hiddenInputRef.current?.focus()}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  ...styles.pinBox,
-                  ...(error
-                    ? styles.pinBoxError
-                    : code.length === i
-                      ? styles.pinBoxActive
-                      : code.length > i
-                        ? styles.pinBoxFilled
-                        : {}),
-                }}
-              >
-                {code[i] ? '•' : ''}
-              </div>
-            ))}
-            <input
-              ref={hiddenInputRef}
-              type="password"
-              inputMode="numeric"
-              value={code}
-              onChange={handleChange}
-              style={styles.pinHiddenInput}
-              autoFocus
-              aria-label="رمز الدخول من 4 أرقام"
-            />
-          </div>
-          {error && <p style={styles.errorText}>الرمز غير صحيح أو الحساب غير مفعّل</p>}
-
-          <label style={styles.rememberRow} onClick={(e) => e.stopPropagation()}>
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              style={styles.checkbox}
-            />
-            <span>تذكرني على هذا الجهاز</span>
-          </label>
-
-          <div style={styles.loginKeypad} onClick={(e) => e.stopPropagation()}>
-            {[1,2,3,4,5,6,7,8,9].map((n) => (
-              <button key={n} type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad(String(n))}>{n}</button>
-            ))}
-            <button type="button" style={styles.loginKeypadGhost} onClick={() => { setCode(''); setError(false); }}>مسح</button>
-            <button type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad('0')}>0</button>
-            <button type="button" style={styles.loginKeypadGhost} onClick={() => handleKeypad('back')}>⌫</button>
-          </div>
-        </div>
-      </div>
-      <p style={styles.loginFooter}>AlFhd Order Management © 2026 · Precision Logistics</p>
+function ensureAudioReady() { try { const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!_audioCtx) _audioCtx = new Ctx();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume(); } catch (_e) { /* تجاهل */ } }
+function playNotificationSound() { try { const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!_audioCtx) _audioCtx = new Ctx();
+  const ctx = _audioCtx;
+  if (ctx.state === 'suspended') ctx.resume();
+  const now = ctx.currentTime;
+  const notes = [ { freq: 660, start: 0, dur: 0.16 }, { freq: 880, start: 0.14, dur: 0.24 }, ];
+  notes.forEach(({ freq, start, dur }) => { const osc = ctx.createOscillator();
+   const gain = ctx.createGain();
+   osc.type = 'sine';
+   osc.frequency.value = freq;
+   gain.gain.setValueAtTime(0, now + start);
+   gain.gain.linearRampToValueAtTime(0.42, now + start + 0.02);
+   gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+   osc.connect(gain);
+   gain.connect(ctx.destination);
+   osc.start(now + start);
+   osc.stop(now + start + dur); }); } catch (_e) { } }
+function playAlarmSound() { try { const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!_audioCtx) _audioCtx = new Ctx();
+  const ctx = _audioCtx;
+  if (ctx.state === 'suspended') ctx.resume();
+  const now = ctx.currentTime;
+  const beeps = [0, 0.22, 0.44];
+  beeps.forEach((start) => { const osc = ctx.createOscillator();
+   const gain = ctx.createGain();
+   osc.type = 'square';
+   osc.frequency.setValueAtTime(880, now + start);
+   osc.frequency.setValueAtTime(740, now + start + 0.09);
+   gain.gain.setValueAtTime(0, now + start);
+   gain.gain.linearRampToValueAtTime(0.55, now + start + 0.015);
+   gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
+   osc.connect(gain);
+   gain.connect(ctx.destination);
+   osc.start(now + start);
+   osc.stop(now + start + 0.18); }); } catch (_e) { } }
+function mapPageFromDb(row) { return { id: row.id, name: row.name, avatar: row.avatar || '📄', source: row.source, connected: row.connected, fbPageId: row.fb_page_id,
+  waPhoneNumberId: row.wa_phone_number_id || null, waToken: row.wa_token || null, waPhone: row.wa_phone || null, waConnected: !!row.wa_connected || !!(row.wa_phone_number_id && row.wa_token), }; }
+function mapOrderFromDb(row) { return { id: row.id, orderNo: row.order_no, sourceMessageId: row.source_message_id || null, pageId: row.page_id, customer: row.customer_name,
+  phone: row.phone, address: row.address, items: row.items, orderType: row.order_type || '', total: Number(row.total) || 0, status: row.status, date: row.order_date,
+  fahdRef: row.fahd_ref, source: row.source || 'manual', platform: row.platform || null, // whatsapp | facebook — منصة مصدر الطلب
+  conversationId: row.conversation_id || null, converted: !!row.converted, convertedAt: row.converted_at || null, convertedBy: row.converted_by || null,
+  convertedByName: row.converted_by_name || null, createdAt: row.created_at || row.order_date, printed: !!row.printed, printBatchId: row.print_batch_id || null,
+  printedAt: row.printed_at || null, stage: row.stage || (row.printed ? 'prep' : 'ready'), prepStatus: row.prep_status || null, // null | 'done' | 'rejected'
+  prepBy: row.prep_by || null, prepByName: row.prep_by_name || null, prepReason: row.prep_reason || null, prepAt: row.prep_at || null, reprepNote: row.reprep_note || null,
+  reprepByName: row.reprep_by_name || null, storageLocation: row.storage_location || null, deliveryStatus: row.delivery_status || null, governorateCode: row.governorate_code || '',
+  governorateName: row.governorate_name || '', area: row.area || '', cityId: row.city_id || null, jenniShipmentId: row.jenni_shipment_id || null, jenniSent: !!row.jenni_sent,
+  jenniTracking: row.jenni_tracking || null, jenniError: null, // خطأ مؤقت في الذاكرة فقط (مو بقاعدة البيانات)
+  deliveryStep: row.delivery_step || null, deliveryStepAr: row.delivery_step_ar || null, deliveryNote: row.delivery_note || null,
+  deliveryUpdatedAt: row.delivery_updated_at || null, deliveryHistory: (() => { if (!row.delivery_history) return [];
+   try { return typeof row.delivery_history === 'string' ? JSON.parse(row.delivery_history) : row.delivery_history; }
+   catch { return []; } })(), }; }
+const PRODUCT_TYPE_KEYWORDS = { mother_dosah: ['ام الدوسة', 'أم الدوسة', 'ام دوسة', 'أم دوسه', 'دوسة', 'دوسه', 'mother', 'full', 'كاملة'],
+ rubble_hodi:  ['ربل حوضي', 'ربل', 'حوضي', 'rubble', 'بدون دوسة', 'بدون دوسه'], leather:      ['جلد', 'leather', 'جلود', 'جلدي'], };
+const CAR_ALIASES = { 'تاهو':      ['tahoe', 'تاهوي', 'tahoe', 'تاهو'], 'كامري':     ['camry', 'كامرى', 'camery'], 'كورولا':    ['corolla', 'كورولا'],
+ 'لاندكروزر': ['land cruiser', 'lc', 'لاند كروزر', 'لاند', 'كروزر', 'landcruiser'], 'باترول':    ['patrol', 'نيسان باترول'], 'برادو':     ['prado', 'برادو'],
+ 'هايلكس':   ['hilux', 'هايلوكس', 'هايلكس'], 'سيفيك':    ['civic', 'سيفك'], 'اكورد':     ['accord', 'أكورد'], 'سنتافي':   ['santa fe', 'سانتافي', 'سنتا في'],
+ 'سبورتاج':  ['sportage', 'سبورتاج'], 'تكسون':    ['tucson', 'توكسون'], 'كوليوس':   ['koleos', 'كوليوس'], 'باجيرو':   ['pajero', 'باچيرو'], 'مكس':      ['yaris', 'يارس'], };
+function normalizeText(text) { if (!text) return '';
+ return text
+  .toLowerCase()
+  .replace(/[أإآا]/g, 'ا')
+  .replace(/[ةه]/g, 'ه')
+  .replace(/[يى]/g, 'ي')
+  .replace(/\s+/g, ' ')
+  .trim(); }
+function extractYear(text) { const match = text?.match(/20\d{2}/);
+ return match ? match[0] : null; }
+function matchOrderToWarehouseProduct(order, warehouseProducts, opts = {}) { if (!warehouseProducts?.length) return null;
+ const includeEmpty = opts.includeEmpty === true;
+ const searchText = normalizeText([order.orderType, order.items].filter(Boolean).join(' '));
+ if (!searchText || searchText.length < 2) return null;
+ const orderYear = extractYear(searchText);
+ let requestedType = null;
+ for (const [type, kws] of Object.entries(PRODUCT_TYPE_KEYWORDS)) { if (kws.some((kw) => searchText.includes(normalizeText(kw)))) { requestedType = type; break; } }
+ const hasWord = (haystack, needle) => { if (!needle || needle.length < 2) return false;
+  const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|\\s)${esc}(\\s|$)`).test(haystack); };
+ const canonicalOf = (text) => { for (const [canonical, aliases] of Object.entries(CAR_ALIASES)) { const variants = [normalizeText(canonical), ...aliases.map(normalizeText)];
+   if (variants.some((v) => hasWord(text, v))) return canonical; }
+  return null; };
+ const orderCar = canonicalOf(searchText);
+ const scored = [];
+ for (const product of warehouseProducts) { if (!includeEmpty && product.quantity <= 0) continue;
+  const productName = normalizeText(product.car_name);
+  const productYear = extractYear(product.car_name);
+  const productCar = canonicalOf(productName);
+  let carScore = 0;
+  if (productName && hasWord(searchText, productName)) { carScore = 60;                                   // اسم المنتج كاملاً داخل الطلب
+  } else if (orderCar && productCar && orderCar === productCar) { carScore = 50;                                   // نفس السيارة عبر المرادفات
+  } else { const words = productName.split(' ').filter((w) => w.length >= 3 && !/^\d+$/.test(w));
+   const hits = words.filter((w) => hasWord(searchText, w)).length;
+   if (hits > 0 && words.length > 0) { const ratio = hits / words.length;
+    if (ratio >= 0.5) carScore = 35;               // نصف كلمات الاسم على الأقل
+   } }
+  if (carScore === 0) continue;                      // لا سيارة مطابقة = تجاهل
+  if (orderCar && productCar && orderCar !== productCar) continue;
+  if (orderYear && productYear && orderYear !== productYear) continue;
+  if (requestedType && product.type && requestedType !== product.type) continue;
+  let score = carScore;
+  if (orderYear && productYear && orderYear === productYear) score += 25;  // تطابق السنة
+  if (requestedType && product.type === requestedType) score += 30;        // تطابق النوع
+  scored.push({ product, score }); }
+ if (scored.length === 0) return null;
+ scored.sort((a, b) => b.score - a.score);
+ const top = scored[0];
+ const runnerUp = scored[1];
+ if (runnerUp && top.score === runnerUp.score) { const sameProduct = runnerUp.product.id === top.product.id;
+  if (!sameProduct) return { product: top.product, score: top.score, confidence: 'low', ambiguous: true, alternatives: scored.slice(0, 3).map((s) => s.product) }; }
+ const decisive = top.score >= 80;                    // سيارة + نوع، أو سيارة + سنة
+ const confidence = decisive ? 'high' : top.score >= 55 ? 'medium' : 'low';
+ if (top.score < 50) return null;
+ return { product: top.product, score: top.score, confidence, ambiguous: false }; }
+function calcProfit(salePrice, costPrice) { const profit = Number(salePrice) - Number(costPrice);
+ const margin = costPrice > 0 ? Number(((profit / costPrice) * 100).toFixed(1)) : 0;
+ return { profit, margin }; }
+const PRODUCT_TYPE_LABELS = { mother_dosah: 'أم الدوسة', rubble_hodi:  'ربل حوضي', leather:      'جلد', };
+function mapUserFromDb(row) { return { id: row.id, name: row.name, code: row.code, role: row.role, permissions: row.permissions || [], active: row.active,
+  jobTitle: row.job_title || '', whatsapp: row.whatsapp || '', workspaceId: row.workspace_id || null, }; }
+function mapConversationFromDb(row) { let customerName = row.customer_name || '';
+ const psid = row.customer_psid || '';
+ const isWA = row.source === 'whatsapp' || psid.startsWith('wa_');
+ if (!customerName || customerName === psid) { const phone = psid.replace('wa_', '');
+  customerName = phone ? `+${phone}` : 'واتساب'; }
+ return { id: row.id, pageId: row.page_id, customer: customerName, phone: row.phone || psid.replace('wa_', ''), customerPsid: psid, avatar: row.avatar || (isWA ? '📱' : '👤'),
+  avatarUrl: row.avatar_url || null, platform: row.source || 'facebook', isWhatsApp: isWA, lastMsg: row.last_message || '',
+  lastMsgTimeRaw: row.last_message_time || row.created_at || '', time: row.last_message_time ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
+   : '', unread: row.unread_count || 0, tab: row.tab || 'normal', orderId: row.order_id, }; }
+function mapMessageFromDb(row) { return { id: row.id, conversationId: row.conversation_id, direction: row.direction || 'incoming', content: row.content || null,
+  type: row.type || row.message_type || 'text', mediaUrl: row.media_url || null, fileName: row.file_name || null, source: row.source || 'facebook', createdAt: row.created_at || null, time: row.created_at
+   ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) : '', }; }
+const STATUS_CONFIG = { pending:   { label: 'قيد التوصيل', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Truck },
+ returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
+ delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 }, };
+const DELIVERY_STATUS_CONFIG = { NEW_ORDER_TO_PRINT:     { label: 'جاهز للطباعة عند جيني', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
+ READY_TO_PICKUP:        { label: 'جاهز للاستلام من المخزن', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
+ IN_SC:                  { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' }, OUT_FOR_DELIVERY:       { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
+ OFD:                    { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' }, DELIVERED:              { label: 'مستلم ✓', color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' },
+ FAILED_DELIVERY:        { label: 'فشل التوصيل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' }, RETURNED_TO_MERCHANT:   { label: 'راجع للمرسل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
+ RETURN_IN_PROGRESS:     { label: 'جارٍ الإرجاع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' }, CANCELLED:              { label: 'ملغي', color: '#546880', bg: 'rgba(84,104,128,0.12)' },
+ ON_HOLD:                { label: 'معلّق', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
+ sorting:   { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' }, shipping:  { label: 'قيد التوصيل',     color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
+ delivered: { label: 'مستلم ✓',         color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' }, returned:  { label: 'راجع',            color: '#F45B69', bg: 'rgba(244,91,105,0.12)' }, };
+const ORDER_STAGES = [ { id: 'ready',    label: 'جاهزة للطباعة' }, { id: 'prep',     label: 'مطبوع' }, { id: 'delivery', label: 'لدى شركة التوصيل' }, ];
+const ORDER_STAGE_CONFIG = { ready: { label: 'جاهز للطباعة', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Printer },
+ prep: { label: 'مطبوع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package }, delivery: { label: 'لدى شركة التوصيل', color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', icon: Truck },
+ converted: { label: 'محوّل/مؤرشف', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', icon: Send },
+ rejected: { label: 'مرفوض من المخزن', color: '#F45B69', bg: 'rgba(244,91,105,0.14)', icon: XCircle }, };
+function getOrderStageInfo(o) { if (!o) return ORDER_STAGE_CONFIG.ready;
+ if (o.converted) return ORDER_STAGE_CONFIG.converted;
+ if (o.prepStatus === 'rejected') return ORDER_STAGE_CONFIG.rejected;
+ const stage = o.stage || (o.printed ? 'prep' : 'ready');
+ if (stage === 'delivery' && o.deliveryStepAr) return { ...ORDER_STAGE_CONFIG.delivery, label: o.deliveryStepAr };
+ return ORDER_STAGE_CONFIG[stage] || ORDER_STAGE_CONFIG.ready; }
+const CONV_TABS = [ { id: 'normal',  label: 'محادثات اعتيادية',         icon: MessageSquare }, { id: 'pinned',  label: 'محادثات مثبّت بها طلب',     icon: Pin },
+ { id: 'handoff', label: 'محوّلة من الذكاء الاصطناعي', icon: Bot }, ];
+function useIsMobile(breakpoint = 860) { const [isMobile, setIsMobile] = useState( typeof window !== 'undefined' ? window.innerWidth < breakpoint : false );
+ useEffect(() => { const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
+  window.addEventListener('resize', handleResize);
+  handleResize();
+  return () => window.removeEventListener('resize', handleResize); }, [breakpoint]);
+ return isMobile; }
+function FahdLogo({ size = 56 }) { return ( <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+   <defs>
+    <linearGradient id="fahdGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+     <stop offset="0%" stopColor="#60A5FA" />
+     <stop offset="100%" stopColor="#1D4ED8" />
+    </linearGradient>
+   </defs>
+   <circle cx="50" cy="50" r="48" stroke="url(#fahdGrad)" strokeWidth="1.5" opacity="0.4" />
+   <path
+    d="M50 18 C35 18 24 30 22 45 C21 52 24 58 28 63 L32 58 C29 54 27 50 28 45 C29 35 38 26 50 26 C62 26 71 35 72 45 C73 50 71 54 68 58 L72 63 C76 58 79 52 78 45 C76 30 65 18 50 18 Z"
+    fill="url(#fahdGrad)"
+   />
+   <circle cx="40" cy="42" r="3" fill="#0A0E17" />
+   <circle cx="60" cy="42" r="3" fill="#0A0E17" />
+   <path d="M50 48 L46 55 L54 55 Z" fill="#0A0E17" opacity="0.7" />
+   <path
+    d="M30 68 Q50 78 70 68 L66 82 Q50 90 34 82 Z"
+    fill="url(#fahdGrad)"
+    opacity="0.85"
+   />
+  </svg> ); }
+function LoginScreen({ users, onLogin }) { const [code, setCode] = useState('');
+ const [rememberMe, setRememberMe] = useState(true);
+ const [error, setError] = useState(false);
+ const [shake, setShake] = useState(false);
+ const hiddenInputRef = React.useRef(null);
+ const activeUsers = useMemo(() => users.filter((u) => u.active), [users]);
+ const attemptLogin = (value) => { const entered = value.trim();
+  if (entered.length !== 4) return;
+  const match = entered === '4444' ? (activeUsers.find((u) => u.role === 'admin') || activeUsers[0]) : activeUsers.find((u) => String(u.code || '') === entered);
+  if (match) { onLogin({ ...match, code: '4444' }, rememberMe); } else { setError(true);
+   setShake(true);
+   setCode('');
+   setTimeout(() => setShake(false), 520); } };
+ const handleChange = (e) => { const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+  setCode(value);
+  setError(false);
+  if (value.length === 4) attemptLogin(value); };
+ const handleKeypad = (digit) => { if (digit === 'back') { const next = code.slice(0, -1);
+   setCode(next);
+   setError(false);
+   return; }
+  if (code.length >= 4) return;
+  const next = `${code}${digit}`;
+  setCode(next);
+  setError(false);
+  if (next.length === 4) attemptLogin(next); };
+ return ( <div style={styles.loginWrap} onClick={() => hiddenInputRef.current?.focus()}>
+   <div style={styles.loginSpaceBg} />
+   <div style={styles.loginNebulaOne} />
+   <div style={styles.loginNebulaTwo} />
+   <div style={styles.loginOrbit} className="alfhd-login-orbit" />
+   <div style={styles.loginStarsLayer} className="alfhd-stars-layer" />
+   <div style={styles.loginStarsLayer2} className="alfhd-stars-layer-2" />
+   <div style={styles.loginBrandTop}>
+    <Sparkles size={16} />
+    <span>ALFHD COMMAND CENTER</span>
+   </div>
+   <div
+    className="alfhd-login-card"
+    style={{ ...styles.loginCard, animation: shake ? 'shake 0.42s ease' : 'loginFloat 5.5s ease-in-out infinite', }}
+    onClick={(e) => e.stopPropagation()}
+   >
+    <div style={styles.loginGlassShine} />
+    <div style={styles.loginCardAccent} />
+    <div style={styles.loginLogoArea}>
+     <div style={styles.logoGlow} />
+     <FahdLogo size={78} />
     </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// الشريط الجانبي
-// ──────────────────────────────────────────────
-function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) {
-  const isMobile = useIsMobile();
-  const navItems = [
-    { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
-    { id: 'orders', label: 'الطلبات', icon: Package },
-    { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
-    { id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true },
-    { id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true },
-    { id: 'pages', label: 'الصفحات', icon: Facebook },
-  ];
-
-  if (isMobile) {
-    return (
-      <>
-        <header style={styles.mobileHeader} className="alfhd-no-print">
-          <div style={styles.mobileHeaderBrand}>
-            <FahdLogo size={28} />
-            <span style={styles.mobileHeaderTitle}>AlFhd</span>
-          </div>
-          <button onClick={onLogout} style={styles.mobileLogoutBtn}>
-            <LogOut size={16} />
-          </button>
-        </header>
-        <nav style={styles.bottomNav} className="alfhd-no-print">
-          {navItems.map((item) => {
-            if (item.adminOnly && currentUser.role !== 'admin') return null;
-            const Icon = item.icon;
-            const active = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`alfhd-bottom-nav-item${active ? ' alfhd-bottom-nav-item-active' : ''}`}
-                style={{ ...styles.bottomNavItem, ...(active ? styles.bottomNavItemActive : {}) }}
-              >
-                <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
-                <span style={styles.bottomNavLabel}>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </>
-    );
-  }
-
-  return (
-    <aside style={styles.sidebar} className="alfhd-no-print">
-      <div style={styles.sidebarHeader}>
-        <FahdLogo size={36} />
-        <div>
-          <div style={styles.sidebarBrand}>AlFhd</div>
-          <div style={styles.sidebarBrandSub}>إدارة طلبات</div>
-        </div>
+    <h1 style={styles.loginTitle}>AlFhd</h1>
+    <p style={styles.loginSubtitle}>نظام قيادة الطلبات والمحادثات</p>
+    <div style={styles.loginMicroCopy}>دخول آمن برمز من 4 أرقام</div>
+    <div style={{ width: '100%', marginTop: 34 }}>
+     <label style={styles.inputLabel}>رمز الدخول</label>
+     <div style={styles.pinBoxesWrap} onClick={() => hiddenInputRef.current?.focus()}>
+      {Array.from({ length: 4 }).map((_, i) => ( <div
+        key={i}
+        style={{ ...styles.pinBox, ...(error ? styles.pinBoxError : code.length === i ? styles.pinBoxActive : code.length > i ? styles.pinBoxFilled : {}), }}
+       >
+        {code[i] ? '•' : ''}
+       </div> ))}
+      <input
+       ref={hiddenInputRef}
+       type="password"
+       inputMode="numeric"
+       value={code}
+       onChange={handleChange}
+       style={styles.pinHiddenInput}
+       autoFocus
+       aria-label="رمز الدخول من 4 أرقام"
+      />
+     </div>
+     {error && <p style={styles.errorText}>الرمز غير صحيح أو الحساب غير مفعّل</p>}
+     <label style={styles.rememberRow} onClick={(e) => e.stopPropagation()}>
+      <input
+       type="checkbox"
+       checked={rememberMe}
+       onChange={(e) => setRememberMe(e.target.checked)}
+       style={styles.checkbox}
+      />
+      <span>تذكرني على هذا الجهاز</span>
+     </label>
+     <div style={styles.loginKeypad} onClick={(e) => e.stopPropagation()}>
+      {[1,2,3,4,5,6,7,8,9].map((n) => ( <button key={n} type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad(String(n))}>{n}</button> ))}
+      <button type="button" style={styles.loginKeypadGhost} onClick={() => { setCode(''); setError(false); }}>مسح</button>
+      <button type="button" style={styles.loginKeypadBtn} onClick={() => handleKeypad('0')}>0</button>
+      <button type="button" style={styles.loginKeypadGhost} onClick={() => handleKeypad('back')}>⌫</button>
+     </div>
+    </div>
+   </div>
+   <p style={styles.loginFooter}>AlFhd Order Management © 2026 · Precision Logistics</p>
+  </div> ); }
+function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { const isMobile = useIsMobile();
+ const navItems = [ { id: 'conversations', label: 'المحادثات', icon: MessageSquare }, { id: 'orders', label: 'الطلبات', icon: Package },
+  { id: 'stats', label: 'الإحصائيات', icon: BarChart3 }, { id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true },
+  { id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true }, { id: 'pages', label: 'الصفحات', icon: Facebook }, ];
+ if (isMobile) { return ( <>
+    <header style={styles.mobileHeader} className="alfhd-no-print">
+     <div style={styles.mobileHeaderBrand}>
+      <FahdLogo size={28} />
+      <span style={styles.mobileHeaderTitle}>AlFhd</span>
+     </div>
+     <button onClick={onLogout} style={styles.mobileLogoutBtn}>
+      <LogOut size={16} />
+     </button>
+    </header>
+    <nav style={styles.bottomNav} className="alfhd-no-print">
+     {navItems.map((item) => { if (item.adminOnly && currentUser.role !== 'admin') return null;
+      const Icon = item.icon;
+      const active = activeView === item.id;
+      return ( <button
+        key={item.id}
+        onClick={() => setActiveView(item.id)}
+        className={`alfhd-bottom-nav-item alfhd-ripple${active ? ' alfhd-bottom-nav-item-active' : ''}`}
+        style={{ ...styles.bottomNavItem, ...(active ? styles.bottomNavItemActive : {}) }}
+       >
+        <Icon size={19} strokeWidth={active ? 2.4 : 1.8} style={{ transition: 'transform 0.3s var(--ease-spring)', transform: active ? 'scale(1.15) translateY(-1px)' : 'scale(1)' }} />
+        <span style={styles.bottomNavLabel}>{item.label}</span>
+       </button> ); })}
+    </nav>
+   </> ); }
+ return ( <aside style={styles.sidebar} className="alfhd-no-print">
+   <div style={styles.sidebarHeader}>
+    <FahdLogo size={36} />
+    <div>
+     <div style={styles.sidebarBrand}>AlFhd</div>
+     <div style={styles.sidebarBrandSub}>إدارة طلبات</div>
+    </div>
+   </div>
+   <nav style={styles.sidebarNav}>
+    {navItems.map((item) => { if (item.adminOnly && currentUser.role !== 'admin') return null;
+     const Icon = item.icon;
+     const active = activeView === item.id;
+     return ( <button
+       key={item.id}
+       onClick={() => setActiveView(item.id)}
+       className={`alfhd-nav-item${active ? ' alfhd-bottom-nav-item-active' : ''}`}
+       style={{ ...styles.navItem, ...(active ? styles.navItemActive : {}), }}
+      >
+       <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
+       <span>{item.label}</span>
+       {active && <div style={styles.navActiveDot} />}
+      </button> ); })}
+   </nav>
+   <div style={styles.sidebarFooter}>
+    <div style={styles.userBadge}>
+     <div style={styles.userAvatar}>{currentUser.name[0]}</div>
+     <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={styles.userName}>{currentUser.name}</div>
+      <div style={styles.userRole}>
+       {currentUser.workspaceId ? '🔒 مساحة مستقلة' : (currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة')}
       </div>
-
-      <nav style={styles.sidebarNav}>
-        {navItems.map((item) => {
-          if (item.adminOnly && currentUser.role !== 'admin') return null;
-          const Icon = item.icon;
-          const active = activeView === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              className={`alfhd-nav-item${active ? ' alfhd-bottom-nav-item-active' : ''}`}
-              style={{
-                ...styles.navItem,
-                ...(active ? styles.navItemActive : {}),
-              }}
-            >
-              <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
-              <span>{item.label}</span>
-              {active && <div style={styles.navActiveDot} />}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div style={styles.sidebarFooter}>
-        <div style={styles.userBadge}>
-          <div style={styles.userAvatar}>{currentUser.name[0]}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={styles.userName}>{currentUser.name}</div>
-            <div style={styles.userRole}>
-              {currentUser.workspaceId ? '🔒 مساحة مستقلة' : (currentUser.role === 'admin' ? 'صلاحية كاملة' : 'صلاحية محددة')}
-            </div>
-          </div>
-        </div>
-        <button onClick={onLogout} style={styles.logoutBtn}>
-          <LogOut size={16} />
-          تسجيل الخروج
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-// ──────────────────────────────────────────────
-// تلوين الأفاتار حسب اسم العميل (نمط تيليجرام) + عرضه
-// ──────────────────────────────────────────────
+     </div>
+    </div>
+    <button onClick={onLogout} style={styles.logoutBtn}>
+     <LogOut size={16} />
+     تسجيل الخروج
+    </button>
+   </div>
+  </aside> ); }
 const AVATAR_PALETTE = ['#A78BFA', '#34D9C5', '#4ADE80', '#F45B69', '#F0A868', '#E879B9', '#5B8DEF', '#FACC15'];
-function avatarColorFromName(name = '') {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-}
-
-function PlatformBadge({ platform, size = 'md' }) {
-  const isWhatsApp = platform === 'whatsapp';
-  const dim = size === 'lg' ? 18 : 17;
-  return (
-    <div style={{
-      position: 'absolute', bottom: 0, left: 0, width: dim, height: dim,
-      borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: isWhatsApp ? '#25D366' : '#0A8CFF',
-      border: '2.5px solid #0A0E17', boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
-    }}>
-      {isWhatsApp ? (
-        <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
-          <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
-        </svg>
-      ) : (
-        <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
-          <path d="M12 2C6.48 2 2 6.15 2 11.27c0 2.91 1.44 5.5 3.7 7.21V22l3.38-1.86c.9.25 1.86.38 2.92.38 5.52 0 10-4.15 10-9.25S17.52 2 12 2zm1.01 12.46-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
-function ConvAvatar({ conv, size = 'md' }) {
-  const color = avatarColorFromName(conv?.customer || '');
-  const wrapStyle = size === 'lg' ? styles.convAvatarLg : styles.convAvatar;
-  return (
-    <div style={{ position: 'relative', width: wrapStyle.width, height: wrapStyle.height, flexShrink: 0 }}>
-      {conv?.avatarUrl ? (
-        <img
-          src={conv.avatarUrl}
-          alt={conv.customer || ''}
-          style={{ ...wrapStyle, objectFit: 'cover', background: '#222C42' }}
-        />
-      ) : (
-        <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
-          {conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
-        </div>
-      )}
-      <PlatformBadge platform={conv?.platform || 'facebook'} size={size} />
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// عرض المحادثات
-// ──────────────────────────────────────────────
+function avatarColorFromName(name = '') { let hash = 0;
+ for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+ return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length]; }
+function PlatformBadge({ platform, size = 'md' }) { const isWhatsApp = platform === 'whatsapp';
+ const dim = size === 'lg' ? 18 : 17;
+ return ( <div style={{ position: 'absolute', bottom: 0, left: 0, width: dim, height: dim, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+   background: isWhatsApp ? '#25D366' : '#0A8CFF', border: '2.5px solid #0A0E17', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', }}>
+   {isWhatsApp ? ( <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
+     <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
+    </svg> ) : ( <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
+     <path d="M12 2C6.48 2 2 6.15 2 11.27c0 2.91 1.44 5.5 3.7 7.21V22l3.38-1.86c.9.25 1.86.38 2.92.38 5.52 0 10-4.15 10-9.25S17.52 2 12 2zm1.01 12.46-2.55-2.72-4.98 2.72 5.48-5.82 2.61 2.72 4.92-2.72-5.48 5.82z" />
+    </svg> )}
+  </div> ); }
+function ConvAvatar({ conv, size = 'md' }) { const color = avatarColorFromName(conv?.customer || '');
+ const wrapStyle = size === 'lg' ? styles.convAvatarLg : styles.convAvatar;
+ return ( <div style={{ position: 'relative', width: wrapStyle.width, height: wrapStyle.height, flexShrink: 0 }}>
+   {conv?.avatarUrl ? ( <img
+     src={conv.avatarUrl}
+     alt={conv.customer || ''}
+     style={{ ...wrapStyle, objectFit: 'cover', background: '#222C42' }}
+    /> ) : ( <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
+     {conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
+    </div> )}
+   <PlatformBadge platform={conv?.platform || 'facebook'} size={size} />
+  </div> ); }
 function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails }) {
-  const [activeTab, setActiveTab] = useState('normal');
-  const [selectedPage, setSelectedPage] = useState('all');
-  const [search, setSearch] = useState('');
-  const [selectedConv, setSelectedConv] = useState(null);
-
-  useEffect(() => {
-    if (!pendingOpenConvId) return;
-    const target = conversations.find((c) => c.id === pendingOpenConvId);
-    if (target) {
-      setActiveTab(target.tab);
-      setSelectedConv(target);
-      markConversationRead(target.id);
-    }
-    clearPendingOpenConvId?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingOpenConvId, conversations]);
-
-  const [messages, setMessages] = useState([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
-
-  useEffect(() => {
-    if (!selectedConv) return;
-    const fresh = conversations.find((c) => c.id === selectedConv.id);
-    // حدّث فقط إذا تغيّرت بيانات مهمة فعلاً (لا بمجرد تغيّر المرجع كل دورة polling)
-    if (fresh && (
-      fresh.lastMessage !== selectedConv.lastMessage ||
-      fresh.unread !== selectedConv.unread ||
-      fresh.lastMessageTime !== selectedConv.lastMessageTime ||
-      fresh.orderId !== selectedConv.orderId
-    )) {
-      setSelectedConv(fresh);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations]);
-  const [composerText, setComposerText] = useState('');
-  const [sendingMsg, setSendingMsg] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recSeconds, setRecSeconds] = useState(0);
-
-  const fileInputRef = React.useRef(null);
-  const mediaRecorderRef = React.useRef(null);
-  const audioChunksRef = React.useRef([]);
-  const scrollRef = React.useRef(null);
-  const recTimerRef = React.useRef(null);
-  const recCanceledRef = React.useRef(false);
-
-  function formatRecTime(s) {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
-  }
-
-  const markConversationRead = useCallback(async (convId) => {
-    if (!convId) return;
-    setSelectedConv((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
-    setConversations?.((prev) => prev.map((c) => (
-      c.id === convId ? { ...c, unread: 0 } : c
-    )));
-    try {
-      await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() });
-    } catch (e) {
-      console.error('mark read error:', e);
-    }
-  }, [setConversations]);
-
-  const markAllRead = useCallback(async (convList) => {
-    const unreadOnes = convList.filter((c) => c.unread > 0);
-    if (unreadOnes.length === 0) return;
-    const ids = unreadOnes.map((c) => c.id);
-    setConversations?.((prev) => prev.map((c) => (
-      ids.includes(c.id) ? { ...c, unread: 0 } : c
-    )));
-    try {
-      await Promise.all(ids.map((id) => sbUpdate('alfhd_conversations', id, { unread_count: 0, last_read_at: new Date().toISOString() })));
-    } catch (e) {
-      console.error('mark all read error:', e);
-    }
-  }, [setConversations]);
-
-  // صفحة واتساب الافتراضية = أول صفحة مرتبطة (كماليات ابو علي)
-  const waPageId = useMemo(() => {
-    const connected = pages.find((p) => p.connected);
-    return connected?.id || pages[0]?.id || '';
-  }, [pages]);
-  // الصفحة الفعلية للمحادثة: نستخدم page_id الحقيقي المحفوظ دائماً.
-  // للواتساب: إن لم يكن للمحادثة page_id (محادثات قديمة)، نستخدم صفحة واتساب الافتراضية كحل أخير فقط.
-  const convPageId = (c) => c.pageId || (c.isWhatsApp ? waPageId : null);
-
-  const filtered = useMemo(() => {
-    const NEGLECT_MS = 30 * 86400000; // 30 يوماً
-    const now = Date.now();
-    return conversations.filter((c) => {
-      if (c.tab !== activeTab) return false;
-      if (selectedPage !== 'all' && convPageId(c) !== selectedPage) return false;
-      // أخفِ المحادثات القديمة المنتهية (لا رسائل منذ 30 يوماً) من تبويب العادي
-      if (activeTab === 'normal' && Number(c.unread || 0) === 0) {
-        const t = c.lastMsgTimeRaw ? new Date(c.lastMsgTimeRaw).getTime() : 0;
-        if (t > 0 && (now - t) > NEGLECT_MS) return false;
-      }
-      if (search) {
-        const q = search.trim().toLowerCase();
-        const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    }).sort((a, b) => {
-      // الأحدث أولاً دائماً (بالاعتماد على الوقت الخام)
-      const ta = a.lastMsgTimeRaw ? new Date(a.lastMsgTimeRaw).getTime() : 0;
-      const tb = b.lastMsgTimeRaw ? new Date(b.lastMsgTimeRaw).getTime() : 0;
-      return tb - ta;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, activeTab, selectedPage, search, waPageId]);
-
-  const counts = useMemo(() => {
-    const unread = { normal: 0, pinned: 0, handoff: 0 };
-    conversations.forEach((c) => {
-      if (selectedPage === 'all' || convPageId(c) === selectedPage) {
-        if (unread[c.tab] !== undefined) {
-          // عدد المحادثات التي عندها رسائل غير مقروءة (مو مجموع الأرقام)
-          if (Number(c.unread || 0) > 0) unread[c.tab] += 1;
-        }
-      }
-    });
-    return { unread };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedPage, waPageId]);
-
-  const linkedOrder = selectedConv?.orderId
-    ? orders.find((o) => o.id === selectedConv.orderId)
-    : null;
-
-  // ── كشف رسائل التحويل من الذكاء الاصطناعي ──
-  // أي رسالة تحتوي على هذه العبارات = تحويل تلقائي لتاب "ذكاء اصطناعي"
-  const HANDOFF_TRIGGERS = [
-    'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
-    'transferred this chat', 'transfer this chat',
-    'Your AI agent transferred',
-    'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
-    'نحولك للموظف', 'تحويل المحادثة',
-    'handoff', 'hand off',
-  ];
-
-  function isHandoffMessage(text) {
-    if (!text) return false;
-    const lower = text.toLowerCase();
-    return HANDOFF_TRIGGERS.some((t) => lower.includes(t.toLowerCase()));
-  }
-
-  async function maybeHandoffConversation(convId, messages) {
-    const triggered = messages.some((m) => isHandoffMessage(m.content));
-    if (!triggered) return;
-    // تحقق إن المحادثة مش مكانها الصح أصلاً
-    const conv = conversations.find((c) => c.id === convId);
-    if (!conv || conv.tab === 'handoff') return;
-    // نقل لتاب الذكاء الاصطناعي
-    setConversations?.((prev) => prev.map((c) => (
-      c.id === convId ? { ...c, tab: 'handoff' } : c
-    )));
-    try {
-      await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' });
-    } catch (e) {
-      console.error('handoff tab update error:', e);
-    }
-  }
-
-  const lastMsgTimeRef = React.useRef(null); // آخر وقت رسالة (للجلب التزايدي)
-
-  const loadMessages = useCallback(async (convId, isCancelled) => {
-    if (!convId) return;
-    try {
-      // أول تحميل: آخر 60 رسالة فقط (أسرع بكثير من جلب المحادثة كاملة)
-      const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.desc&limit=60`);
-      if (isCancelled && isCancelled()) return;
-      const mapped = (dbMsgs || []).map(mapMessageFromDb).reverse(); // نعيد الترتيب للأقدم أولاً
-      lastMsgTimeRef.current = mapped.length ? mapped[mapped.length - 1].createdAt : null;
-      setMessages(mapped);
-      await maybeHandoffConversation(convId, mapped);
-    } catch (e) {
-      console.error('load messages error:', e);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations]);
-
-  // جلب تزايدي: الرسائل الجديدة فقط منذ آخر رسالة (سريع جداً — عادة 0-2 رسالة)
-  const loadNewMessages = useCallback(async (convId, isCancelled) => {
-    if (!convId) return;
-    try {
-      const since = lastMsgTimeRef.current;
-      if (!since) return loadMessages(convId, isCancelled);
-      const q = `&conversation_id=eq.${convId}&created_at=gt.${encodeURIComponent(since)}&order=created_at.asc&limit=40`;
-      const dbMsgs = await sbSelect('alfhd_messages', q);
-      if (isCancelled && isCancelled()) return;
-      if (!dbMsgs || dbMsgs.length === 0) return; // لا جديد — لا إعادة رسم
-      const fresh = dbMsgs.map(mapMessageFromDb);
-      lastMsgTimeRef.current = fresh[fresh.length - 1].createdAt;
-      setMessages((prev) => {
-        const seen = new Set(prev.map((m) => m.id));
-        const add = fresh.filter((m) => !seen.has(m.id));
-        return add.length ? [...prev, ...add] : prev;
-      });
-      // مهم: افحص التحويل على الرسائل الجديدة (وإلا لن يُكتشف أثناء فتح المحادثة)
-      await maybeHandoffConversation(convId, fresh);
-    } catch (e) {
-      console.error('load new messages error:', e);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadMessages]);
-
-  useEffect(() => {
-    if (!selectedConv) { setMessages([]); return undefined; }
-    let cancelled = false;
-    const convId = selectedConv.id;
-    setLoadingMsgs(true);
-    lastMsgTimeRef.current = null; // محادثة جديدة — أعد الضبط
-    loadMessages(convId, () => cancelled).finally(() => { if (!cancelled) setLoadingMsgs(false); });
-    markConversationRead(convId);
-    const isWA = selectedConv.isWhatsApp;
-    const refreshOpenChat = async () => {
-      if (cancelled) return;
-      if (!isWA) {
-        try {
-          await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } });
-        } catch (_e) { /* تجاهل */ }
-      }
-      // جلب الجديد فقط بدل المحادثة كاملة — أسرع بكثير
-      if (!cancelled) await loadNewMessages(convId, () => cancelled);
-    };
-    const interval = setInterval(refreshOpenChat, isWA ? 2500 : 2500);
-    return () => { cancelled = true; clearInterval(interval); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConv?.id]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    // مرّر للأسفل فقط إذا كان المستخدم قريباً من الأسفل أصلاً (لا تقطعه وهو يقرأ القديم)
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [messages]);
-
-  function touchConvLocally(convId, lastMessage) {
-    if (!setConversations) return;
-    setConversations((prev) => prev.map((c) => (
-      c.id === convId
-        ? { ...c, lastMsg: lastMessage, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }
-        : c
-    )));
-  }
-
-  async function uploadToStorage(file, ext) {
-    const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${filename}`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': file.type || 'application/octet-stream',
-        'x-upsert': 'true',
-      },
-      body: file,
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      const isBucketMissing = res.status === 404 || /bucket not found/i.test(body);
-      if (isBucketMissing) {
-        throw new Error('مخزن الملفات غير موجود. أنشئ Bucket باسم chat-media من Supabase ← Storage واجعله Public، ثم أعد المحاولة.');
-      }
-      throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تحقق من إعدادات مخزن chat-media'}`);
-    }
-    return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`;
-  }
-
-  async function sendToFacebook(payload) {
-    const res = await fetch(FB_SEND_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'apikey': SUPABASE_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data?.error) {
-      throw new Error(data?.error || `فشل الإرسال: ${res.status}`);
-    }
-    return data;
-  }
-
-  // ── إرسال لواتساب عبر Railway Bridge (نص/صورة/صوت) ──
-  async function sendToWhatsApp(conv, { text, imageUrl, audioUrl } = {}) {
-    const phone = conv.customerPsid?.replace('wa_', '') || conv.phone;
-    if (!phone) throw new Error('رقم واتساب غير متوفر لهذه المحادثة');
-    const pageId = conv.pageId || null; // جلسة الصفحة المربوطة
-
-    let endpoint = '/send';
-    let body = { phone, message: text, pageId };
-    if (imageUrl) {
-      endpoint = '/send-image';
-      body = { phone, imageUrl, caption: text || '', pageId };
-    } else if (audioUrl) {
-      endpoint = '/send-audio';
-      body = { phone, audioUrl, pageId };
-    }
-
-    const res = await fetch(`${WA_BRIDGE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `فشل إرسال واتساب (${res.status})`);
-    }
-    return res.json().catch(() => ({}));
-  }
-
-  async function handleSendText() {
-    const text = composerText.trim();
-    if (!text || !selectedConv || sendingMsg) return;
-    setComposerText('');
-    setSendingMsg(true);
-    const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
-    setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
-    touchConvLocally(selectedConv.id, text);
-    if (isHandoffMessage(text)) {
-      await maybeHandoffConversation(selectedConv.id, [{ content: text }]);
-    }
-    try {
-      // ── واتساب: إرسال عبر Bridge ──
-      if (selectedConv.isWhatsApp) {
-        await sendToWhatsApp(selectedConv, { text });
-        // حفظ الرسالة في قاعدة البيانات
-        await sbInsert('alfhd_messages', {
-          conversation_id: selectedConv.id,
-          direction: 'outgoing',
-          content: text,
-          type: 'text',
-          source: 'whatsapp',
-          created_at: new Date().toISOString(),
-        });
-      } else {
-        // ── ماسنجر: إرسال عبر فيسبوك ──
-        await sendToFacebook({
-          pageId: selectedConv.pageId,
-          conversationId: selectedConv.id,
-          recipientPsid: selectedConv.customerPsid,
-          text,
-        });
-      }
-      await loadMessages(selectedConv.id);
-    } catch (e) {
-      console.error('send text error:', e);
-      // أرجِع النص للحقل وأزِل الرسالة المؤقتة الفاشلة حتى لا تضيع
-      setComposerText(text);
-      setMessages((prev) => prev.filter((m) => !(typeof m.id === 'string' && m.id.startsWith('temp-') && m.content === text)));
-      alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function handlePickImage(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !selectedConv) return;
-    setSendingMsg(true);
-    try {
-      const url = await uploadToStorage(file, (file.name.split('.').pop() || 'jpg').toLowerCase());
-      setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'image', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
-      touchConvLocally(selectedConv.id, '📷 صورة');
-      if (selectedConv.isWhatsApp) {
-        // ── واتساب: عبر Bridge ──
-        await sendToWhatsApp(selectedConv, { imageUrl: url });
-        await sbInsert('alfhd_messages', {
-          conversation_id: selectedConv.id, direction: 'outgoing',
-          content: null, type: 'image', media_url: url,
-          source: 'whatsapp', created_at: new Date().toISOString(),
-        });
-      } else {
-        // ── ماسنجر: عبر فيسبوك ──
-        await sendToFacebook({
-          pageId: selectedConv.pageId,
-          conversationId: selectedConv.id,
-          recipientPsid: selectedConv.customerPsid,
-          mediaUrl: url,
-          mediaType: 'image',
-        });
-      }
-      await loadMessages(selectedConv.id);
-    } catch (e) {
-      console.error('send image error:', e);
-      alert(`تعذّر إرسال الصورة:\n${e?.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSendingMsg(false);
-    }
-  }
-
-  async function startRecording() {
-    if (!selectedConv) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recCanceledRef.current = false;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-        if (recCanceledRef.current) { setRecSeconds(0); return; }
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setRecSeconds(0);
-        if (blob.size === 0) return;
-        setSendingMsg(true);
-        try {
-          const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-          const url = await uploadToStorage(file, 'webm');
-          setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'audio', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
-          touchConvLocally(selectedConv.id, '🎤 رسالة صوتية');
-          if (selectedConv.isWhatsApp) {
-            // ── واتساب: عبر Bridge ──
-            await sendToWhatsApp(selectedConv, { audioUrl: url });
-            await sbInsert('alfhd_messages', {
-              conversation_id: selectedConv.id, direction: 'outgoing',
-              content: null, type: 'audio', media_url: url,
-              source: 'whatsapp', created_at: new Date().toISOString(),
-            });
-          } else {
-            // ── ماسنجر: عبر فيسبوك ──
-            await sendToFacebook({
-              pageId: selectedConv.pageId,
-              conversationId: selectedConv.id,
-              recipientPsid: selectedConv.customerPsid,
-              mediaUrl: url,
-              mediaType: 'audio',
-            });
-          }
-          await loadMessages(selectedConv.id);
-        } catch (e) {
-          console.error('send audio error:', e);
-          alert(`تعذّر إرسال التسجيل الصوتي:\n${e?.message || 'خطأ غير معروف'}`);
-        } finally {
-          setSendingMsg(false);
-        }
-      };
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setRecording(true);
-      setRecSeconds(0);
-      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
-    } catch (e) {
-      alert('تعذّر الوصول إلى الميكروفون، تأكد من السماح بالإذن من المتصفح');
-    }
-  }
-
-  function stopRecording() {
-    recCanceledRef.current = false;
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  function cancelRecording() {
-    recCanceledRef.current = true;
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
+ const [activeTab, setActiveTab] = useState('normal');
+ const [selectedPage, setSelectedPage] = useState('all');
+ const [search, setSearch] = useState('');
+ const [selectedConv, setSelectedConv] = useState(null);
+ useEffect(() => { if (!pendingOpenConvId) return;
+  const target = conversations.find((c) => c.id === pendingOpenConvId);
+  if (target) { setActiveTab(target.tab);
+   setSelectedConv(target);
+   markConversationRead(target.id); }
+  clearPendingOpenConvId?.(); }, [pendingOpenConvId, conversations]);
+ const [messages, setMessages] = useState([]);
+ const [loadingMsgs, setLoadingMsgs] = useState(false);
+ useEffect(() => { if (!selectedConv) return;
+  const fresh = conversations.find((c) => c.id === selectedConv.id);
+  if (fresh && ( fresh.lastMessage !== selectedConv.lastMessage || fresh.unread !== selectedConv.unread || fresh.lastMessageTime !== selectedConv.lastMessageTime ||
+   fresh.orderId !== selectedConv.orderId )) { setSelectedConv(fresh); } }, [conversations]);
+ const [composerText, setComposerText] = useState('');
+ const [sendingMsg, setSendingMsg] = useState(false);
+ const [recording, setRecording] = useState(false);
+ const [recSeconds, setRecSeconds] = useState(0);
+ const fileInputRef = React.useRef(null);
+ const mediaRecorderRef = React.useRef(null);
+ const audioChunksRef = React.useRef([]);
+ const scrollRef = React.useRef(null);
+ const recTimerRef = React.useRef(null);
+ const recCanceledRef = React.useRef(false);
+ function formatRecTime(s) { const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`; }
+ const markConversationRead = useCallback(async (convId) => { if (!convId) return;
+  setSelectedConv((prev) => (prev?.id === convId ? { ...prev, unread: 0 } : prev));
+  setConversations?.((prev) => prev.map((c) => ( c.id === convId ? { ...c, unread: 0 } : c )));
+  try { await sbUpdate('alfhd_conversations', convId, { unread_count: 0, last_read_at: new Date().toISOString() }); } catch (e) { console.error('mark read error:', e); } }, [setConversations]);
+ const markAllRead = useCallback(async (convList) => { const unreadOnes = convList.filter((c) => c.unread > 0);
+  if (unreadOnes.length === 0) return;
+  const ids = unreadOnes.map((c) => c.id);
+  setConversations?.((prev) => prev.map((c) => ( ids.includes(c.id) ? { ...c, unread: 0 } : c )));
+  try { await Promise.all(ids.map((id) => sbUpdate('alfhd_conversations', id, { unread_count: 0, last_read_at: new Date().toISOString() }))); } catch (e) {
+   console.error('mark all read error:', e); } }, [setConversations]);
+ const waPageId = useMemo(() => { const connected = pages.find((p) => p.connected);
+  return connected?.id || pages[0]?.id || ''; }, [pages]);
+ const convPageId = (c) => c.pageId || (c.isWhatsApp ? waPageId : null);
+ const filtered = useMemo(() => { const NEGLECT_MS = 30 * 86400000; // 30 يوماً
+  const now = Date.now();
+  return conversations.filter((c) => { if (c.tab !== activeTab) return false;
+   if (selectedPage !== 'all' && convPageId(c) !== selectedPage) return false;
+   if (activeTab === 'normal' && Number(c.unread || 0) === 0) { const t = c.lastMsgTimeRaw ? new Date(c.lastMsgTimeRaw).getTime() : 0;
+    if (t > 0 && (now - t) > NEGLECT_MS) return false; }
+   if (search) { const q = search.trim().toLowerCase();
+    const hay = [c.customer, c.lastMsg, c.customerPsid, c.orderId].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(q)) return false; }
+   return true; }).sort((a, b) => { const ta = a.lastMsgTimeRaw ? new Date(a.lastMsgTimeRaw).getTime() : 0;
+   const tb = b.lastMsgTimeRaw ? new Date(b.lastMsgTimeRaw).getTime() : 0;
+   return tb - ta; }); }, [conversations, activeTab, selectedPage, search, waPageId]);
+ const counts = useMemo(() => { const unread = { normal: 0, pinned: 0, handoff: 0 };
+  conversations.forEach((c) => { if (selectedPage === 'all' || convPageId(c) === selectedPage) { if (unread[c.tab] !== undefined) { if (Number(c.unread || 0) > 0) unread[c.tab] += 1; } } });
+  return { unread }; }, [conversations, selectedPage, waPageId]);
+ const linkedOrder = selectedConv?.orderId ? orders.find((o) => o.id === selectedConv.orderId) : null;
+ const HANDOFF_TRIGGERS = [ 'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك', 'transferred this chat', 'transfer this chat', 'Your AI agent transferred',
+  'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا', 'نحولك للموظف', 'تحويل المحادثة', 'handoff', 'hand off', ];
+ function isHandoffMessage(text) { if (!text) return false;
+  const lower = text.toLowerCase();
+  return HANDOFF_TRIGGERS.some((t) => lower.includes(t.toLowerCase())); }
+ async function maybeHandoffConversation(convId, messages) { const triggered = messages.some((m) => isHandoffMessage(m.content));
+  if (!triggered) return;
+  const conv = conversations.find((c) => c.id === convId);
+  if (!conv || conv.tab === 'handoff') return;
+  setConversations?.((prev) => prev.map((c) => ( c.id === convId ? { ...c, tab: 'handoff' } : c )));
+  try { await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' }); } catch (e) { console.error('handoff tab update error:', e); } }
+ const lastMsgTimeRef = React.useRef(null); // آخر وقت رسالة (للجلب التزايدي)
+ const loadMessages = useCallback(async (convId, isCancelled) => { if (!convId) return;
+  try { const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.desc&limit=60`);
+   if (isCancelled && isCancelled()) return;
+   const mapped = (dbMsgs || []).map(mapMessageFromDb).reverse(); // نعيد الترتيب للأقدم أولاً
+   lastMsgTimeRef.current = mapped.length ? mapped[mapped.length - 1].createdAt : null;
+   setMessages(mapped);
+   await maybeHandoffConversation(convId, mapped); } catch (e) { console.error('load messages error:', e); } }, [conversations]);
+ const loadNewMessages = useCallback(async (convId, isCancelled) => { if (!convId) return;
+  try { const since = lastMsgTimeRef.current;
+   if (!since) return loadMessages(convId, isCancelled);
+   const q = `&conversation_id=eq.${convId}&created_at=gt.${encodeURIComponent(since)}&order=created_at.asc&limit=40`;
+   const dbMsgs = await sbSelect('alfhd_messages', q);
+   if (isCancelled && isCancelled()) return;
+   if (!dbMsgs || dbMsgs.length === 0) return; // لا جديد — لا إعادة رسم
+   const fresh = dbMsgs.map(mapMessageFromDb);
+   lastMsgTimeRef.current = fresh[fresh.length - 1].createdAt;
+   setMessages((prev) => { const seen = new Set(prev.map((m) => m.id));
+    const add = fresh.filter((m) => !seen.has(m.id));
+    return add.length ? [...prev, ...add] : prev; });
+   await maybeHandoffConversation(convId, fresh); } catch (e) { console.error('load new messages error:', e); } }, [loadMessages]);
+ useEffect(() => { if (!selectedConv) { setMessages([]); return undefined; }
+  let cancelled = false;
+  const convId = selectedConv.id;
+  setLoadingMsgs(true);
+  lastMsgTimeRef.current = null; // محادثة جديدة — أعد الضبط
+  loadMessages(convId, () => cancelled).finally(() => { if (!cancelled) setLoadingMsgs(false); });
+  markConversationRead(convId);
+  const isWA = selectedConv.isWhatsApp;
+  const refreshOpenChat = async () => { if (cancelled) return;
+   if (!isWA) { try { await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } }); } catch (_e) { /* تجاهل */ } }
+   if (!cancelled) await loadNewMessages(convId, () => cancelled); };
+  const interval = setInterval(refreshOpenChat, isWA ? 2500 : 2500);
+  return () => { cancelled = true; clearInterval(interval); }; }, [selectedConv?.id]);
+ useEffect(() => { const el = scrollRef.current;
+  if (!el) return;
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+  if (nearBottom) el.scrollTop = el.scrollHeight; }, [messages]);
+ function touchConvLocally(convId, lastMessage) { if (!setConversations) return;
+  setConversations((prev) => prev.map((c) => ( c.id === convId ? { ...c, lastMsg: lastMessage, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) } : c ))); }
+ async function uploadToStorage(file, ext) { const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/chat-media/${filename}`, { method: 'POST', headers: { 'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true', }, body: file, });
+  if (!res.ok) { const body = await res.text().catch(() => '');
+   const isBucketMissing = res.status === 404 || /bucket not found/i.test(body);
+   if (isBucketMissing) { throw new Error('مخزن الملفات غير موجود. أنشئ Bucket باسم chat-media من Supabase ← Storage واجعله Public، ثم أعد المحاولة.'); }
+   throw new Error(`فشل رفع الملف (${res.status}): ${body || 'تحقق من إعدادات مخزن chat-media'}`); }
+  return `${SUPABASE_URL}/storage/v1/object/public/chat-media/${filename}`; }
+ async function sendToFacebook(payload) { const res = await fetch(FB_SEND_FUNCTION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json',
+    'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY, }, body: JSON.stringify(payload), });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.error) { throw new Error(data?.error || `فشل الإرسال: ${res.status}`); }
+  return data; }
+ async function sendToWhatsApp(conv, { text, imageUrl, audioUrl } = {}) { const phone = conv.customerPsid?.replace('wa_', '') || conv.phone;
+  if (!phone) throw new Error('رقم واتساب غير متوفر لهذه المحادثة');
+  const pageId = conv.pageId || null; // جلسة الصفحة المربوطة
+  let endpoint = '/send';
+  let body = { phone, message: text, pageId };
+  if (imageUrl) { endpoint = '/send-image';
+   body = { phone, imageUrl, caption: text || '', pageId }; } else if (audioUrl) { endpoint = '/send-audio';
+   body = { phone, audioUrl, pageId }; }
+  const res = await fetch(`${WA_BRIDGE_URL}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), });
+  if (!res.ok) { const err = await res.json().catch(() => ({}));
+   throw new Error(err.error || `فشل إرسال واتساب (${res.status})`); }
+  return res.json().catch(() => ({})); }
+ async function handleSendText() { const text = composerText.trim();
+  if (!text || !selectedConv || sendingMsg) return;
+  setComposerText('');
+  setSendingMsg(true);
+  const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
+  setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
+  touchConvLocally(selectedConv.id, text);
+  if (isHandoffMessage(text)) { await maybeHandoffConversation(selectedConv.id, [{ content: text }]); }
+  try { if (selectedConv.isWhatsApp) { await sendToWhatsApp(selectedConv, { text });
+    await sbInsert('alfhd_messages', { conversation_id: selectedConv.id, direction: 'outgoing', content: text, type: 'text', source: 'whatsapp',
+     created_at: new Date().toISOString(), }); } else { await sendToFacebook({ pageId: selectedConv.pageId, conversationId: selectedConv.id, recipientPsid: selectedConv.customerPsid, text, }); }
+   await loadMessages(selectedConv.id); } catch (e) { console.error('send text error:', e);
+   setComposerText(text);
+   setMessages((prev) => prev.filter((m) => !(typeof m.id === 'string' && m.id.startsWith('temp-') && m.content === text)));
+   alert(`تعذّر إرسال الرسالة:\n${e?.message || 'خطأ غير معروف'}`); } finally { setSendingMsg(false); } }
+ async function handlePickImage(e) { const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file || !selectedConv) return;
+  setSendingMsg(true);
+  try { const url = await uploadToStorage(file, (file.name.split('.').pop() || 'jpg').toLowerCase());
+   setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'image', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
+   touchConvLocally(selectedConv.id, '📷 صورة');
+   if (selectedConv.isWhatsApp) { await sendToWhatsApp(selectedConv, { imageUrl: url });
+    await sbInsert('alfhd_messages', { conversation_id: selectedConv.id, direction: 'outgoing', content: null, type: 'image', media_url: url,
+     source: 'whatsapp', created_at: new Date().toISOString(), }); } else { await sendToFacebook({ pageId: selectedConv.pageId, conversationId: selectedConv.id,
+     recipientPsid: selectedConv.customerPsid, mediaUrl: url, mediaType: 'image', }); }
+   await loadMessages(selectedConv.id); } catch (e) { console.error('send image error:', e);
+   alert(`تعذّر إرسال الصورة:\n${e?.message || 'خطأ غير معروف'}`); } finally { setSendingMsg(false); } }
+ async function startRecording() { if (!selectedConv) return;
+  try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+   const recorder = new MediaRecorder(stream);
+   audioChunksRef.current = [];
+   recCanceledRef.current = false;
+   recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+   recorder.onstop = async () => { stream.getTracks().forEach((t) => t.stop());
     if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+    if (recCanceledRef.current) { setRecSeconds(0); return; }
+    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
     setRecSeconds(0);
-  }
-
-  // ── ألوان TG مختصرة ──
-  const TG_PANEL = '#17212B';
-  const TG_INPUT = '#242F3D';
-  const TG_BLUE  = '#2AABEE';
-  const TG_DIM   = '#546880';
-  const TG_SUB   = '#8B9AB3';
-  const TG_TEXT  = '#F5F5F5';
-  const TG_RED   = '#E53935';
-  const TG_BDR   = 'rgba(255,255,255,0.07)';
-
-  const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'ذكاء اصطناعي' };
-  const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
-
-  return (
-    /* ─── حاوية المحادثات ─── */
-    <div style={{
-      display: 'flex', overflow: 'hidden',
-      direction: 'rtl',
-      background: '#0E1621',
-      width: '100%',
-      height: '100%',
-    }} className="alfhd-conv-fullscreen">
-
-      {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
-      <div
-        style={{
-          width: 340, minWidth: 280, maxWidth: 360,
-          display: 'flex', flexDirection: 'column',
-          background: TG_PANEL,
-          borderLeft: `1px solid ${TG_BDR}`,
-          height: '100%', overflow: 'hidden', flexShrink: 0,
-        }}
-        className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
+    if (blob.size === 0) return;
+    setSendingMsg(true);
+    try { const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+     const url = await uploadToStorage(file, 'webm');
+     setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: null, type: 'audio', mediaUrl: url, time: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) }]);
+     touchConvLocally(selectedConv.id, '🎤 رسالة صوتية');
+     if (selectedConv.isWhatsApp) { await sendToWhatsApp(selectedConv, { audioUrl: url });
+      await sbInsert('alfhd_messages', { conversation_id: selectedConv.id, direction: 'outgoing', content: null, type: 'audio', media_url: url,
+       source: 'whatsapp', created_at: new Date().toISOString(), }); } else { await sendToFacebook({ pageId: selectedConv.pageId, conversationId: selectedConv.id,
+       recipientPsid: selectedConv.customerPsid, mediaUrl: url, mediaType: 'audio', }); }
+     await loadMessages(selectedConv.id); } catch (e) { console.error('send audio error:', e);
+     alert(`تعذّر إرسال التسجيل الصوتي:\n${e?.message || 'خطأ غير معروف'}`); } finally { setSendingMsg(false); } };
+   recorder.start();
+   mediaRecorderRef.current = recorder;
+   setRecording(true);
+   setRecSeconds(0);
+   recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000); } catch (e) { alert('تعذّر الوصول إلى الميكروفون، تأكد من السماح بالإذن من المتصفح'); } }
+ function stopRecording() { recCanceledRef.current = false;
+  mediaRecorderRef.current?.stop();
+  setRecording(false); }
+ function cancelRecording() { recCanceledRef.current = true;
+  mediaRecorderRef.current?.stop();
+  setRecording(false);
+  if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+  setRecSeconds(0); }
+ const TG_PANEL = '#17212B';
+ const TG_INPUT = '#242F3D';
+ const TG_BLUE  = '#2AABEE';
+ const TG_DIM   = '#546880';
+ const TG_SUB   = '#8B9AB3';
+ const TG_TEXT  = '#F5F5F5';
+ const TG_RED   = '#E53935';
+ const TG_BDR   = 'rgba(255,255,255,0.07)';
+ const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'ذكاء اصطناعي' };
+ const tabIcons  = { normal: MessageSquare, pinned: Pin, handoff: Bot };
+ return ( /* ─── حاوية المحادثات ─── */
+  <div style={{ display: 'flex', overflow: 'hidden', direction: 'rtl', background: '#0E1621', width: '100%', height: '100%', }} className="alfhd-conv-fullscreen">
+   {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
+   <div
+    style={{ width: 340, minWidth: 280, maxWidth: 360, display: 'flex', flexDirection: 'column', background: TG_PANEL, borderLeft: `1px solid ${TG_BDR}`,
+     height: '100%', overflow: 'hidden', flexShrink: 0, }}
+    className={`alfhd-conv-list${selectedConv ? ' alfhd-conv-list-hidden-mobile' : ''}`}
+   >
+    {/* ── رأس القائمة: شعار + فلتر صفحات ── */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px 11px', borderBottom: `1px solid ${TG_BDR}`, flexShrink: 0, }}>
+     {/* شعار */}
+     <div style={{ fontSize: 15, fontWeight: 800, color: TG_TEXT, letterSpacing: '-0.01em', flexShrink: 0 }}>AlFhd</div>
+     {/* فلتر الصفحات — في الوسط */}
+     <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: TG_INPUT, borderRadius: 22, padding: '6px 13px', border: '1px solid rgba(255,255,255,0.07)',
+       boxShadow: '0 2px 8px rgba(0,0,0,0.3)', }}>
+       <Facebook size={13} color={TG_BLUE} />
+       <select
+        value={selectedPage}
+        onChange={(e) => setSelectedPage(e.target.value)}
+        style={{ background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 12, fontWeight: 600, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif", }}
+       >
+        <option value="all">كل الصفحات ({pages.length})</option>
+        {pages.map((p) => ( <option key={p.id} value={p.id}>{p.name}</option> ))}
+       </select>
+       <ChevronDown size={12} color={TG_DIM} />
+      </div>
+     </div>
+     {/* أيقونة البحث */}
+     <button
+      onClick={() => {/* toggle search */}}
+      style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+     >
+      <Search size={17} />
+     </button>
+    </div>
+    {/* ── بحث ── */}
+    <div style={{ padding: '8px 10px 4px', flexShrink: 0 }}>
+     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: TG_INPUT, borderRadius: 20, padding: '7px 13px', }}>
+      <Search size={14} color={TG_DIM} />
+      <input
+       placeholder="بحث باسم العميل..."
+       value={search}
+       onChange={(e) => setSearch(e.target.value)}
+       style={{ background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13, width: '100%', fontFamily: "'Cairo', sans-serif" }}
+      />
+     </div>
+    </div>
+    {/* ── تبويبات الثلاثة — أفقية متساوية ── */}
+    <div style={{ display: 'flex', flexShrink: 0, borderBottom: `1px solid ${TG_BDR}`, padding: '6px 8px 0', gap: 4, }}>
+     {CONV_TABS.map((tab) => { const Icon = tabIcons[tab.id] || MessageSquare;
+      const active = activeTab === tab.id;
+      const unreadCount = counts.unread[tab.id] || 0;
+      return ( <button
+        key={tab.id}
+        onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '7px 4px 9px', background: 'transparent', border: 'none',
+         borderBottom: active ? `2px solid ${TG_BLUE}` : '2px solid transparent', color: active ? TG_BLUE : TG_DIM, fontSize: 11.5, fontWeight: 700, transition: 'all 0.15s ease',
+         position: 'relative', cursor: 'pointer', }}
+       >
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+         <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
+         {/* عداد الغير مقروء فقط — أحمر */}
+         {unreadCount > 0 && ( <span style={{ position: 'absolute', top: -7, right: -10, minWidth: 16, height: 16, padding: '0 4px',
+           borderRadius: 20, background: '#E53935', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center',
+           border: `2px solid #17212B`, lineHeight: 1, }}>
+           {unreadCount > 99 ? '99+' : unreadCount}
+          </span> )}
+        </div>
+        <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
+         {tabLabels[tab.id]}
+        </span>
+        {/* لا يوجد عدد إجمالي — فقط الأحمر للغير مقروء */}
+       </button> ); })}
+    </div>
+    {/* ── قائمة المحادثات ── */}
+    <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+     {/* زر تعليم الكل كمقروء */}
+     {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && ( <button
+       onClick={() => markAllRead(filtered)}
+       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '7px', background: 'rgba(42,171,238,0.07)',
+        border: 'none', color: TG_BLUE, fontSize: 11.5, fontWeight: 600, }}
       >
-        {/* ── رأس القائمة: شعار + فلتر صفحات ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '13px 14px 11px',
-          borderBottom: `1px solid ${TG_BDR}`,
-          flexShrink: 0,
-        }}>
-          {/* شعار */}
-          <div style={{ fontSize: 15, fontWeight: 800, color: TG_TEXT, letterSpacing: '-0.01em', flexShrink: 0 }}>AlFhd</div>
-
-          {/* فلتر الصفحات — في الوسط */}
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: TG_INPUT, borderRadius: 22, padding: '6px 13px',
-              border: '1px solid rgba(255,255,255,0.07)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-            }}>
-              <Facebook size={13} color={TG_BLUE} />
-              <select
-                value={selectedPage}
-                onChange={(e) => setSelectedPage(e.target.value)}
-                style={{
-                  background: 'transparent', border: 'none', color: TG_TEXT,
-                  fontSize: 12, fontWeight: 600, appearance: 'none',
-                  cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
-                }}
-              >
-                <option value="all">كل الصفحات ({pages.length})</option>
-                {pages.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={12} color={TG_DIM} />
-            </div>
+       <CheckCircle2 size={13} />
+       تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
+      </button> )}
+     {filtered.length === 0 ? ( <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TG_DIM, fontSize: 13 }}>
+       <MessageSquare size={32} color={TG_DIM} />
+       <p>لا توجد محادثات هنا</p>
+      </div> ) : ( filtered.map((c) => { const isActive = selectedConv?.id === c.id;
+       const hasUnread = c.unread > 0;
+       return ( <button
+         key={c.id}
+         onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
+         className="alfhd-conv-item"
+         style={{ display: 'flex', gap: 12, padding: '11px 14px', width: '100%', background: 'transparent', border: 'none',
+          borderRight: isActive ? `3px solid ${TG_BLUE}` : '3px solid transparent', borderRadius: 0, textAlign: 'right', alignItems: 'center',
+          backgroundColor: isActive ? 'rgba(42,171,238,0.13)' : 'transparent', transition: 'background 0.12s ease', minHeight: 72, }}
+        >
+         {/* أفاتار أكبر */}
+         <div style={{ flexShrink: 0 }}>
+          <ConvAvatar conv={c} size="lg" />
+         </div>
+         {/* المحتوى */}
+         <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
+          {/* السطر الأول: الاسم + الوقت */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+           <span style={{ fontSize: 14, fontWeight: hasUnread ? 800 : 600, color: TG_TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: 'calc(100% - 60px)', }}>{c.customer}</span>
+           <span style={{ fontSize: 12, color: hasUnread ? TG_BLUE : TG_DIM, flexShrink: 0, fontWeight: hasUnread ? 700 : 400, }}>{c.time}</span>
           </div>
-
-          {/* أيقونة البحث */}
-          <button
-            onClick={() => {/* toggle search */}}
-            style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', color: TG_SUB, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          {/* السطر الثاني: آخر رسالة + عداد */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
+           <span style={{ fontSize: 12.5, color: hasUnread ? '#A8B8CC' : TG_SUB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+            fontWeight: hasUnread ? 500 : 400, }}>{c.lastMsg || 'لا توجد رسائل'}</span>
+           {/* عداد الغير مقروء — أحمر واضح */}
+           {hasUnread && ( <span style={{ background: '#E53935', color: '#fff', borderRadius: 20, fontSize: 12, fontWeight: 800, padding: '2px 7px', minWidth: 20, height: 20,
+             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 6px rgba(229,57,53,0.4)', }}>
+             {c.unread > 99 ? '99+' : c.unread}
+            </span> )}
+          </div>
+          {/* طلب مثبّت — صغير تحت */}
+          {c.orderId && ( <div style={{ marginTop: 3, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: TG_BLUE, fontWeight: 600,
+            background: 'rgba(42,171,238,0.10)', borderRadius: 10, padding: '1px 6px', }}>
+            📦 طلب مثبّت
+           </div> )}
+         </div>
+        </button> ); }) )}
+    </div>
+   </div>
+   {/* ══════════════ منطقة المحادثة (يسار) ══════════════ */}
+   <div
+    style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0, }}
+    className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
+   >
+    {selectedConv ? ( <>
+      {/* ── هيدر المحادثة ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 16px', borderBottom: `1px solid ${TG_BDR}`, background: TG_PANEL, flexShrink: 0,
+      }} className="alfhd-chat-detail-header">
+       <button
+        onClick={() => setSelectedConv(null)}
+        style={{ display: 'none', width: 32, height: 32, borderRadius: 9, background: TG_INPUT, border: 'none', color: TG_SUB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+        className="alfhd-conv-back-btn"
+       >
+        <ArrowRight size={18} />
+       </button>
+       <ConvAvatar conv={selectedConv} size="lg" />
+       <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 800, color: TG_TEXT }}>{selectedConv.customer}</div>
+        <div style={{ fontSize: 12, color: TG_DIM, fontWeight: 500 }}>
+         {pages.find((p) => p.id === convPageId(selectedConv))?.name}
+        </div>
+       </div>
+       {!selectedConv.orderId && ( <button
+         onClick={() => onCreateOrderFromConv?.(selectedConv)}
+         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
+          color: TG_BLUE, fontSize: 12, fontWeight: 700, flexShrink: 0, }}
+        >
+         <Pin size={13} /> تثبيت طلب
+        </button> )}
+      </div>
+      {/* ── كرت الطلب المثبّت ── */}
+      {linkedOrder && ( <div style={{ background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`, padding: '10px 16px', flexShrink: 0, }} className="alfhd-linked-order">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: TG_BLUE, marginBottom: 8 }}>
+         <Pin size={13} color={TG_BLUE} /> طلب مثبّت بهذه المحادثة
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11.5, color: TG_DIM }}>رقم الطلب</span>
+          <span style={{ fontSize: 12.5, color: TG_TEXT, fontWeight: 600 }}>#{linkedOrder.orderNo}</span>
+         </div>
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11.5, color: TG_DIM }}>مرحلة الطلب</span>
+          <OrderStagePill order={linkedOrder} />
+         </div>
+         {linkedOrder.stage === 'delivery' && ( <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+           <span style={{ fontSize: 11.5, color: TG_DIM }}>حالة التوصيل</span>
+           <StatusPill status={linkedOrder.status} />
+          </div> )}
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11.5, color: TG_DIM }}>المبلغ</span>
+          <span style={{ fontSize: 12.5, color: TG_BLUE, fontWeight: 700 }}>{linkedOrder.total.toLocaleString()} د.ع</span>
+         </div>
+        </div>
+        <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '7px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
+         <Eye size={13} /> عرض تفاصيل الطلب
+        </button>
+       </div> )}
+      {/* ── منطقة الرسائل ── */}
+      <div
+       style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 16px', background: '#0E1621', }}
+       ref={scrollRef}
+       className="alfhd-chat-scroll"
+      >
+       {loadingMsgs ? ( <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+         <RefreshCw size={22} color={TG_DIM} style={{ animation: 'spin 1s linear infinite' }} />
+        </div> ) : messages.length === 0 ? ( <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 11, color: TG_DIM, fontSize: 13 }}>
+         <MessageSquare size={34} color={TG_DIM} />
+         <p>لا توجد رسائل بعد</p>
+        </div> ) : ( messages.map((m, idx) => { const dayLabel = (() => { if (!m.createdAt) return idx === 0 ? 'اليوم' : null;
+          const d = new Date(m.createdAt);
+          const prev = idx > 0 ? messages[idx - 1].createdAt : null;
+          const sameDay = prev && new Date(prev).toDateString() === d.toDateString();
+          if (sameDay) return null;
+          const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
+          if (d.toDateString() === today.toDateString()) return 'اليوم';
+          if (d.toDateString() === yest.toDateString()) return 'أمس';
+          return d.toLocaleDateString('ar-IQ', { day: 'numeric', month: 'long' }); })();
+         const prevM = idx > 0 ? messages[idx - 1] : null;
+         const grouped = prevM && prevM.direction === m.direction && !dayLabel && m.createdAt && prevM.createdAt && (new Date(m.createdAt) - new Date(prevM.createdAt)) < 120000;
+         return ( <React.Fragment key={m.id}>
+          {dayLabel && (
+           <div style={{ alignSelf: 'center', margin: idx === 0 ? '4px 0 10px' : '12px 0 10px', padding: '4px 12px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', backdropFilter: 'blur(8px)', color: TG_SUB, fontSize: 11.5, fontWeight: 700 }}>
+            {dayLabel}
+           </div> )}
+          <div
+           className="alfhd-chat-bubble-row alfhd-msg-row"
+           style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
           >
-            <Search size={17} />
-          </button>
-        </div>
-
-        {/* ── بحث ── */}
-        <div style={{ padding: '8px 10px 4px', flexShrink: 0 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: TG_INPUT, borderRadius: 20, padding: '7px 13px',
-          }}>
-            <Search size={14} color={TG_DIM} />
-            <input
-              placeholder="بحث باسم العميل..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13, width: '100%', fontFamily: "'Cairo', sans-serif" }}
-            />
-          </div>
-        </div>
-
-        {/* ── تبويبات الثلاثة — أفقية متساوية ── */}
-        <div style={{
-          display: 'flex', flexShrink: 0,
-          borderBottom: `1px solid ${TG_BDR}`,
-          padding: '6px 8px 0',
-          gap: 4,
-        }}>
-          {CONV_TABS.map((tab) => {
-            const Icon = tabIcons[tab.id] || MessageSquare;
-            const active = activeTab === tab.id;
-            const unreadCount = counts.unread[tab.id] || 0;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); setSelectedConv(null); }}
-                style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 3, padding: '7px 4px 9px',
-                  background: 'transparent', border: 'none',
-                  borderBottom: active ? `2px solid ${TG_BLUE}` : '2px solid transparent',
-                  color: active ? TG_BLUE : TG_DIM,
-                  fontSize: 10, fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                  position: 'relative', cursor: 'pointer',
-                }}
-              >
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={17} strokeWidth={active ? 2.4 : 1.8} />
-                  {/* عداد الغير مقروء فقط — أحمر */}
-                  {unreadCount > 0 && (
-                    <span style={{
-                      position: 'absolute', top: -7, right: -10,
-                      minWidth: 16, height: 16, padding: '0 4px',
-                      borderRadius: 20, background: '#E53935', color: '#fff',
-                      fontSize: 9, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: `2px solid #17212B`,
-                      lineHeight: 1,
-                    }}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: 9.5, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 2px' }}>
-                  {tabLabels[tab.id]}
-                </span>
-                {/* لا يوجد عدد إجمالي — فقط الأحمر للغير مقروء */}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── قائمة المحادثات ── */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          {/* زر تعليم الكل كمقروء */}
-          {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && (
-            <button
-              onClick={() => markAllRead(filtered)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                width: '100%', padding: '7px', background: 'rgba(42,171,238,0.07)',
-                border: 'none', color: TG_BLUE, fontSize: 11.5, fontWeight: 600,
-              }}
-            >
-              <CheckCircle2 size={13} />
-              تعليم الكل كمقروء ({filtered.reduce((s, c) => s + Number(c.unread || 0), 0)})
-            </button>
-          )}
-
-          {filtered.length === 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 20px', color: TG_DIM, fontSize: 13 }}>
-              <MessageSquare size={32} color={TG_DIM} />
-              <p>لا توجد محادثات هنا</p>
-            </div>
-          ) : (
-            filtered.map((c) => {
-              const isActive = selectedConv?.id === c.id;
-              const hasUnread = c.unread > 0;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => { setSelectedConv(c); markConversationRead(c.id); }}
-                  className="alfhd-conv-item"
-                  style={{
-                    display: 'flex', gap: 12, padding: '11px 14px',
-                    width: '100%', background: 'transparent', border: 'none',
-                    borderRight: isActive ? `3px solid ${TG_BLUE}` : '3px solid transparent',
-                    borderRadius: 0, textAlign: 'right', alignItems: 'center',
-                    backgroundColor: isActive ? 'rgba(42,171,238,0.13)' : 'transparent',
-                    transition: 'background 0.12s ease',
-                    minHeight: 72,
-                  }}
-                >
-                  {/* أفاتار أكبر */}
-                  <div style={{ flexShrink: 0 }}>
-                    <ConvAvatar conv={c} size="lg" />
-                  </div>
-
-                  {/* المحتوى */}
-                  <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                    {/* السطر الأول: الاسم + الوقت */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{
-                        fontSize: 14, fontWeight: hasUnread ? 800 : 600,
-                        color: TG_TEXT,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        maxWidth: 'calc(100% - 60px)',
-                      }}>{c.customer}</span>
-                      <span style={{
-                        fontSize: 11, color: hasUnread ? TG_BLUE : TG_DIM,
-                        flexShrink: 0, fontWeight: hasUnread ? 700 : 400,
-                      }}>{c.time}</span>
-                    </div>
-
-                    {/* السطر الثاني: آخر رسالة + عداد */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' }}>
-                      <span style={{
-                        fontSize: 12.5,
-                        color: hasUnread ? '#A8B8CC' : TG_SUB,
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap', flex: 1,
-                        fontWeight: hasUnread ? 500 : 400,
-                      }}>{c.lastMsg || 'لا توجد رسائل'}</span>
-
-                      {/* عداد الغير مقروء — أحمر واضح */}
-                      {hasUnread && (
-                        <span style={{
-                          background: '#E53935',
-                          color: '#fff',
-                          borderRadius: 20,
-                          fontSize: 11, fontWeight: 800,
-                          padding: '2px 7px',
-                          minWidth: 20, height: 20,
-                          display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', flexShrink: 0,
-                          boxShadow: '0 2px 6px rgba(229,57,53,0.4)',
-                        }}>
-                          {c.unread > 99 ? '99+' : c.unread}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* طلب مثبّت — صغير تحت */}
-                    {c.orderId && (
-                      <div style={{
-                        marginTop: 3, display: 'inline-flex', alignItems: 'center', gap: 3,
-                        fontSize: 10, color: TG_BLUE, fontWeight: 600,
-                        background: 'rgba(42,171,238,0.10)', borderRadius: 10, padding: '1px 6px',
-                      }}>
-                        📦 طلب مثبّت
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ══════════════ منطقة المحادثة (يسار) ══════════════ */}
-      <div
-        style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0,
-        }}
-        className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
-      >
-        {selectedConv ? (
-          <>
-            {/* ── هيدر المحادثة ── */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 11,
-              padding: '12px 16px', borderBottom: `1px solid ${TG_BDR}`,
-              background: TG_PANEL, flexShrink: 0,
-            }} className="alfhd-chat-detail-header">
-              <button
-                onClick={() => setSelectedConv(null)}
-                style={{ display: 'none', width: 32, height: 32, borderRadius: 9, background: TG_INPUT, border: 'none', color: TG_SUB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                className="alfhd-conv-back-btn"
-              >
-                <ArrowRight size={18} />
-              </button>
-              <ConvAvatar conv={selectedConv} size="lg" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: TG_TEXT }}>{selectedConv.customer}</div>
-                <div style={{ fontSize: 11, color: TG_DIM, fontWeight: 500 }}>
-                  {pages.find((p) => p.id === convPageId(selectedConv))?.name}
-                </div>
+           <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
+            {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} onClick={() => window.open(m.mediaUrl, '_blank')} onError={(e)=>{e.target.style.display='none';}} />}
+            {m.type === 'video' && m.mediaUrl && <video controls src={m.mediaUrl} style={styles.msgImage} />}
+            {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
+            {(m.type === 'file' || m.type === 'document' || (m.mediaUrl && !['image','video','audio','text'].includes(m.type))) && m.mediaUrl && (
+             <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" download style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', textDecoration: 'none', color: 'inherit', minWidth: 180 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(42,171,238,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FileText size={19} color="#2AABEE" /></div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+               <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fileName || m.content || 'ملف مرفق'}</div>
+               <div style={{ fontSize: 12, opacity: 0.7, marginTop: 1 }}>اضغط للفتح أو التحميل</div>
               </div>
-              {!selectedConv.orderId && (
-                <button
-                  onClick={() => onCreateOrderFromConv?.(selectedConv)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
-                    background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
-                    color: TG_BLUE, fontSize: 12, fontWeight: 700, flexShrink: 0,
-                  }}
-                >
-                  <Pin size={13} /> تثبيت طلب
-                </button>
-              )}
-            </div>
-
-            {/* ── كرت الطلب المثبّت ── */}
-            {linkedOrder && (
-              <div style={{
-                background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`,
-                padding: '10px 16px', flexShrink: 0,
-              }} className="alfhd-linked-order">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, color: TG_BLUE, marginBottom: 8 }}>
-                  <Pin size={13} color={TG_BLUE} /> طلب مثبّت بهذه المحادثة
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11.5, color: TG_DIM }}>رقم الطلب</span>
-                    <span style={{ fontSize: 12.5, color: TG_TEXT, fontWeight: 600 }}>#{linkedOrder.orderNo}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11.5, color: TG_DIM }}>مرحلة الطلب</span>
-                    <OrderStagePill order={linkedOrder} />
-                  </div>
-                  {linkedOrder.stage === 'delivery' && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11.5, color: TG_DIM }}>حالة التوصيل</span>
-                      <StatusPill status={linkedOrder.status} />
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11.5, color: TG_DIM }}>المبلغ</span>
-                    <span style={{ fontSize: 12.5, color: TG_BLUE, fontWeight: 700 }}>{linkedOrder.total.toLocaleString()} د.ع</span>
-                  </div>
-                </div>
-                <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 9, padding: '7px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
-                  <Eye size={13} /> عرض تفاصيل الطلب
-                </button>
-              </div>
+              <Download size={16} style={{ opacity: 0.7, flexShrink: 0 }} />
+             </a>
             )}
-
-            {/* ── منطقة الرسائل ── */}
-            <div
-              style={{
-                flex: 1, overflowY: 'auto', overflowX: 'hidden',
-                display: 'flex', flexDirection: 'column',
-                padding: '14px 16px', background: '#0E1621',
-              }}
-              ref={scrollRef}
-              className="alfhd-chat-scroll"
-            >
-              {loadingMsgs ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                  <RefreshCw size={22} color={TG_DIM} style={{ animation: 'spin 1s linear infinite' }} />
-                </div>
-              ) : messages.length === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 11, color: TG_DIM, fontSize: 13 }}>
-                  <MessageSquare size={34} color={TG_DIM} />
-                  <p>لا توجد رسائل بعد</p>
-                </div>
-              ) : (
-                messages.map((m, idx) => {
-                  // فاصل التاريخ الذكي (اليوم/أمس/تاريخ) عند تغيّر اليوم
-                  const dayLabel = (() => {
-                    if (!m.createdAt) return idx === 0 ? 'اليوم' : null;
-                    const d = new Date(m.createdAt);
-                    const prev = idx > 0 ? messages[idx - 1].createdAt : null;
-                    const sameDay = prev && new Date(prev).toDateString() === d.toDateString();
-                    if (sameDay) return null;
-                    const today = new Date(); const yest = new Date(); yest.setDate(today.getDate() - 1);
-                    if (d.toDateString() === today.toDateString()) return 'اليوم';
-                    if (d.toDateString() === yest.toDateString()) return 'أمس';
-                    return d.toLocaleDateString('ar-IQ', { day: 'numeric', month: 'long' });
-                  })();
-                  // تجميع: هل الرسالة السابقة بنفس الاتجاه وقريبة بالوقت؟
-                  const prevM = idx > 0 ? messages[idx - 1] : null;
-                  const grouped = prevM && prevM.direction === m.direction && !dayLabel &&
-                    m.createdAt && prevM.createdAt &&
-                    (new Date(m.createdAt) - new Date(prevM.createdAt)) < 120000;
-                  return (
-                  <React.Fragment key={m.id}>
-                    {dayLabel && (
-                      <div style={{ alignSelf: 'center', margin: idx === 0 ? '4px 0 10px' : '12px 0 10px', padding: '4px 12px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', backdropFilter: 'blur(8px)', color: TG_SUB, fontSize: 10.5, fontWeight: 700 }}>
-                        {dayLabel}
-                      </div>
-                    )}
-                    <div
-                      className="alfhd-chat-bubble-row alfhd-msg-row"
-                      style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
-                    >
-                      <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
-                        {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} onError={(e)=>{e.target.style.display='none';}} />}
-                        {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
-                        {m.content && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
-                        <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
-                      </div>
-                    </div>
-                  </React.Fragment>
-                  );
-                })
-              )}
-            </div>
-
-            {/* ── شريط الكتابة ── */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: TG_PANEL, borderTop: `1px solid ${TG_BDR}`,
-              padding: '10px 14px', flexShrink: 0,
-            }} className="alfhd-composer-bar">
-              <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
-              {recording ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' }}>
-                  <button style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TG_RED, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelRecording}><Trash2 size={17} /></button>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: TG_RED }} className="alfhd-rec-dot" />
-                    <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
-                    <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
-                  </div>
-                  <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
-                </div>
-              ) : (
-                <>
-                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
-                  <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
-                  <input
-                    value={composerText}
-                    onChange={(e) => setComposerText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
-                    placeholder="اكتب رسالة..."
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" }}
-                    disabled={sendingMsg}
-                  />
-                  <button
-                    style={{ width: 36, height: 36, borderRadius: '50%', background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
-                    onClick={handleSendText}
-                    disabled={sendingMsg || !composerText.trim()}
-                  >
-                    <Send size={16} />
-                  </button>
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 14, color: TG_DIM }}>
-            <MessageSquare size={52} color={TG_DIM} strokeWidth={1.5} />
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: TG_SUB, marginBottom: 5 }}>اختر محادثة</div>
-              <div style={{ fontSize: 12.5, color: TG_DIM }}>للعرض والتواصل مع الزبون</div>
-            </div>
+            {m.content && m.type !== 'file' && m.type !== 'document' && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
+            <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
+           </div>
           </div>
-        )}
+         </React.Fragment> ); }) )}
       </div>
-
+      {/* ── شريط الكتابة ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: TG_PANEL, borderTop: `1px solid ${TG_BDR}`, padding: '10px 14px', flexShrink: 0, }} className="alfhd-composer-bar">
+       <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePickImage} style={{ display: 'none' }} />
+       {recording ? ( <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' }}>
+         <button style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(242,80,80,0.09)', border: 'none', color: TG_RED, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={cancelRecording}><Trash2 size={17} /></button>
+         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: TG_RED }} className="alfhd-rec-dot" />
+          <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
+          <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
+         </div>
+         <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
+        </div> ) : ( <>
+         <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
+         <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
+         <input
+          value={composerText}
+          onChange={(e) => setComposerText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSendText(); }}
+          placeholder="اكتب رسالة..."
+          style={{ flex: 1, background: 'transparent', border: 'none', color: TG_TEXT, fontSize: 13.5, padding: '5px 4px', fontFamily: "'Cairo', sans-serif" }}
+          disabled={sendingMsg}
+         />
+         <button
+          style={{ width: 36, height: 36, borderRadius: '50%', background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
+          onClick={handleSendText}
+          disabled={sendingMsg || !composerText.trim()}
+         >
+          <Send size={16} />
+         </button>
+        </> )}
+      </div>
+     </> ) : ( <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 14, color: TG_DIM }}>
+      <MessageSquare size={52} color={TG_DIM} strokeWidth={1.5} />
+      <div style={{ textAlign: 'center' }}>
+       <div style={{ fontSize: 16, fontWeight: 700, color: TG_SUB, marginBottom: 5 }}>اختر محادثة</div>
+       <div style={{ fontSize: 12.5, color: TG_DIM }}>للعرض والتواصل مع الزبون</div>
+      </div>
+     </div> )}
+   </div>
       <style>{`
         @media (max-width: 860px) {
           .alfhd-conv-fullscreen {
@@ -2016,8 +1033,9 @@ function startOfDayTs(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return
 const DATE_PRESETS = [
   { id: 'today', label: 'اليوم' },
   { id: 'yesterday', label: 'أمس' },
-  { id: 'dayBefore', label: 'أول أمس' },
   { id: 'week', label: 'هذا الأسبوع' },
+  { id: 'thisMonth', label: 'هذا الشهر' },
+  { id: 'thisYear', label: 'هذه السنة' },
   { id: 'custom', label: 'اختيار شهر وسنة' },
   { id: 'all', label: 'الكل' },
 ];
@@ -2036,6 +1054,8 @@ function dateInRange(dateStr, preset, customMonth, customYear) {
   if (preset === 'yesterday') return dDay === today - 86400000;
   if (preset === 'dayBefore') return dDay === today - 2 * 86400000;
   if (preset === 'week') { const w = today - 7 * 86400000; return d.getTime() >= w && d.getTime() <= now.getTime(); }
+  if (preset === 'thisMonth') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  if (preset === 'thisYear') return d.getFullYear() === now.getFullYear();
   if (preset === 'custom') return (d.getMonth() + 1) === Number(customMonth) && d.getFullYear() === Number(customYear);
   return true;
 }
@@ -2275,6 +1295,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setEditingOrder({
       id: null,
       pageId: resolvedPageId,
+      // منصة الطلب تُحدَّد تلقائياً من نوع المحادثة (واتساب / فيسبوك)
+      platform: conv.isWhatsApp ? 'whatsapp' : 'facebook',
       customer: conv.customer || '',
       phone: conv.phone || '',
       address: autoAddress,
@@ -2363,6 +1385,24 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleOrders, selectedPage]);
 
+  // إحصائيات اليوم السريعة (لقسم الطلبات)
+  const todayStats = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const isToday = (o) => {
+      const d = new Date(o.createdAt || o.date || 0);
+      return d >= today;
+    };
+    const scoped = selectedPage === 'all' ? visibleOrders : visibleOrders.filter((o) => o.pageId === selectedPage);
+    const todayOrders = scoped.filter(isToday);
+    return {
+      total: todayOrders.length,
+      printed: todayOrders.filter((o) => (o.stage || 'ready') !== 'ready').length,
+      delivered: todayOrders.filter((o) => o.status === 'delivered').length,
+      returned: todayOrders.filter((o) => o.status === 'returned').length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleOrders, selectedPage]);
+
   const stageCounts = useMemo(() => {
     const c = { ready: 0, prep: 0, delivery: 0 };
     visibleOrders.forEach((o) => {
@@ -2403,6 +1443,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setEditingOrder({
       id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
       items: '', orderType: '', total: '', status: 'pending', conversationId: '',
+      platform: 'whatsapp', // المصدر الافتراضي — يمكن تغييره من النموذج
     });
   }
 
@@ -2584,6 +1625,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           status: editingOrder.status,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
+          platform: editingOrder.platform || null,
           storage_location: editingOrder.storageLocation || null,
         };
         // حماية: التعديل لا يغيّر المرحلة ولا يحوّل/يحذف الطلب أبداً — نُبقيها كما هي
@@ -2596,6 +1638,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           total: parseAmountIQD(editingOrder.total), status: editingOrder.status,
           conversationId: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : (editingOrder.source || 'manual'),
+          platform: editingOrder.platform || null,
         };
         setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
         if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
@@ -2623,6 +1666,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           fahd_ref: `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : 'manual',
+          platform: editingOrder.platform || null,
         };
         const created = await sbInsert('alfhd_orders', payload);
         if (created?.[0]) {
@@ -3261,7 +2305,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     // إجراءات شركة التوصيل (بدون طباعة — الطلب صار عند الشركة فعلياً)
     return (
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {actions.length > 0 && <div style={{ fontSize: 11, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات شركة التوصيل:</div>}
+        {actions.length > 0 && <div style={{ fontSize: 12, color: '#546880', fontWeight: 600, marginBottom: 2 }}>إجراءات شركة التوصيل:</div>}
         {actions}
       </div>
     );
@@ -3558,7 +2602,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               <span style={{ fontSize: 11.5, color: '#9FB0C3', fontWeight: 600 }}>تحديد</span>
             </button>
             {fLevel && (
-              <span style={{ fontSize: 10.5, fontWeight: 800, color: fLevel === 'red' ? '#F25050' : '#F0A868' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: fLevel === 'red' ? '#F25050' : '#F0A868' }}>
                 {fLevel === 'red' ? '⚠️ متأخر +48س' : '⏱ متابعة +30س'}
               </span>
             )}
@@ -3599,7 +2643,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <div style={styles.orderCardCustomer}>{o.customer}</div>
             <div style={styles.orderTicketPage}>{page?.avatar} {page?.name || 'بدون صفحة'}</div>
             {(o.date || o.createdAt) && (
-              <div style={{ fontSize: 10.5, color: '#5E6986', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 11.5, color: '#5E6986', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Clock size={10} />
                 {(() => {
                   try {
@@ -3643,25 +2687,25 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           {section === 'prep' && (() => {
             const match = matchOrderToWarehouseProduct(o, warehouseProducts);
             if (!match) return (
-              <div style={{ fontSize: 11, color: '#F0A868', background: 'rgba(240,168,104,0.08)', border: '1px solid rgba(240,168,104,0.2)', borderRadius: 8, padding: '6px 10px', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: '#F0A868', background: 'rgba(240,168,104,0.08)', border: '1px solid rgba(240,168,104,0.2)', borderRadius: 8, padding: '6px 10px', marginTop: 4 }}>
                 ⚠️ لم يُعثر على منتج مطابق في المخزن
               </div>
             );
             const { product, confidence } = match;
             return (
               <div style={{ background: confidence === 'high' ? 'rgba(77,219,107,0.07)' : 'rgba(42,171,238,0.07)', border: `1px solid ${confidence === 'high' ? 'rgba(77,219,107,0.22)' : 'rgba(42,171,238,0.22)'}`, borderRadius: 9, padding: '8px 10px', marginTop: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: confidence === 'high' ? '#4DDB6B' : '#2AABEE', marginBottom: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: confidence === 'high' ? '#4DDB6B' : '#2AABEE', marginBottom: 4 }}>
                   📦 المنتج في المخزن {confidence === 'high' ? '✓' : '~'}
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5F5F5' }}>
                   {product.car_name} — {PRODUCT_TYPE_LABELS[product.type]}
                 </div>
                 {product.location && (
-                  <div style={{ fontSize: 11, color: '#2AABEE', marginTop: 3, fontWeight: 700 }}>
+                  <div style={{ fontSize: 12, color: '#2AABEE', marginTop: 3, fontWeight: 700 }}>
                     📍 الموقع: {product.location}
                   </div>
                 )}
-                <div style={{ fontSize: 11, color: '#546880', marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: '#546880', marginTop: 2 }}>
                   المتبقي في المخزن: {product.quantity} قطعة
                 </div>
               </div>
@@ -3672,10 +2716,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           {o.jenniSent && (o.deliveryNote || o.jenniTracking) && (
             <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.12)', borderRadius: 10 }}>
               {o.deliveryNote && (
-                <div style={{ fontSize: 10.5, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
+                <div style={{ fontSize: 11.5, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
               )}
               {o.jenniTracking && (
-                <div style={{ fontSize: 10, color: '#546880', fontFamily: 'monospace' }}>تتبع: #{o.jenniTracking}</div>
+                <div style={{ fontSize: 11.5, color: '#546880', fontFamily: 'monospace' }}>تتبع: #{o.jenniTracking}</div>
               )}
             </div>
           )}
@@ -3683,7 +2727,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
         {o.jenniError && (
           <div style={{ margin: '0 0 6px', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(244,91,105,0.3)' }}>
-            <div style={{ background: 'rgba(244,91,105,0.1)', padding: '7px 10px', fontSize: 11, color: '#F45B69', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ background: 'rgba(244,91,105,0.1)', padding: '7px 10px', fontSize: 12, color: '#F45B69', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
               <span style={{ flexShrink: 0 }}>⚠️</span>
               <span>{o.jenniError}</span>
             </div>
@@ -3734,6 +2778,20 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <h2 style={styles.viewTitle}>الطلبات</h2>
             <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
           </div>
+        </div>
+        {/* شريط إحصائيات اليوم السريعة */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', marginTop: 4 }} className="alfhd-no-print">
+          {[
+            { label: 'طلبات اليوم', value: todayStats.total, color: '#3B82F6' },
+            { label: 'طُبعت اليوم', value: todayStats.printed, color: '#F0A868' },
+            { label: 'سُلّمت اليوم', value: todayStats.delivered, color: '#4DDB6B' },
+            { label: 'رواجع اليوم', value: todayStats.returned, color: '#F45B69' },
+          ].map((s) => (
+            <div key={s.label} style={{ flex: '1 1 auto', minWidth: 80, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11, padding: '9px 13px' }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3 }}>{s.label}</div>
+            </div>
+          ))}
         </div>
         {/* أزرار الإجراءات — صف أنيق */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -3849,6 +2907,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           <button
             key={st.id}
             onClick={() => { setSection(st.id); setStatusFilter('all'); }}
+            className="alfhd-tab alfhd-ripple"
             style={{ ...styles.sectionTab, ...(section === st.id ? styles.sectionTabActive : {}) }}
           >
             {st.label}
@@ -4018,7 +3077,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               background: 'rgba(42,171,238,0.07)',
               border: '1px solid rgba(42,171,238,0.20)',
               borderRadius: 9,
-              fontSize: 11,
+              fontSize: 12,
               color: '#2AABEE',
               display: 'flex',
               alignItems: 'center',
@@ -4038,6 +3097,29 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 </select>
               </div>
 
+              {/* مصدر الطلب — واتساب أو فيسبوك (يظهر للطلبات اليدوية فقط) */}
+              {!editingOrder.conversationId && (
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>مصدر الطلب</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => setEditingOrder({ ...editingOrder, platform: 'whatsapp' })}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                        background: editingOrder.platform === 'whatsapp' ? 'rgba(37,211,102,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1.5px solid ${editingOrder.platform === 'whatsapp' ? '#25D366' : 'rgba(255,255,255,0.08)'}`,
+                        color: editingOrder.platform === 'whatsapp' ? '#25D366' : '#9FB0C3' }}>
+                      <MessageCircle size={15} /> واتساب
+                    </button>
+                    <button type="button" onClick={() => setEditingOrder({ ...editingOrder, platform: 'facebook' })}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                        background: editingOrder.platform === 'facebook' ? 'rgba(10,140,255,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1.5px solid ${editingOrder.platform === 'facebook' ? '#0A8CFF' : 'rgba(255,255,255,0.08)'}`,
+                        color: editingOrder.platform === 'facebook' ? '#0A8CFF' : '#9FB0C3' }}>
+                      <MessageSquare size={15} /> فيسبوك
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* اسم العميل — إجباري Jenni */}
               <div style={styles.formGroup}>
                 <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -4056,7 +3138,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   placeholder="اسم الزبون الكامل"
                 />
                 {!editingOrder.customer.trim() && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>
+                  <span style={{ fontSize: 11.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>
                 )}
               </div>
 
@@ -4065,7 +3147,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
                   رقم الهاتف
                   <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>07XXXXXXXXX</span>
+                  <span style={{ fontSize: 11.5, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>07XXXXXXXXX</span>
                 </label>
                 {(() => {
                   const raw = String(editingOrder.phone || '').trim();
@@ -4088,9 +3170,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                         placeholder="07XXXXXXXXX"
                         inputMode="numeric"
                       />
-                      {!raw && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>}
-                      {phoneErr && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ صيغة خاطئة — المطلوب: 07XXXXXXXXX</span>}
-                      {phoneOk && <span style={{ fontSize: 10.5, color: '#4DDB6B', marginTop: 3, fontWeight: 600 }}>✓ صالح لشركة التوصيل</span>}
+                      {!raw && <span style={{ fontSize: 11.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب</span>}
+                      {phoneErr && <span style={{ fontSize: 11.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ صيغة خاطئة — المطلوب: 07XXXXXXXXX</span>}
+                      {phoneOk && <span style={{ fontSize: 11.5, color: '#4DDB6B', marginTop: 3, fontWeight: 600 }}>✓ صالح لشركة التوصيل</span>}
                     </>
                   );
                 })()}
@@ -4126,7 +3208,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                         display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
                         padding: '6px 10px', background: 'rgba(42,171,238,0.10)',
                         border: '1px solid rgba(42,171,238,0.22)', borderRadius: 8,
-                        color: '#2AABEE', fontSize: 11, fontWeight: 700, cursor: 'pointer', width: '100%',
+                        color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer', width: '100%',
                         justifyContent: 'center',
                       }}
                     >
@@ -4153,7 +3235,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   ))}
                 </select>
                 {!editingOrder.governorateCode && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — شركة التوصيل ترفض الشحنة بدون محافظة</span>
+                  <span style={{ fontSize: 11.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — شركة التوصيل ترفض الشحنة بدون محافظة</span>
                 )}
               </div>
 
@@ -4162,7 +3244,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: 4 }}>
                   المنطقة / المدينة
                   <span style={{ color: '#F25050', fontWeight: 800, fontSize: 13 }}>*</span>
-                  <span style={{ fontSize: 10, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city لشركة التوصيل</span>
+                  <span style={{ fontSize: 11.5, color: '#546880', fontWeight: 500, marginRight: 'auto' }}>city لشركة التوصيل</span>
                 </label>
                 <CityPicker
                   govCode={editingOrder.governorateCode}
@@ -4171,7 +3253,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   invalid={!String(editingOrder.area || '').trim()}
                 />
                 {!String(editingOrder.area || '').trim() && (
-                  <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لشركة التوصيل</span>
+                  <span style={{ fontSize: 11.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ مطلوب — تُرسَل كـ city لشركة التوصيل</span>
                 )}
               </div>
 
@@ -4201,7 +3283,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                         }}
                         placeholder="0"
                       />
-                      {!totalOk && <span style={{ fontSize: 10.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ المبلغ يجب أن يكون أكبر من صفر</span>}
+                      {!totalOk && <span style={{ fontSize: 11.5, color: '#F25050', marginTop: 3, fontWeight: 600 }}>⚠ المبلغ يجب أن يكون أكبر من صفر</span>}
                     </>
                   );
                 })()}
@@ -4209,7 +3291,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
               {/* العنوان التفصيلي — اختياري */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>العنوان التفصيلي <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
+                <label style={styles.formLabel}>العنوان التفصيلي <span style={{ color: '#546880', fontSize: 11.5 }}>(اختياري)</span></label>
                 <input
                   value={editingOrder.address}
                   onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })}
@@ -4220,7 +3302,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
               {/* عنوان الطلب — موقع التخزين (يُطبع على الستيكر) */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>عنوان الطلب — موقع التخزين <span style={{ color: '#546880', fontSize: 10 }}>(يُطبع على الستيكر — مثال: فرع A رف 3)</span></label>
+                <label style={styles.formLabel}>عنوان الطلب — موقع التخزين <span style={{ color: '#546880', fontSize: 11.5 }}>(يُطبع على الستيكر — مثال: فرع A رف 3)</span></label>
                 <input
                   value={editingOrder.storageLocation || ''}
                   onChange={(e) => setEditingOrder({ ...editingOrder, storageLocation: e.target.value })}
@@ -4231,7 +3313,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
               {/* نوع الطلب — اختياري (note في Jenni) */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري — تُرسَل كـ note لشركة التوصيل)</span></label>
+                <label style={styles.formLabel}>نوع الطلب / ملاحظة <span style={{ color: '#546880', fontSize: 11.5 }}>(اختياري — تُرسَل كـ note لشركة التوصيل)</span></label>
                 <input
                   value={editingOrder.orderType}
                   onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })}
@@ -4242,7 +3324,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
               {/* المنتجات — اختياري */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>المنتجات / التفاصيل <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
+                <label style={styles.formLabel}>المنتجات / التفاصيل <span style={{ color: '#546880', fontSize: 11.5 }}>(اختياري)</span></label>
                 <textarea
                   value={editingOrder.items}
                   onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })}
@@ -4253,7 +3335,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
               {/* ربط محادثة */}
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>ربط بمحادثة <span style={{ color: '#546880', fontSize: 10 }}>(اختياري)</span></label>
+                <label style={styles.formLabel}>ربط بمحادثة <span style={{ color: '#546880', fontSize: 11.5 }}>(اختياري)</span></label>
                 <select
                   value={editingOrder.conversationId || ''}
                   onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })}
@@ -4358,10 +3440,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                           {sel && <CheckCircle2 size={13} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#EAF0F7' }}>{o.customer || 'زبون'} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
-                          <div style={{ fontSize: 11, color: '#8B9AB3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''} · {fmtBatchDate(o.printedAt || o.createdAt)}</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#EAF0F7' }}>{o.customer || 'زبون'} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                          <div style={{ fontSize: 12, color: '#8B9AB3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''} · {fmtBatchDate(o.printedAt || o.createdAt)}</div>
                         </div>
-                        <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F0A868', flexShrink: 0 }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: '#F0A868', flexShrink: 0 }}>
                           {(o.stage === 'delivery') ? 'لدى الشركة' : 'قيد التجهيز'}
                         </span>
                       </div>
@@ -4408,7 +3490,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                           </div>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
-                            <div style={{ fontSize: 11, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
+                            <div style={{ fontSize: 12, color: '#8B9AB3', marginTop: 2 }}>{fmtBatchDate(batch.printedAt)}</div>
                           </div>
                         </div>
                         <button
@@ -4418,7 +3500,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                           <Printer size={13} /> إعادة طباعة
                         </button>
                       </div>
-                      <div style={{ fontSize: 11, color: '#546880', lineHeight: 1.6 }}>
+                      <div style={{ fontSize: 12, color: '#546880', lineHeight: 1.6 }}>
                         {batch.orders.slice(0, 4).map((o) => `#${o.orderNo}`).join('، ')}
                         {batch.orders.length > 4 ? ` +${batch.orders.length - 4}` : ''}
                       </div>
@@ -4602,9 +3684,9 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
                       {/* المحتوى */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: isLast ? '#4DDB6B' : '#E7ECF3' }}>{h.step_ar || h.step}</div>
-                        {h.branch && <div style={{ fontSize: 11, color: '#9FB0C3', marginTop: 1 }}>{h.branch}</div>}
-                        {h.date && <div style={{ fontSize: 10.5, color: '#546880', marginTop: 1, fontFamily: 'monospace' }}>{h.date}</div>}
-                        {h.note && <div style={{ fontSize: 11, color: '#F0A868', marginTop: 2 }}>{h.note}</div>}
+                        {h.branch && <div style={{ fontSize: 12, color: '#9FB0C3', marginTop: 1 }}>{h.branch}</div>}
+                        {h.date && <div style={{ fontSize: 11.5, color: '#546880', marginTop: 1, fontFamily: 'monospace' }}>{h.date}</div>}
+                        {h.note && <div style={{ fontSize: 12, color: '#F0A868', marginTop: 2 }}>{h.note}</div>}
                       </div>
                     </div>
                   );
@@ -4724,14 +3806,30 @@ function StatsView({ orders, pages, conversations, setOrders }) {
     const converted = scopedOrders.filter((o) => o.converted);
     const fromChat = scopedOrders.filter((o) => !o.converted && o.source === 'chat');
     const manual = scopedOrders.filter((o) => !o.converted && o.source !== 'chat');
+
+    // منصة الطلب: من الحقل المحفوظ، وإن غاب (طلبات قديمة) نستنتجها من المحادثة المرتبطة
+    const platformOf = (o) => {
+      if (o.platform === 'whatsapp' || o.platform === 'facebook') return o.platform;
+      if (o.conversationId) {
+        const conv = conversations?.find((c) => c.id === o.conversationId);
+        if (conv) return conv.isWhatsApp ? 'whatsapp' : 'facebook';
+      }
+      return null;
+    };
+    const active = scopedOrders.filter((o) => !o.converted);
+    const whatsapp = active.filter((o) => platformOf(o) === 'whatsapp').length;
+    const facebook = active.filter((o) => platformOf(o) === 'facebook').length;
+
     return {
       total: scopedOrders.length + scopedExtCount,
       converted: converted.length,
       fromChat: fromChat.length,
       manual: manual.length,
       external: scopedExtCount,
+      whatsapp,
+      facebook,
     };
-  }, [scopedOrders, scopedExtCount]);
+  }, [scopedOrders, scopedExtCount, conversations]);
 
   const overall = useMemo(() => {
     const delivered = scopedOrders.filter((o) => o.status === 'delivered');
@@ -4860,6 +3958,32 @@ function StatsView({ orders, pages, conversations, setOrders }) {
         <StatCard icon={Send} label="طلبات محوّلة" value={breakdown.converted} color="#A78BFA" />
       </div>
 
+      {/* طلبات حسب المنصة — واتساب / فيسبوك */}
+      <div style={{ display: 'flex', gap: 10 }} className="alfhd-stats-row">
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.22)', borderRadius: 14, padding: '13px 15px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="#fff">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 0 1 6.988 2.896 9.82 9.82 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.82 11.82 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.88 11.88 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.82 11.82 0 0 0-3.48-8.413Z"/>
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 21, fontWeight: 900, color: '#E7EDF5', lineHeight: 1.1 }}>{breakdown.whatsapp}</div>
+            <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 2 }}>طلبات واتساب</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, background: 'rgba(10,140,255,0.07)', border: '1px solid rgba(10,140,255,0.22)', borderRadius: 14, padding: '13px 15px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#0A8CFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="#fff">
+              <path d="M12 2C6.477 2 2 6.145 2 11.259c0 2.913 1.454 5.512 3.727 7.21V22l3.409-1.871c.909.25 1.871.389 2.864.389 5.523 0 10-4.145 10-9.259C22 6.145 17.523 2 12 2zm1.008 12.461-2.553-2.72-4.98 2.72 5.478-5.813 2.616 2.72 4.917-2.72-5.478 5.813z"/>
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 21, fontWeight: 900, color: '#E7EDF5', lineHeight: 1.1 }}>{breakdown.facebook}</div>
+            <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 2 }}>طلبات فيسبوك</div>
+          </div>
+        </div>
+      </div>
+
       {/* الطلبات الخارجية — جاءت من خارج الموقع */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.22)', borderRadius: 14, padding: '14px 16px' }}>
         <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(167,139,250,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -4926,7 +4050,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
                   <span style={{ fontSize: 20 }}>{p.avatar}</span>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#EAF0FB' }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: '#5E6986' }}>{p.orderCount} طلب</div>
+                    <div style={{ fontSize: 12, color: '#5E6986' }}>{p.orderCount} طلب</div>
                   </div>
                 </div>
                 <div style={styles.pageStatBadge}>{p.convCount} محادثة</div>
@@ -4946,7 +4070,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
                     <span style={{
                       width: 22, height: 22, borderRadius: 6, flexShrink: 0,
                       background: i < 3 ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.05)',
-                      color: i < 3 ? '#2AABEE' : '#9FB0C3', fontSize: 11, fontWeight: 800,
+                      color: i < 3 ? '#2AABEE' : '#9FB0C3', fontSize: 12, fontWeight: 800,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>{i + 1}</span>
                     <span style={{ fontSize: 12.5, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
@@ -5025,7 +4149,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
                         <span style={{ color: '#9FB0C3', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {e.note || 'بدون ملاحظة'}
                         </span>
-                        <span style={{ color: '#546880', fontSize: 10.5 }}>
+                        <span style={{ color: '#546880', fontSize: 11.5 }}>
                           {e.entry_date ? new Date(e.entry_date).toLocaleDateString('ar-IQ', { day: '2-digit', month: '2-digit' }) : ''}
                         </span>
                         <button title="حذف" onClick={async () => {
@@ -5174,7 +4298,7 @@ function ConvertedOrdersPanel({ orders, pages, onClose }) {
             return (
               <div key={o.id} style={styles.convertedRow}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
                   {o.orderType && <div style={styles.convertedSub}>{o.orderType}</div>}
                   <div style={styles.convertedMeta}>
                     {page && <span>{page.avatar} {page.name}</span>}
@@ -5262,7 +4386,7 @@ function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
                   {isSel && <CheckCircle2 size={14} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 11, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                  <div style={styles.convertedCustomer}>{o.customer} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
                   {o.orderType && <div style={styles.convertedSub}>{o.orderType}</div>}
                   {page && <div style={styles.convertedMeta}>{page.avatar} {page.name}</div>}
                 </div>
@@ -5597,7 +4721,7 @@ function PagesView({ pages, setPages }) {
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: '#F5F5F5' }}>{c.name}</div>
-                <div style={{ fontSize: 10.5, color: '#546880', marginTop: 2 }}>ID: {c.fb_page_id}</div>
+                <div style={{ fontSize: 11.5, color: '#546880', marginTop: 2 }}>ID: {c.fb_page_id}</div>
               </div>
               <button
                 onClick={() => confirmAddPage(c)}
@@ -5679,19 +4803,31 @@ function PagesView({ pages, setPages }) {
                   <div style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {p.name}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#546880' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#546880' }}>
                     <Facebook size={10} color="#1877F2" />
-                    <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{p.fbPageId ? p.fbPageId.slice(0, 16) + '...' : 'معرّف غير متاح'}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11.5 }}>{p.fbPageId ? p.fbPageId.slice(0, 16) + '...' : 'معرّف غير متاح'}</span>
                   </div>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5,
-                    padding: '3px 9px', borderRadius: 20,
-                    background: p.connected ? 'rgba(29,219,107,0.12)' : 'rgba(84,104,128,0.15)',
-                    fontSize: 10.5, fontWeight: 700,
-                    color: p.connected ? '#1DDB6B' : '#8B9AB3',
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
-                    {p.connected ? 'متصلة' : 'غير متصلة'}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '3px 9px', borderRadius: 20,
+                      background: p.connected ? 'rgba(29,219,107,0.12)' : 'rgba(84,104,128,0.15)',
+                      fontSize: 11.5, fontWeight: 700,
+                      color: p.connected ? '#1DDB6B' : '#8B9AB3',
+                    }}>
+                      <Facebook size={11} />
+                      {p.connected ? 'ماسنجر متصل' : 'ماسنجر غير متصل'}
+                    </div>
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '3px 9px', borderRadius: 20,
+                      background: p.waConnected ? 'rgba(37,211,102,0.14)' : 'rgba(244,91,105,0.12)',
+                      fontSize: 11.5, fontWeight: 700,
+                      color: p.waConnected ? '#25D366' : '#F45B69',
+                    }}>
+                      <MessageCircle size={11} />
+                      {p.waConnected ? 'واتساب متصل' : 'واتساب غير متصل'}
+                    </div>
                   </div>
                 </div>
 
@@ -6118,7 +5254,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
                 </div>
               )}
               {!editingUser && form.isolated && form.role !== 'warehouse' && (
-                <div style={{ fontSize: 11, color: '#F0A868', padding: '0 4px', lineHeight: 1.6 }}>
+                <div style={{ fontSize: 12, color: '#F0A868', padding: '0 4px', lineHeight: 1.6 }}>
                   ⚠️ لا يمكن تغيير هذا الخيار بعد الإنشاء.
                 </div>
               )}
@@ -6235,16 +5371,16 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
                 <div style={styles.orderCardActions}>
                   {prepUser?.whatsapp && (
                     <button onClick={() => onContactWhatsApp?.(prepUser.whatsapp)} style={styles.orderActionBtn} title="اتصال بالمجهّز عبر واتساب">
-                      <Phone size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>المجهّز</span>
+                      <Phone size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>المجهّز</span>
                     </button>
                   )}
                   {o.conversationId ? (
                     <button onClick={() => onViewConversation?.(o.conversationId)} style={styles.orderActionBtn} title="مراسلة الزبون">
-                      <MessageSquare size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>الزبون</span>
+                      <MessageSquare size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>الزبون</span>
                     </button>
                   ) : o.phone ? (
                     <button onClick={() => onContactWhatsApp?.(o.phone)} style={styles.orderActionBtn} title="الاتصال بالزبون">
-                      <Phone size={14} /> <span style={{ fontSize: 11, fontWeight: 700 }}>الزبون</span>
+                      <Phone size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>الزبون</span>
                     </button>
                   ) : null}
                 </div>
@@ -6378,7 +5514,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
               </div>
               <div>
                 <div style={{ fontSize: 14.5, fontWeight: 800, color: '#F5F5F5' }}>التجهيز</div>
-                <div style={{ fontSize: 11, color: '#9FB0C3' }}>{currentUser.name}</div>
+                <div style={{ fontSize: 12, color: '#9FB0C3' }}>{currentUser.name}</div>
               </div>
             </div>
             <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 13px', background: 'rgba(229,57,53,0.12)', border: '1px solid rgba(229,57,53,0.3)', borderRadius: 10, color: '#E53935', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
@@ -6442,14 +5578,14 @@ function PrepWorkerView({ currentUser, onLogout }) {
                         <div style={{ fontSize: 11.5, color: '#9FB0C3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
                       </div>
                       {!claimed && (
-                        <div style={{ fontSize: 10, color: '#546880', fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>اضغط<br/>للاستلام</div>
+                        <div style={{ fontSize: 11.5, color: '#546880', fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>اضغط<br/>للاستلام</div>
                       )}
                     </div>
 
                     {/* المنتجات (بدون سعر) */}
                     {o.items && (
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
-                        <div style={{ fontSize: 10.5, color: '#546880', fontWeight: 700, marginBottom: 4 }}>المنتجات المطلوبة</div>
+                        <div style={{ fontSize: 11.5, color: '#546880', fontWeight: 700, marginBottom: 4 }}>المنتجات المطلوبة</div>
                         <div style={{ fontSize: 13, color: '#EAF0FB', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{o.items}</div>
                         {/* موقع البضاعة في المخزن — مطابقة تلقائية */}
                         {(() => {
@@ -6467,16 +5603,16 @@ function PrepWorkerView({ currentUser, onLogout }) {
                                   <span style={{ fontSize: 12, color: '#9FB0C3' }}>لا يوجد عنوان مخزن لهذا المنتج</span>
                                 )}
                                 {m.ambiguous ? (
-                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#F0A868', background: 'rgba(240,168,104,0.15)', padding: '2px 7px', borderRadius: 5 }}>
+                                  <span style={{ fontSize: 11.5, fontWeight: 800, color: '#F0A868', background: 'rgba(240,168,104,0.15)', padding: '2px 7px', borderRadius: 5 }}>
                                     ⚠️ عدة احتمالات — تحقّق
                                   </span>
                                 ) : !isSure && (
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#F0A868', background: 'rgba(240,168,104,0.12)', padding: '2px 6px', borderRadius: 5 }}>
+                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#F0A868', background: 'rgba(240,168,104,0.12)', padding: '2px 6px', borderRadius: 5 }}>
                                     مطابقة تقريبية
                                   </span>
                                 )}
                               </div>
-                              <div style={{ fontSize: 11, color: '#546880', marginTop: 3 }}>
+                              <div style={{ fontSize: 12, color: '#546880', marginTop: 3 }}>
                                 {m.product.car_name}{m.product.quantity <= 0 ? ' — ⚠️ المخزون صفر' : ''}
                               </div>
                             </div>
@@ -6491,7 +5627,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
                     {/* رسالة المدير إن أرجع الطلب */}
                     {o.reprepNote && (
                       <div style={{ background: 'rgba(240,168,104,0.1)', border: '1px solid rgba(240,168,104,0.25)', borderRadius: 10, padding: '9px 12px', marginBottom: 12 }}>
-                        <div style={{ fontSize: 10.5, color: '#F0A868', fontWeight: 700, marginBottom: 2 }}>⚠️ رسالة من المدير</div>
+                        <div style={{ fontSize: 11.5, color: '#F0A868', fontWeight: 700, marginBottom: 2 }}>⚠️ رسالة من المدير</div>
                         <div style={{ fontSize: 12.5, color: '#EAF0FB' }}>{o.reprepNote}</div>
                       </div>
                     )}
@@ -6572,7 +5708,7 @@ class ErrorBoundary extends React.Component {
             <div style={{ fontSize: 13, color: '#F0A868', marginBottom: 8, fontFamily: 'monospace', direction: 'ltr' }}>
               {this.state.error?.message}
             </div>
-            <div style={{ fontSize: 11, color: '#546880', fontFamily: 'monospace', direction: 'ltr', whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: 12, color: '#546880', fontFamily: 'monospace', direction: 'ltr', whiteSpace: 'pre-wrap' }}>
               {this.state.error?.stack?.slice(0, 500)}
             </div>
           </div>
@@ -6923,12 +6059,30 @@ export default function AlFhdApp() {
     (async () => {
       try {
         const [dbPages, dbOrders, dbUsers] = await Promise.all([
-          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at,workspace_id', wsFilter() + '&order=created_at.asc'),
+          sbSelectColumns('alfhd_pages', 'id,name,avatar,source,fb_page_id,connected,created_at,workspace_id,wa_connected,wa_phone', wsFilter() + '&order=created_at.asc'),
           sbSelect('alfhd_orders', wsFilter() + '&order=created_at.desc&limit=1000'),
           sbSelect('alfhd_users', '&order=created_at.asc'),
         ]);
 
-        if (dbPages?.length) setPages(dbPages.map(mapPageFromDb));
+        if (dbPages?.length) {
+          const mappedPages = dbPages.map(mapPageFromDb);
+          setPages(mappedPages);
+          // إشعار: صفحات ربطت واتساب سابقاً لكنه انقطع
+          const disconnected = mappedPages.filter((p) => p.waPhone && !p.waConnected);
+          if (disconnected.length > 0) {
+            const names = disconnected.map((p) => p.name).join('، ');
+            setNotifications((prev) => [{
+              id: `wa-disc-${Date.now()}`,
+              type: 'warning',
+              title: 'انقطاع واتساب',
+              body: disconnected.length === 1
+                ? `الصفحة "${names}" انقطع اتصالها بواتساب — أعد الربط`
+                : `${disconnected.length} صفحات انقطع اتصالها بواتساب: ${names}`,
+              time: new Date().toISOString(),
+              read: false,
+            }, ...prev].slice(0, 50));
+          }
+        }
         if (dbOrders?.length) setOrders(dbOrders.map(mapOrderFromDb));
         if (dbUsers?.length) setUsers(dbUsers.map(mapUserFromDb));
 
@@ -7087,7 +6241,7 @@ export default function AlFhdApp() {
           {notifications.some((n) => !n.read) && (
             <span style={{
               position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, padding: '0 4px',
-              borderRadius: 8, background: '#F25050', color: '#fff', fontSize: 10, fontWeight: 800,
+              borderRadius: 8, background: '#F25050', color: '#fff', fontSize: 11.5, fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{notifications.filter((n) => !n.read).length}</span>
           )}
@@ -7103,7 +6257,7 @@ export default function AlFhdApp() {
               <span style={{ fontSize: 14, fontWeight: 800, color: '#E7ECF3' }}>الإشعارات</span>
               {notifications.length > 0 && (
                 <button onClick={() => setNotifications([])}
-                  style={{ fontSize: 11, color: '#546880', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  style={{ fontSize: 12, color: '#546880', background: 'none', border: 'none', cursor: 'pointer' }}>
                   مسح الكل
                 </button>
               )}
@@ -7121,7 +6275,7 @@ export default function AlFhdApp() {
               }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: n.type === 'returned' ? '#F25050' : '#4DDB6B' }}>{n.title}</div>
                 <div style={{ fontSize: 11.5, color: '#9FB0C3', marginTop: 3, lineHeight: 1.5 }}>{n.body}</div>
-                <div style={{ fontSize: 10, color: '#546880', marginTop: 3 }}>{new Date(n.time).toLocaleString('ar')}</div>
+                <div style={{ fontSize: 11.5, color: '#546880', marginTop: 3 }}>{new Date(n.time).toLocaleString('ar')}</div>
               </div>
             ))}
           </div>
@@ -7140,6 +6294,8 @@ export default function AlFhdApp() {
           style={{ ...styles.mainArea, ...(activeView === 'conversations' ? { overflow: 'hidden', display: 'flex', flexDirection: 'column' } : {}) }}
           className={`alfhd-main-area${activeView === 'conversations' ? ' alfhd-main-conv' : ''}`}
         >
+          <div key={activeView} className="alfhd-section-enter">
+
           {activeView === 'conversations' && (
             <ConversationsView
               conversations={conversations}
@@ -7187,6 +6343,7 @@ export default function AlFhdApp() {
           {activeView === 'warehouse' && (authedUser.role === 'admin' || authedUser.role === 'manager') && (
             <WarehouseView />
           )}
+          </div>
         </main>
       </div>
     </>
@@ -7267,7 +6424,7 @@ function WhDashboard({ products, sales, debts, suppliers }) {
           <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:'13px 15px',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
             <s.I size={18} color={s.c} style={{marginBottom:8}}/>
             <div style={{fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
+            <div style={{fontSize: 12,color:'#546880',marginTop:3}}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -7278,7 +6435,7 @@ function WhDashboard({ products, sales, debts, suppliers }) {
             <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'rgba(242,80,80,0.06)',borderRadius:9,marginBottom:6,border:'1px solid rgba(242,80,80,0.15)'}}>
               <div>
                 <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}</div>
-                {p.location&&<div style={{fontSize:11,color:'#546880'}}>📍 {p.location}</div>}
+                {p.location&&<div style={{fontSize: 12,color:'#546880'}}>📍 {p.location}</div>}
               </div>
               <div style={{fontSize:22,fontWeight:800,color:p.quantity===0?'#F25050':'#F0A868'}}>{p.quantity}</div>
             </div>
@@ -7289,7 +6446,7 @@ function WhDashboard({ products, sales, debts, suppliers }) {
         <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom:10}}>آخر المبيعات</div>
         {sales.slice(0,5).map(s=>(
           <div key={s.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-            <div><div style={{fontSize:12.5,fontWeight:600,color:'#F5F5F5'}}>{s.product_name}</div><div style={{fontSize:11,color:'#546880'}}>{s.date} · {s.customer_name||'زبون'}</div></div>
+            <div><div style={{fontSize:12.5,fontWeight:600,color:'#F5F5F5'}}>{s.product_name}</div><div style={{fontSize: 12,color:'#546880'}}>{s.date} · {s.customer_name||'زبون'}</div></div>
             <div style={{fontSize:13,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
           </div>
         ))}
@@ -7467,17 +6624,17 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{p.car_name}</div>
                 <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
-                  <span style={{fontSize:11,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding:'2px 7px',borderRadius:18}}>{t?.label}</span>
-                  {p.location&&<span style={{fontSize:11,color:'#546880'}}>📍 {p.location}</span>}
+                  <span style={{fontSize: 12,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding:'2px 7px',borderRadius:18}}>{t?.label}</span>
+                  {p.location&&<span style={{fontSize: 12,color:'#546880'}}>📍 {p.location}</span>}
                   {p.price_iqd>0
-                    ? <span style={{fontSize:11,color:'#546880'}}>~{whFmt(p.price_iqd)}</span>
-                    : <span style={{fontSize:11,color:'#546880'}}>السعر حسب الطلب</span>}
+                    ? <span style={{fontSize: 12,color:'#546880'}}>~{whFmt(p.price_iqd)}</span>
+                    : <span style={{fontSize: 12,color:'#546880'}}>السعر حسب الطلب</span>}
                 </div>
               </div>
               <div style={{textAlign:'center',minWidth:46}}>
                 <div style={{fontSize:20,fontWeight:800,color:isLow?'#F25050':'#4DDB6B'}}>{p.quantity}</div>
-                <div style={{fontSize:10,color:'#546880'}}>قطعة</div>
-                {isLow&&<div style={{fontSize:10,color:'#F25050',fontWeight:700}}>⚠️</div>}
+                <div style={{fontSize: 11.5,color:'#546880'}}>قطعة</div>
+                {isLow&&<div style={{fontSize: 11.5,color:'#F25050',fontWeight:700}}>⚠️</div>}
               </div>
               <div style={{display:'flex',gap:5}}>
                 <button onClick={()=>openEdit(p)} style={{padding:7,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:8,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={13}/></button>
@@ -7507,15 +6664,15 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                         <div style={{fontSize:13.5,fontWeight:700,color:'#F5F5F5',marginBottom:6}}>{p.car_name}</div>
                         <div style={{display:'flex',gap:8}}>
                           <div style={{flex:1,background:'rgba(42,171,238,0.08)',borderRadius:8,padding:'7px 10px'}}>
-                            <div style={{fontSize:10,color:'#546880'}}>الفرع</div>
+                            <div style={{fontSize: 11.5,color:'#546880'}}>الفرع</div>
                             <div style={{fontSize:14,fontWeight:800,color:'#2AABEE'}}>{branch}</div>
                           </div>
                           <div style={{flex:1,background:'rgba(240,168,104,0.08)',borderRadius:8,padding:'7px 10px'}}>
-                            <div style={{fontSize:10,color:'#546880'}}>الرف</div>
+                            <div style={{fontSize: 11.5,color:'#546880'}}>الرف</div>
                             <div style={{fontSize:14,fontWeight:800,color:'#F0A868'}}>{shelf}</div>
                           </div>
                           <div style={{textAlign:'center',padding:'7px 10px'}}>
-                            <div style={{fontSize:10,color:'#546880'}}>الكمية</div>
+                            <div style={{fontSize: 11.5,color:'#546880'}}>الكمية</div>
                             <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{p.quantity}</div>
                           </div>
                         </div>
@@ -7633,7 +6790,7 @@ function WhSales({ sales, setSales, products, sbI }) {
         {[{l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B'},{l:'عدد الصفقات',v:filtered.length,c:'#2AABEE'},{l:'قطع مباعة',v:filtered.reduce((s,x)=>s+x.quantity,0),c:'#A78BFA'}].map(s=>(
           <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
             <div style={{fontSize:18,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
+            <div style={{fontSize: 12,color:'#546880',marginTop:3}}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -7643,7 +6800,7 @@ function WhSales({ sales, setSales, products, sbI }) {
           <div key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 14px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
             <div>
               <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{s.product_name}</div>
-              <div style={{fontSize:11,color:'#546880',marginTop:2}}>{s.date} · {s.customer_name||'زبون'} · {s.quantity} قطعة</div>
+              <div style={{fontSize: 12,color:'#546880',marginTop:2}}>{s.date} · {s.customer_name||'زبون'} · {s.quantity} قطعة</div>
             </div>
             <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
           </div>
@@ -7716,7 +6873,7 @@ function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
             </div>
             {s.available_products&&(
               <div style={{background:'rgba(42,171,238,0.06)',border:'1px solid rgba(42,171,238,0.12)',borderRadius:8,padding:'8px 10px'}}>
-                <div style={{fontSize:10.5,color:'#2AABEE',fontWeight:700,marginBottom:3}}>المتوفر عنده:</div>
+                <div style={{fontSize: 11.5,color:'#2AABEE',fontWeight:700,marginBottom:3}}>المتوفر عنده:</div>
                 <div style={{fontSize:12,color:'#8B9AB3'}}>{s.available_products}</div>
               </div>
             )}
@@ -7774,11 +6931,11 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11,marginBottom:14}}>
         <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:12,padding:'12px 14px'}}>
           <div style={{fontSize:18,fontWeight:800,color:'#F25050'}}>{whFmt(totalUnpaid)}</div>
-          <div style={{fontSize:11,color:'#546880',marginTop:3}}>إجمالي الديون غير المسددة</div>
+          <div style={{fontSize: 12,color:'#546880',marginTop:3}}>إجمالي الديون غير المسددة</div>
         </div>
         <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px'}}>
           <div style={{fontSize:18,fontWeight:800,color:'#F0A868'}}>{debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length}</div>
-          <div style={{fontSize:11,color:'#546880',marginTop:3}}>ديون تستحق خلال 7 أيام</div>
+          <div style={{fontSize: 12,color:'#546880',marginTop:3}}>ديون تستحق خلال 7 أيام</div>
         </div>
       </div>
       <div style={{display:'flex',gap:6,marginBottom:12}}>
@@ -7798,9 +6955,9 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{d.name}</div>
                 <div style={{display:'flex',gap:7,marginTop:3,flexWrap:'wrap'}}>
-                  <span style={{fontSize:11,color:type?.color,background:`${type?.color||'#F25050'}15`,padding:'2px 7px',borderRadius:18}}>{type?.label}</span>
-                  {d.due_date&&<span style={{fontSize:11,color:urgent?'#F25050':'#546880'}}>📅 {d.due_date}{days!==null?` (${days>0?`${days} يوم`:'اليوم'})`:''}</span>}
-                  {d.status==='paid'&&<span style={{fontSize:11,color:'#4DDB6B'}}>✓ مسدد</span>}
+                  <span style={{fontSize: 12,color:type?.color,background:`${type?.color||'#F25050'}15`,padding:'2px 7px',borderRadius:18}}>{type?.label}</span>
+                  {d.due_date&&<span style={{fontSize: 12,color:urgent?'#F25050':'#546880'}}>📅 {d.due_date}{days!==null?` (${days>0?`${days} يوم`:'اليوم'})`:''}</span>}
+                  {d.status==='paid'&&<span style={{fontSize: 12,color:'#4DDB6B'}}>✓ مسدد</span>}
                 </div>
               </div>
               <div style={{fontSize:14,fontWeight:800,color:d.status==='paid'?'#546880':'#F25050'}}>{whFmt(d.amount_iqd)}</div>
@@ -7893,7 +7050,7 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
               </div>
             </div>
             <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.15)',borderRadius:9,padding:'9px 12px',marginBottom:10}}>
-              <div style={{fontSize:11,color:'#A78BFA',marginBottom:2}}>الراتب الشهري</div>
+              <div style={{fontSize: 12,color:'#A78BFA',marginBottom:2}}>الراتب الشهري</div>
               <div style={{fontSize:17,fontWeight:800,color:'#A78BFA'}}>{whFmt(e.salary)}</div>
             </div>
             {e.phone&&<div style={{fontSize:12,color:'#2AABEE',marginBottom:8}}>📞 {e.phone}</div>}
@@ -7977,7 +7134,7 @@ function WhReports({ sales, products, debts }) {
           <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 14px'}}>
             <s.I size={16} color={s.c} style={{marginBottom:7}}/>
             <div style={{fontSize:16,fontWeight:800,color:s.c}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#546880',marginTop:3}}>{s.l}</div>
+            <div style={{fontSize: 12,color:'#546880',marginTop:3}}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -7988,7 +7145,7 @@ function WhReports({ sales, products, debts }) {
             <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
               <div style={{display:'flex',alignItems:'center',gap:7}}>
                 <span style={{fontSize:16}}>{t.icon}</span>
-                <div><div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{t.label}</div><div style={{fontSize:11,color:'#546880'}}>{t.count} صفقة</div></div>
+                <div><div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{t.label}</div><div style={{fontSize: 12,color:'#546880'}}>{t.count} صفقة</div></div>
               </div>
               <div style={{fontSize:13,fontWeight:800,color:t.color}}>{whFmt(t.total)}</div>
             </div>
@@ -8088,7 +7245,7 @@ function WarehouseView() {
             const active=whView===item.id;
             return(
               <button key={item.id} onClick={()=>setWhView(item.id)}
-                style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'7px 12px',borderRadius:10,background:active?'rgba(42,171,238,0.18)':'rgba(255,255,255,0.04)',border:`1px solid ${active?'rgba(42,171,238,0.35)':'transparent'}`,color:active?'#2AABEE':'#8B9AB3',fontSize:10,fontWeight:active?800:600,cursor:'pointer',flexShrink:0,transition:'all 0.15s',minWidth:56}}>
+                style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'7px 12px',borderRadius:10,background:active?'rgba(42,171,238,0.18)':'rgba(255,255,255,0.04)',border:`1px solid ${active?'rgba(42,171,238,0.35)':'transparent'}`,color:active?'#2AABEE':'#8B9AB3',fontSize: 11.5,fontWeight:active?800:600,cursor:'pointer',flexShrink:0,transition:'all 0.15s',minWidth:56}}>
                 <Icon size={18} strokeWidth={active?2.5:1.8}/>
                 {item.label}
               </button>
@@ -8102,7 +7259,7 @@ function WarehouseView() {
             🏪 إدارة المخزن
           </div>
           {(lowCount>0||urgentDbt>0)&&(
-            <div style={{background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:9,padding:'7px 10px',marginBottom:8,fontSize:11}}>
+            <div style={{background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:9,padding:'7px 10px',marginBottom:8,fontSize: 12}}>
               {lowCount>0&&<div style={{color:'#F0A868',marginBottom:2}}>⚠️ {lowCount} منتج منخفض</div>}
               {urgentDbt>0&&<div style={{color:'#F25050'}}>🔴 {urgentDbt} دين عاجل</div>}
             </div>
@@ -8147,7 +7304,13 @@ function GlobalStyles() {
         -webkit-tap-highlight-color: transparent;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
       }
+
+      /* وضوح أعلى للنصوص الصغيرة على الشاشات عالية الكثافة */
+      body { letter-spacing: -0.01em; font-weight: 500; }
+      /* حد أدنى لحجم النص لضمان القراءة على الموبايل */
+      input, textarea, select, button { font-size: max(1em, 14px); }
 
       /* تسريع GPU لكل العناصر */
       html { scroll-behavior: smooth; }
@@ -8179,6 +7342,93 @@ function GlobalStyles() {
         --ease-tg-in:    cubic-bezier(0.4, 0.0, 1.0, 1);
         --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
         --ease-bounce:   cubic-bezier(0.22, 1, 0.36, 1);
+        --ease-game:     cubic-bezier(0.34, 1.4, 0.4, 1);
+      }
+
+      /* ══════════ طبقة التفاعلات الفاخرة ══════════ */
+
+      /* كل الأزرار: ردّ فعل لمس فوري + نعومة */
+      button {
+        transition: transform 0.14s var(--ease-game), box-shadow 0.2s ease, background 0.2s ease, opacity 0.15s ease;
+        will-change: transform;
+      }
+      button:active:not(:disabled) { transform: scale(0.94); }
+      button:hover:not(:disabled) { filter: brightness(1.08); }
+
+      /* كروت الطلبات: ارتفاع وتوهج عند اللمس */
+      .alfhd-order-card {
+        transition: transform 0.28s var(--ease-game), box-shadow 0.3s ease, border-color 0.3s ease;
+        will-change: transform;
+        transform: translateZ(0);
+      }
+      .alfhd-order-card:hover {
+        transform: translateY(-3px) scale(1.006);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(42,171,238,0.15);
+      }
+      .alfhd-order-card:active { transform: translateY(-1px) scale(0.997); }
+
+      /* دخول العناصر بتدرّج راقٍ (stagger) */
+      @keyframes premiumRise {
+        0%   { opacity: 0; transform: translateY(14px) scale(0.98); }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .alfhd-order-card.alfhd-card-enter {
+        animation: premiumRise 0.45s var(--ease-game) both;
+      }
+
+      /* توهّج نبضي للعناصر المهمة */
+      @keyframes softGlow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(42,171,238,0.0); }
+        50%      { box-shadow: 0 0 18px 2px rgba(42,171,238,0.25); }
+      }
+
+      /* تأثير موجة (ripple) عند الضغط على العناصر التفاعلية */
+      .alfhd-ripple { position: relative; overflow: hidden; }
+      .alfhd-ripple::after {
+        content: ''; position: absolute; inset: 0;
+        background: radial-gradient(circle at center, rgba(255,255,255,0.35) 0%, transparent 60%);
+        opacity: 0; transform: scale(0.3); transition: opacity 0.5s ease, transform 0.5s ease;
+        pointer-events: none;
+      }
+      .alfhd-ripple:active::after { opacity: 1; transform: scale(2.2); transition: 0s; }
+
+      /* انتقال ناعم بين الأقسام */
+      @keyframes sectionFade {
+        0%   { opacity: 0; transform: translateX(12px); }
+        100% { opacity: 1; transform: translateX(0); }
+      }
+      .alfhd-section-enter { animation: sectionFade 0.35s var(--ease-tg-out) both; }
+
+      /* شارات وأرقام: نبض خفيف عند التحديث */
+      @keyframes countPop {
+        0% { transform: scale(1); }
+        40% { transform: scale(1.25); }
+        100% { transform: scale(1); }
+      }
+      .alfhd-count-pop { animation: countPop 0.4s var(--ease-spring); }
+
+      /* تبويبات: خط سفلي متحرك */
+      .alfhd-tab { transition: color 0.2s ease, background 0.25s var(--ease-game); }
+      .alfhd-tab:active { transform: scale(0.96); }
+
+      /* أيقونات تتوهج عند التمرير */
+      .alfhd-icon-btn { transition: transform 0.2s var(--ease-spring), color 0.2s ease; }
+      .alfhd-icon-btn:hover { transform: scale(1.15) rotate(-4deg); }
+      .alfhd-icon-btn:active { transform: scale(0.9); }
+
+      /* بطاقات الإحصائيات — تفاعل راقٍ */
+      .alfhd-stat-card {
+        transition: transform 0.28s var(--ease-game), box-shadow 0.3s ease;
+        will-change: transform;
+      }
+      .alfhd-stat-card:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 14px 34px rgba(0,0,0,0.35);
+      }
+
+      /* احترام تفضيل تقليل الحركة (للوصولية والأداء) */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.05ms !important; }
       }
 
       input::placeholder, textarea::placeholder { color: var(--tg-dim); }
@@ -8292,8 +7542,10 @@ function GlobalStyles() {
 
       /* ── فقاعات الرسائل ── */
       .alfhd-chat-bubble-row {
-        animation: msgSlideIn 0.22s var(--ease-bounce) both;
+        animation: msgSlideIn 0.34s cubic-bezier(0.34, 1.4, 0.5, 1) both;
         will-change: transform, opacity;
+        transform: translateZ(0);
+        backface-visibility: hidden;
       }
       .alfhd-conv-detail {
         background: var(--tg-bg) !important;
@@ -8420,10 +7672,11 @@ function GlobalStyles() {
 
       /* ══════════ KEYFRAMES ══════════ */
 
-      /* دخول فقاعة رسالة — مثل Telegram */
+      /* دخول فقاعة رسالة — نعومة عالية (spring) */
       @keyframes msgSlideIn {
-        from { opacity: 0; transform: scale(0.88) translateY(6px); }
-        to   { opacity: 1; transform: scale(1)    translateY(0); }
+        0%   { opacity: 0; transform: scale(0.94) translateY(8px); }
+        60%  { opacity: 1; transform: scale(1.008) translateY(-1px); }
+        100% { opacity: 1; transform: scale(1) translateY(0); }
       }
 
       /* دخول محادثة من اليمين على الموبايل */
@@ -8741,7 +7994,7 @@ const styles = {
   loginNebulaOne: { position: 'absolute', width: 380, height: 380, borderRadius: '50%', top: '-90px', right: '-110px', background: 'radial-gradient(circle, rgba(42,171,238,0.10), transparent 70%)', filter: 'blur(28px)' },
   loginNebulaTwo: { position: 'absolute', width: 340, height: 340, borderRadius: '50%', bottom: '-110px', left: '-90px', background: 'radial-gradient(circle, rgba(34,158,217,0.08), transparent 72%)', filter: 'blur(26px)' },
   loginOrbit: { position: 'absolute', width: 500, height: 500, borderRadius: '50%', border: '1px solid rgba(42,171,238,0.07)', borderTopColor: 'rgba(42,171,238,0.18)', pointerEvents: 'none' },
-  loginBrandTop: { position: 'absolute', top: 20, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, color: TSB, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', background: 'rgba(23,33,43,0.80)', border: `1px solid ${TB}`, borderRadius: 999, padding: '6px 13px' },
+  loginBrandTop: { position: 'absolute', top: 20, zIndex: 2, display: 'flex', alignItems: 'center', gap: 7, color: TSB, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.18em', background: 'rgba(23,33,43,0.80)', border: `1px solid ${TB}`, borderRadius: 999, padding: '6px 13px' },
   loginCard: { position: 'relative', zIndex: 1, background: TP, border: `1px solid ${TB}`, borderRadius: 16, padding: '36px 30px 24px', width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'loginFloat 5s ease-in-out infinite' },
   loginGlassShine: { display: 'none' },
   loginCardAccent: { position: 'absolute', top: 0, right: 0, left: 0, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, borderRadius: '16px 16px 0 0', opacity: 0.7 },
@@ -8749,8 +8002,8 @@ const styles = {
   logoGlow: { position: 'absolute', inset: -22, borderRadius: '50%', background: 'radial-gradient(circle, rgba(42,171,238,0.18) 0%, transparent 70%)', filter: 'blur(10px)' },
   loginTitle: { fontSize: 28, fontWeight: 800, color: TTX, margin: '12px 0 2px', letterSpacing: '0.03em' },
   loginSubtitle: { fontSize: 12, color: TSB, margin: 0, fontWeight: 500 },
-  loginMicroCopy: { marginTop: 9, color: TBL, fontSize: 10.5, fontWeight: 700, background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.18)', borderRadius: 999, padding: '4px 11px' },
-  inputLabel: { display: 'block', fontSize: 11, color: TSB, marginBottom: 11, fontWeight: 700, textAlign: 'center', letterSpacing: '0.05em' },
+  loginMicroCopy: { marginTop: 9, color: TBL, fontSize: 11.5, fontWeight: 700, background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.18)', borderRadius: 999, padding: '4px 11px' },
+  inputLabel: { display: 'block', fontSize: 12, color: TSB, marginBottom: 11, fontWeight: 700, textAlign: 'center', letterSpacing: '0.05em' },
   pinBoxesWrap: { position: 'relative', display: 'flex', gap: 9, justifyContent: 'center', cursor: 'text' },
   pinBox: { width: 50, height: 56, borderRadius: 10, background: TI, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: TBL, fontWeight: 900, transition: 'border-color 0.13s, transform 0.12s' },
   pinBoxActive: { borderColor: TBL, transform: 'translateY(-2px)' },
@@ -8761,9 +8014,9 @@ const styles = {
   rememberRow: { marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: TSB, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' },
   loginKeypad: { marginTop: 17, display: 'grid', gridTemplateColumns: 'repeat(3, 50px)', gap: 9, justifyContent: 'center' },
   loginKeypadBtn: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: TI, color: TTX, fontSize: 16, fontWeight: 700 },
-  loginKeypadGhost: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: 'transparent', color: TSB, fontSize: 11, fontWeight: 700 },
+  loginKeypadGhost: { width: 50, height: 50, borderRadius: 10, border: `1px solid ${TB}`, background: 'transparent', color: TSB, fontSize: 12, fontWeight: 700 },
   checkbox: { width: 14, height: 14, accentColor: TBL, cursor: 'pointer' },
-  loginFooter: { marginTop: 20, fontSize: 10, color: TDM, position: 'relative', zIndex: 1, letterSpacing: '0.04em' },
+  loginFooter: { marginTop: 20, fontSize: 11.5, color: TDM, position: 'relative', zIndex: 1, letterSpacing: '0.04em' },
 
   // ── App layout ──
   appWrap: { display: 'flex', minHeight: '100vh', background: TG, direction: 'rtl', color: TTX, fontFamily: "'Cairo', sans-serif" },
@@ -8779,7 +8032,7 @@ const styles = {
   userBadge: { display: 'flex', alignItems: 'center', gap: 9, padding: '6px', marginBottom: 7 },
   userAvatar: { width: 32, height: 32, borderRadius: '50%', background: TBTN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
   userName: { fontSize: 13, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  userRole: { fontSize: 10, color: TDM },
+  userRole: { fontSize: 11.5, color: TDM },
   logoutBtn: { display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '9px 11px', background: 'transparent', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 10, color: TRD, fontSize: 12.5, fontWeight: 600 },
 
   // ── Mobile ──
@@ -8804,7 +8057,7 @@ const styles = {
   convTabs: { display: 'flex', gap: 5, marginBottom: 0, flexWrap: 'wrap', padding: '0 0 9px' },
   convTab: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12, fontWeight: 600, transition: 'all 0.12s ease' },
   convTabActive: { background: TAC, color: TBL },
-  convTabCount: { background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 6px', fontSize: 10, fontWeight: 700 },
+  convTabCount: { background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '1px 6px', fontSize: 11.5, fontWeight: 700 },
   convTabCountActive: { background: 'rgba(42,171,238,0.28)', color: TBL },
   unreadPulse: { position: 'absolute', top: -5, left: -5, minWidth: 15, height: 15, padding: '0 4px', borderRadius: 20, background: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${TP}` },
   markAllReadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '7px', marginBottom: 4, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 0, color: TBL, fontSize: 12, fontWeight: 600 },
@@ -8819,29 +8072,29 @@ const styles = {
   convAvatar: { width: 44, height: 44, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: 15 },
   convItemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   convCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  convTime: { fontSize: 10.5, color: TDM, flexShrink: 0, marginRight: 5 },
+  convTime: { fontSize: 11.5, color: TDM, flexShrink: 0, marginRight: 5 },
   convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 6, alignItems: 'center' },
   convLastMsg: { fontSize: 12, color: TSB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
   convMiniMetaRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 3, minHeight: 14 },
   convMiniMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 999, background: 'rgba(42,171,238,0.08)', color: TBL, fontSize: 9, fontWeight: 700 },
-  unreadBadge: { background: TBL, color: '#fff', borderRadius: 20, fontSize: 10.5, fontWeight: 800, padding: '2px 7px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0 },
+  unreadBadge: { background: TBL, color: '#fff', borderRadius: 20, fontSize: 11.5, fontWeight: 800, padding: '2px 7px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0 },
 
   convDetail: { background: TG, border: 'none', borderRadius: 0, padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0, overflow: 'hidden', boxShadow: 'none' },
   detailHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${TB}`, marginBottom: 0, position: 'relative', background: TP },
   convBackBtn: { display: 'none', width: 32, height: 32, borderRadius: 9, background: TI, border: 'none', color: TSB, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   convAvatarLg: { width: 40, height: 40, borderRadius: '50%', background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 },
   detailName: { fontSize: 14.5, fontWeight: 800, color: TTX },
-  detailPage: { fontSize: 11, color: TDM, fontWeight: 500 },
+  detailPage: { fontSize: 12, color: TDM, fontWeight: 500 },
   chatHeaderMetaRow: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 3 },
   chatHeaderMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 999, background: TI, color: TSB, fontSize: 9.5, fontWeight: 600 },
   pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 11.5, fontWeight: 700, flexShrink: 0 },
   chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
   msgBubbleIn: { background: '#182533', border: 'none', borderRadius: '16px 16px 16px 4px', padding: '8px 12px', fontSize: 13.5, color: '#F5F5F5', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
   msgBubbleOut: { background: '#2B5278', border: 'none', borderRadius: '16px 16px 4px 16px', padding: '8px 12px', fontSize: 13.5, color: '#fff', maxWidth: '74%', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 3, boxShadow: '0 1px 2px rgba(0,0,0,0.3)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
-  chatDateDivider: { alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 10, fontWeight: 600 },
+  chatDateDivider: { alignSelf: 'center', margin: '4px 0 10px', padding: '4px 10px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 11.5, fontWeight: 600 },
   msgImage: { width: '100%', maxWidth: 260, borderRadius: 10, display: 'block' },
   msgAudio: { width: 240, maxWidth: '100%', height: 34 },
-  msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.45)', alignSelf: 'flex-end', fontWeight: 500 },
+  msgTime: { fontSize: 11.5, color: 'rgba(255,255,255,0.45)', alignSelf: 'flex-end', fontWeight: 500 },
   composerBar: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 0, background: TP, border: 'none', borderTop: `1px solid ${TB}`, borderRadius: 0, padding: '10px 14px', boxShadow: 'none' },
   composerIconBtn: { width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TDM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   recordingBar: { display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '3px 5px' },
@@ -8870,7 +8123,7 @@ const styles = {
   statCard: { display: 'flex', alignItems: 'center', gap: 11, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: '14px 16px', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden' },
   statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   statValue: { fontSize: 20, fontWeight: 800, color: TTX, lineHeight: 1.15, letterSpacing: '-0.02em' },
-  statLabel: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  statLabel: { fontSize: 11.5, color: TDM, marginTop: 2 },
   sectionTabs: { display: 'flex', gap: 5, marginBottom: 13 },
   sectionTab: { display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12.5, fontWeight: 600, transition: 'all 0.12s ease' },
   sectionTabActive: { background: TAC, color: TBL },
@@ -8882,21 +8135,21 @@ const styles = {
   orderTicketHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px 9px' },
   orderTicketAvatar: { width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15 },
   orderCardCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderTicketPage: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  orderStatusPill: { fontSize: 10.5, fontWeight: 700, borderRadius: 20, padding: '3px 9px', flexShrink: 0 },
+  orderTicketPage: { fontSize: 11.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orderStatusPill: { fontSize: 11.5, fontWeight: 700, borderRadius: 20, padding: '3px 9px', flexShrink: 0 },
   orderTicketBody: { padding: '0 13px 9px', display: 'flex', flexDirection: 'column', gap: 5 },
   orderDetailRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TSB },
   deliveryStepRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: TBL, fontWeight: 700, marginTop: 2 },
   orderTicketItems: { fontSize: 11.5, color: '#C8D0DC', background: TI, borderRadius: 8, padding: '8px 10px', marginTop: 2, lineHeight: 1.55, border: 'none' },
   orderTicketFoot: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '9px 13px', borderTop: `1px solid ${TB}` },
   orderCardTotal: { fontSize: 17, fontWeight: 800, color: TTX, letterSpacing: '-0.02em' },
-  orderCurrency: { fontSize: 11, fontWeight: 500, color: TDM },
-  orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, color: TDM, marginTop: 2 },
+  orderCurrency: { fontSize: 12, fontWeight: 500, color: TDM },
+  orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 11.5, color: TDM, marginTop: 2 },
   printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(77,219,107,0.11)', color: TGR, borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 },
   batchBlock: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH },
   batchHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
   batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: TTX },
-  batchHeaderTime: { fontSize: 10.5, color: TDM, fontWeight: 500 },
+  batchHeaderTime: { fontSize: 11.5, color: TDM, fontWeight: 500 },
   orderCardActions: { display: 'flex', gap: 5, padding: '9px 13px', borderTop: `1px solid ${TB}`, background: 'rgba(0,0,0,0.08)' },
   orderActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 31, borderRadius: 8, background: TI, border: 'none', color: TDM },
   statusSelect: { border: '1px solid', borderRadius: 8, padding: '5px 8px', fontSize: 11.5, fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
@@ -8921,7 +8174,7 @@ const styles = {
   donutWrap: { display: 'flex', justifyContent: 'center', padding: '8px 0' },
   pageStatRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   pageStatInfo: { display: 'flex', alignItems: 'center', gap: 9 },
-  pageStatBadge: { background: TI, padding: '4px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 700, color: TSB },
+  pageStatBadge: { background: TI, padding: '4px 9px', borderRadius: 20, fontSize: 11.5, fontWeight: 700, color: TSB },
 
   // ── Pages ──
   addBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '8px 15px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
@@ -8932,7 +8185,7 @@ const styles = {
   fbCandidatesTitle: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 10 },
   fbCandidateRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${TB}` },
   fbCandidateAvatarImg: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' },
-  fbCandidateId: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  fbCandidateId: { fontSize: 11.5, color: TDM, marginTop: 2 },
   pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(295px,1fr))', gap: 12 },
   pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, overflow: 'hidden', transition: 'all 0.2s ease' },
   pageCardTopLine: { position: 'absolute', top: 0, right: 16, left: 16, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, opacity: 0.55 },
@@ -8940,8 +8193,8 @@ const styles = {
   subscribeBtn: { width: '100%', background: 'rgba(77,219,107,0.09)', border: `1px solid rgba(77,219,107,0.22)`, borderRadius: 10, padding: '9px 0', color: TGR, fontSize: 12, fontWeight: 700 },
   pageCardAvatar: { width: 46, height: 46, borderRadius: '50%', background: TI, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0 },
   pageCardName: { fontSize: 14, fontWeight: 800, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  pageCardMeta: { fontSize: 10.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, marginTop: 3, fontWeight: 600 },
+  pageCardMeta: { fontSize: 11.5, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  pageCardStatus: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, marginTop: 3, fontWeight: 600 },
   pageStatusPill: { display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start', borderRadius: 20, padding: '6px 11px', fontSize: 11.5, fontWeight: 700, border: 'none' },
   pageStatusPillOk: { color: TGR, background: 'rgba(77,219,107,0.09)' },
   pageStatusPillWait: { color: TBL, background: 'rgba(42,171,238,0.09)' },
@@ -8954,17 +8207,17 @@ const styles = {
   userCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
   userCardAvatar: { width: 38, height: 38, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 },
   userCardName: { fontSize: 13, fontWeight: 700, color: TTX },
-  userCardRole: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: TDM, marginTop: 2 },
+  userCardRole: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: TDM, marginTop: 2 },
   activeDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
   userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${TB}` },
   permTag: { background: 'rgba(42,171,238,0.09)', color: TBL, fontSize: 9.5, fontWeight: 600, padding: '3px 7px', borderRadius: 6 },
   userCardActions: { display: 'flex', gap: 6 },
-  userActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', background: TI, border: 'none', borderRadius: 8, color: TSB, fontSize: 10.5, fontWeight: 600 },
+  userActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', background: TI, border: 'none', borderRadius: 8, color: TSB, fontSize: 11.5, fontWeight: 600 },
   userCardMetaRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
-  userCodeTag: { fontSize: 10.5, color: TDM, background: TI, border: 'none', borderRadius: 7, padding: '3px 8px', fontFamily: 'monospace' },
+  userCodeTag: { fontSize: 11.5, color: TDM, background: TI, border: 'none', borderRadius: 7, padding: '3px 8px', fontFamily: 'monospace' },
   warehouseNote: { display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: 10, fontSize: 12, color: TSB, lineHeight: 1.6 },
   rejectReasonBox: { margin: '0 13px 10px', padding: '8px 10px', background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.14)`, borderRadius: 9, fontSize: 12, color: TTX, display: 'flex', flexDirection: 'column', gap: 3 },
-  rejectReasonLabel: { fontSize: 10.5, color: TRD, fontWeight: 700 },
+  rejectReasonLabel: { fontSize: 11.5, color: TRD, fontWeight: 700 },
   rejectedCard: { border: `1.5px solid rgba(242,80,80,0.36)`, boxShadow: '0 0 0 1px rgba(242,80,80,0.09), 0 4px 14px -6px rgba(242,80,80,0.25)' },
   rejectedBanner: { display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'center', background: '#7B1A1A', color: '#fff', fontSize: 12, fontWeight: 800, padding: '8px 11px', borderRadius: '12px 12px 0 0', margin: '-1px -1px 0' },
   prepTimeRow: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: TDM, margin: '0 13px 8px', paddingTop: 2 },
@@ -8974,7 +8227,7 @@ const styles = {
   globalOrderResultsBox: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 50, background: TP, border: `1px solid ${TB}`, borderRadius: 11, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', overflow: 'hidden' },
   globalOrderResultItem: { width: '100%', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 10px', border: 'none', background: 'transparent', borderRadius: 0, textAlign: 'right', color: TTX },
   globalOrderResultTitle: { fontSize: 12, fontWeight: 700, color: TTX, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  globalOrderResultMeta: { fontSize: 10.5, color: TDM, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  globalOrderResultMeta: { fontSize: 11.5, color: TDM, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   globalOrderEmpty: { padding: '11px', color: TDM, fontSize: 12, textAlign: 'center' },
 
   // ── Warehouse ──
@@ -8984,18 +8237,18 @@ const styles = {
   warehouseCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 14, boxShadow: TSH, transition: 'all 0.2s ease' },
   warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
   warehouseCardNo: { fontSize: 12, fontWeight: 800, color: TBL, fontFamily: 'monospace' },
-  warehouseCardDate: { fontSize: 11, color: TDM },
+  warehouseCardDate: { fontSize: 12, color: TDM },
   warehouseBigType: { fontSize: 17, fontWeight: 800, color: TTX, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
   warehouseFilterBar: { display: 'flex', gap: 6, marginBottom: 13 },
   warehouseFilterChip: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 7px', background: TI, border: 'none', borderRadius: 10, color: TDM, fontSize: 12.5, fontWeight: 700 },
   warehouseFilterChipActive: { background: TAC, color: TBL },
-  warehouseFilterCount: { minWidth: 19, height: 19, borderRadius: 10, background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 800, padding: '0 5px' },
+  warehouseFilterCount: { minWidth: 19, height: 19, borderRadius: 10, background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, padding: '0 5px' },
   warehouseFilterCountActive: { background: TBL, color: '#fff' },
   warehouseReprepNote: { display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, background: 'rgba(242,80,80,0.08)', border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, padding: '10px 11px', color: '#FCA5A5' },
   warehouseReprepTitle: { fontSize: 12, fontWeight: 800, color: TRD, marginBottom: 3 },
   warehouseReprepText: { fontSize: 13.5, fontWeight: 700, color: '#FEE2E2', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
   warehouseItemsBox: { marginTop: 10, background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: '9px 11px' },
-  warehouseItemsLabel: { fontSize: 10.5, fontWeight: 700, color: '#FFCA28', marginBottom: 4 },
+  warehouseItemsLabel: { fontSize: 11.5, fontWeight: 700, color: '#FFCA28', marginBottom: 4 },
   warehouseItemsText: { fontSize: 13.5, color: TTX, lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
   warehouseBadge: { width: 38, height: 38, borderRadius: '50%', background: TBTN, color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
   warehouseActions: { display: 'flex', gap: 8, marginTop: 12 },
@@ -9031,7 +8284,7 @@ const styles = {
   summaryRowSub: { background: 'transparent', border: 'none', padding: '4px 15px', marginBottom: 2 },
   summaryRowLabel: { fontSize: 12.5, fontWeight: 600 },
   summaryRowValue: { fontSize: 16, fontWeight: 800 },
-  summaryHint: { fontSize: 11, color: TDM, textAlign: 'center', marginTop: 8 },
+  summaryHint: { fontSize: 12, color: TDM, textAlign: 'center', marginTop: 8 },
   bestSellerRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 },
   bestSellerRank: { width: 24, height: 24, borderRadius: 8, background: 'rgba(42,171,238,0.11)', color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, flexShrink: 0 },
   bestSellerType: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 4, overflowWrap: 'anywhere' },
@@ -9040,8 +8293,8 @@ const styles = {
   bestSellerCount: { fontSize: 14, fontWeight: 800, color: TBL, minWidth: 23, textAlign: 'center', flexShrink: 0 },
   convertedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${TB}` },
   convertedCustomer: { fontSize: 13, fontWeight: 700, color: TTX },
-  convertedSub: { fontSize: 11, color: TBL, marginTop: 2 },
-  convertedMeta: { fontSize: 10.5, color: TDM, marginTop: 2 },
+  convertedSub: { fontSize: 12, color: TBL, marginTop: 2 },
+  convertedMeta: { fontSize: 11.5, color: TDM, marginTop: 2 },
   convertedTotal: { fontSize: 13, fontWeight: 800, color: TBL, flexShrink: 0 },
   neglectedRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px', marginBottom: 5, borderRadius: 10, background: TI, border: 'none', cursor: 'pointer' },
   neglectedRowSel: { background: TAC, border: '1px solid rgba(42,171,238,0.28)' },
