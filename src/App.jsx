@@ -224,7 +224,7 @@ function mapConversationFromDb(row) { let customerName = row.customer_name || ''
  return { id: row.id, pageId: row.page_id, customer: customerName, phone: row.phone || psid.replace('wa_', ''), customerPsid: psid, avatar: row.avatar || (isWA ? '📱' : '👤'),
   avatarUrl: row.avatar_url || null, platform: row.source || 'facebook', isWhatsApp: isWA, lastMsg: row.last_message || '',
   lastMsgTimeRaw: row.last_message_time || row.created_at || '', time: row.last_message_time ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
-   : '', unread: row.unread_count || 0, tab: row.tab || 'normal', orderId: row.order_id, }; }
+   : '', unread: row.unread_count || 0, tab: row.tab || 'normal', orderId: row.order_id, ai_mode: row.ai_mode || 'active', }; }
 function mapMessageFromDb(row) { return { id: row.id, conversationId: row.conversation_id, direction: row.direction || 'incoming', content: row.content || null,
   type: row.type || row.message_type || 'text', mediaUrl: row.media_url || null, fileName: row.file_name || null, source: row.source || 'facebook', createdAt: row.created_at || null, time: row.created_at
    ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) : '', }; }
@@ -374,6 +374,7 @@ function LoginScreen({ users, onLogin }) { const [code, setCode] = useState('');
 function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { const isMobile = useIsMobile();
  const navItems = [ { id: 'conversations', label: 'المحادثات', icon: MessageSquare }, { id: 'orders', label: 'الطلبات', icon: Package },
   { id: 'stats', label: 'الإحصائيات', icon: BarChart3 }, { id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true },
+  { id: 'ai_assistant', label: 'الذكاء الصناعي', icon: Bot, adminOnly: true, permId: 'ai_manage' },
   { id: 'users', label: 'الإدارة العامة', icon: Shield, adminOnly: true }, { id: 'pages', label: 'الصفحات', icon: Facebook }, ];
  if (isMobile) { return ( <>
     <header style={styles.mobileHeader} className="alfhd-no-print">
@@ -386,7 +387,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
      </button>
     </header>
     <nav style={styles.bottomNav} className="alfhd-no-print">
-     {navItems.map((item) => { if (item.adminOnly && currentUser.role !== 'admin') return null;
+     {navItems.map((item) => { if (item.adminOnly && currentUser.role !== 'admin' && !(item.permId && (currentUser.permissions || []).includes(item.permId))) return null;
       const Icon = item.icon;
       const active = activeView === item.id;
       return ( <button
@@ -409,7 +410,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
     </div>
    </div>
    <nav style={styles.sidebarNav}>
-    {navItems.map((item) => { if (item.adminOnly && currentUser.role !== 'admin') return null;
+    {navItems.map((item) => { if (item.adminOnly && currentUser.role !== 'admin' && !(item.permId && (currentUser.permissions || []).includes(item.permId))) return null;
      const Icon = item.icon;
      const active = activeView === item.id;
      return ( <button
@@ -465,7 +466,7 @@ function ConvAvatar({ conv, size = 'md' }) { const color = avatarColorFromName(c
     </div> )}
    <PlatformBadge platform={conv?.platform || 'facebook'} size={size} />
   </div> ); }
-function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails }) {
+function ConversationsView({ conversations, pages, orders, setConversations, pendingOpenConvId, clearPendingOpenConvId, onCreateOrderFromConv, onOpenOrderDetails, currentUser }) {
  const [activeTab, setActiveTab] = useState('normal');
  const [selectedPage, setSelectedPage] = useState('all');
  const [search, setSearch] = useState('');
@@ -827,6 +828,25 @@ function ConversationsView({ conversations, pages, orders, setConversations, pen
          {pages.find((p) => p.id === convPageId(selectedConv))?.name}
         </div>
        </div>
+       {(currentUser?.role === 'admin' || (currentUser?.permissions || []).includes('ai_manage')) && (
+        <button
+         onClick={async () => {
+           const modes = ['active', 'paused', 'review'];
+           const next = modes[(modes.indexOf(selectedConv.ai_mode || 'active') + 1) % modes.length];
+           try {
+             await sbUpdate('alfhd_conversations', selectedConv.id, { ai_mode: next });
+             setConversations?.((prev) => prev.map((c) => (c.id === selectedConv.id ? { ...c, ai_mode: next } : c)));
+           } catch (e) { alert('فشل تغيير وضع الذكاء الصناعي: ' + e.message); }
+         }}
+         title="اضغط لتبديل وضع الذكاء الصناعي بهذي المحادثة"
+         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 700, flexShrink: 0,
+          background: (selectedConv.ai_mode || 'active') === 'active' ? 'rgba(34,197,94,0.12)' : (selectedConv.ai_mode === 'review' ? 'rgba(245,158,11,0.12)' : 'rgba(148,163,184,0.12)'),
+          color: (selectedConv.ai_mode || 'active') === 'active' ? '#22C55E' : (selectedConv.ai_mode === 'review' ? '#F59E0B' : '#94A3B8') }}
+        >
+         <Bot size={13} />
+         {(selectedConv.ai_mode || 'active') === 'active' ? 'الذكاء فعّال' : selectedConv.ai_mode === 'review' ? 'وضع المراجعة' : 'الذكاء متوقف'}
+        </button>
+       )}
        {!selectedConv.orderId && ( <button
          onClick={() => onCreateOrderFromConv?.(selectedConv)}
          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
@@ -4985,6 +5005,7 @@ const PERMISSIONS_LIST = [
   { id: 'stats', label: 'عرض الإحصائيات' },
   { id: 'pages_manage', label: 'إدارة الصفحات' },
   { id: 'users_manage', label: 'إدارة المستخدمين' },
+  { id: 'ai_manage', label: 'التحكم بالذكاء الصناعي' },
 ];
 
 function AdminView({ users, setUsers, orders, conversations, onViewConversation, onContactWhatsApp }) {
@@ -6306,6 +6327,7 @@ export default function AlFhdApp() {
               clearPendingOpenConvId={() => setPendingOpenConvId(null)}
               onCreateOrderFromConv={goToNewOrderFromConversation}
               onOpenOrderDetails={goToOrderDetails}
+              currentUser={authedUser}
             />
           )}
           {activeView === 'orders' && (
@@ -6343,11 +6365,131 @@ export default function AlFhdApp() {
           {activeView === 'warehouse' && (authedUser.role === 'admin' || authedUser.role === 'manager') && (
             <WarehouseView />
           )}
+          {activeView === 'ai_assistant' && (authedUser.role === 'admin' || (authedUser.permissions || []).includes('ai_manage')) && (
+            <AIAssistantView />
+          )}
           </div>
         </main>
       </div>
     </>
     </ErrorBoundary>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AIAssistantView — لوحة تحكم الرد التلقائي بالذكاء الصناعي (فهد فقط)
+// ══════════════════════════════════════════════════════════════════
+function AIAssistantView() {
+  const [settings, setSettings] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [logs, setLogs] = React.useState([]);
+  const [tab, setTab] = React.useState('settings'); // settings | log
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const [s] = await sbSelect('ai_settings', '&id=eq.1');
+        setSettings(s || { system_prompt: '', training_examples: '', enabled_globally: true });
+        const l = await sbSelect('ai_reply_log', '&order=created_at.desc&limit=50');
+        setLogs(l || []);
+      } catch (e) { console.error('AI settings load error:', e); }
+      setLoading(false);
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await sbUpdate('ai_settings', 1, {
+        system_prompt: settings.system_prompt,
+        training_examples: settings.training_examples,
+        enabled_globally: settings.enabled_globally,
+        updated_at: new Date().toISOString(),
+      });
+      alert('انحفظ بنجاح');
+    } catch (e) { alert('فشل الحفظ: ' + e.message); }
+    setSaving(false);
+  }
+
+  if (loading || !settings) return <div style={{ padding: 24, color: '#8B98A9' }}>جاري التحميل...</div>;
+
+  const box = { background: '#131B26', border: '1px solid #222C42', borderRadius: 14, padding: 18, marginBottom: 16 };
+  const label = { fontSize: 13, fontWeight: 700, color: '#F5F5F5', marginBottom: 8, display: 'block' };
+  const ta = { width: '100%', minHeight: 140, background: '#0E1621', border: '1px solid #222C42', borderRadius: 10, color: '#F5F5F5', padding: 12, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', direction: 'rtl' };
+
+  return (
+    <div style={{ padding: 20, maxWidth: 900, margin: '0 auto', direction: 'rtl' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+        <Bot size={22} color="#2AABEE" />
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: '#F5F5F5', margin: 0 }}>الذكاء الصناعي — الرد التلقائي</h2>
+        <span style={{ fontSize: 11, color: '#8B98A9', marginRight: 'auto' }}>قسم مخصص للمدير العام فهد فقط</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setTab('settings')} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: tab === 'settings' ? '#2AABEE' : '#131B26', color: tab === 'settings' ? '#fff' : '#8B98A9', fontWeight: 700, fontSize: 13 }}>الإعدادات</button>
+        <button onClick={() => setTab('log')} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: tab === 'log' ? '#2AABEE' : '#131B26', color: tab === 'log' ? '#fff' : '#8B98A9', fontWeight: 700, fontSize: 13 }}>سجل الردود ({logs.length})</button>
+      </div>
+
+      {tab === 'settings' && (<>
+        <div style={box}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={label}>تفعيل الرد التلقائي بشكل عام</div>
+              <div style={{ fontSize: 12, color: '#8B98A9' }}>إيقافه هنا يوقف الذكاء الصناعي بكل المحادثات دفعة وحدة، بغض النظر عن تبديل كل محادثة</div>
+            </div>
+            <button
+              onClick={() => setSettings({ ...settings, enabled_globally: !settings.enabled_globally })}
+              style={{ width: 52, height: 30, borderRadius: 20, border: 'none', background: settings.enabled_globally ? '#22C55E' : '#3A4658', position: 'relative', flexShrink: 0, cursor: 'pointer' }}
+            >
+              <span style={{ position: 'absolute', top: 3, [settings.enabled_globally ? 'right' : 'left']: 3, width: 24, height: 24, borderRadius: '50%', background: '#fff', transition: 'all .2s' }} />
+            </button>
+          </div>
+        </div>
+
+        <div style={box}>
+          <span style={label}>التعليمات الصارمة (System Prompt)</span>
+          <textarea style={ta} value={settings.system_prompt || ''} onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })}
+            placeholder="مثال: انت مساعد مبيعات محل قطع سيارات. ممنوع تخترع سعر أو توفر. لأي شكوى أو تفاوض صعّد لموظف..." />
+        </div>
+
+        <div style={box}>
+          <span style={label}>المحادثة التدريبية / أمثلة الأسلوب</span>
+          <textarea style={ta} value={settings.training_examples || ''} onChange={(e) => setSettings({ ...settings, training_examples: e.target.value })}
+            placeholder="الصق هنا نماذج أسئلة وأجوبة حقيقية توضح الأسلوب المطلوب بالرد" />
+        </div>
+
+        <button onClick={save} disabled={saving} style={{ padding: '11px 24px', borderRadius: 12, border: 'none', background: '#2AABEE', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+          {saving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+        </button>
+
+        <div style={{ ...box, marginTop: 20, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <div style={{ fontSize: 12.5, color: '#F87171', fontWeight: 700, marginBottom: 6 }}>ملاحظة مهمة</div>
+          <div style={{ fontSize: 12.5, color: '#8B98A9', lineHeight: 1.7 }}>
+            التحكم بتفعيل/إيقاف الذكاء الصناعي لمحادثة معينة يصير من داخل المحادثة نفسها (زر بأعلى المحادثة). توفر كل منتج (أخضر/أحمر) يتحكم فيه من قسم المخزن مباشرة على بطاقة المنتج.
+          </div>
+        </div>
+      </>)}
+
+      {tab === 'log' && (
+        <div style={box}>
+          {logs.length === 0 && <div style={{ color: '#8B98A9', fontSize: 13 }}>لا يوجد سجل ردود بعد</div>}
+          {logs.map((l) => (
+            <div key={l.id} style={{ borderBottom: '1px solid #222C42', padding: '12px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: '#8B98A9' }}>{new Date(l.created_at).toLocaleString('ar-IQ')}</span>
+                {l.escalated
+                  ? <span style={{ fontSize: 11, color: '#F87171', fontWeight: 700 }}>⚠ تصعيد لموظف</span>
+                  : <span style={{ fontSize: 11, color: '#22C55E', fontWeight: 700 }}>✓ رد آلي ناجح</span>}
+              </div>
+              {l.customer_message && <div style={{ fontSize: 12.5, color: '#8B98A9', marginBottom: 4 }}>الزبون: {l.customer_message}</div>}
+              {l.reply_text && <div style={{ fontSize: 12.5, color: '#F5F5F5' }}>الرد: {l.reply_text}</div>}
+              {l.escalation_reason && <div style={{ fontSize: 12, color: '#F87171' }}>السبب: {l.escalation_reason}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -6637,6 +6779,15 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                 {isLow&&<div style={{fontSize: 11.5,color:'#F25050',fontWeight:700}}>⚠️</div>}
               </div>
               <div style={{display:'flex',gap:5}}>
+                <button
+                  onClick={async()=>{
+                    const next=!(p.ai_available!==false);
+                    try{ await sbU('wh_products',p.id,{ai_available:next}); setProducts(prev=>prev.map(x=>x.id===p.id?{...x,ai_available:next}:x)); }
+                    catch(e){ alert('فشل تحديث توفر الذكاء الصناعي: '+e.message); }
+                  }}
+                  title={(p.ai_available!==false)?'الذكاء يرد "متوفر" — اضغط لتحويله لغير متوفر':'الذكاء يرد "غير متوفر" — اضغط لتحويله لمتوفر'}
+                  style={{padding:7,background:(p.ai_available!==false)?'rgba(34,197,94,0.12)':'rgba(242,80,80,0.1)',border:`1px solid ${(p.ai_available!==false)?'rgba(34,197,94,0.3)':'rgba(242,80,80,0.25)'}`,borderRadius:8,color:(p.ai_available!==false)?'#22C55E':'#F25050',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                ><Bot size={13}/></button>
                 <button onClick={()=>openEdit(p)} style={{padding:7,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:8,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={13}/></button>
                 <button onClick={()=>del(p.id)} style={{padding:7,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:8,color:'#F25050',cursor:'pointer'}}><Trash2 size={13}/></button>
               </div>
