@@ -8139,14 +8139,14 @@ function WhFloatingSearch({ products, onSelect }) {
   return (
     <>
       <button onClick={() => setOpen(true)} title="ابحث عن المنتجات" style={{
-        position: 'fixed', bottom: 22, left: 22, zIndex: 500, width: 52, height: 52, borderRadius: '50%',
+        position: 'fixed', bottom: 'calc(78px + env(safe-area-inset-bottom, 0px))', left: 16, zIndex: 9999, width: 52, height: 52, borderRadius: '50%',
         background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', color: '#fff', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(42,171,238,0.45)',
       }}>
         <Search size={20} />
       </button>
       {open && (
-        <div onClick={() => { setOpen(false); setQ(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 900, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '10vh 16px' }}>
+        <div onClick={() => { setOpen(false); setQ(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9998, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '10vh 16px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#17212B', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 14, width: '100%', maxWidth: 420 }}>
             <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث عن اسم المنتج..." style={whInp} />
             <div style={{ marginTop: 10, maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
