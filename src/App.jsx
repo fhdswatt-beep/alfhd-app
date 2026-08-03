@@ -8250,6 +8250,16 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
   const [loading, setLoading] = useState(true);
   const [savingBasic, setSavingBasic] = useState(false);
   const [uploadingColorId, setUploadingColorId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  async function deleteWholeProduct() {
+    if (!confirm(`حذف منتج "${product.car_name || 'بدون اسم'}" نهائياً مع كل ألوانه وخياراته؟ هذا الإجراء لا يتراجع.`)) return;
+    setDeleting(true);
+    try {
+      await sbD('wh_products', product.id);
+      setProducts(prev => prev.filter(p => p.id !== product.id));
+      onBack();
+    } catch (e) { alert('فشل الحذف: ' + e.message); setDeleting(false); }
+  }
 
   useEffect(() => { loadAll(); }, []);
   async function loadAll() {
@@ -8345,11 +8355,14 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
   return (
     <div style={{ direction: 'rtl' }}>
       {allProducts && onSwitchProduct && <WhFloatingSearch products={allProducts} onSelect={onSwitchProduct} />}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#EAF0F7', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
           → رجوع للقائمة
         </button>
-        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F5F5F5' }}>تعديل منتج: {form.car_name || '—'}</h3>
+        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F5F5F5', flex: 1 }}>تعديل منتج: {form.car_name || '—'}</h3>
+        <button onClick={deleteWholeProduct} disabled={deleting} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.25)', borderRadius: 9, color: '#F25050', fontSize: 12.5, fontWeight: 700, cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
+          <Trash2 size={13} /> {deleting ? 'جاري الحذف...' : 'حذف المنتج نهائياً'}
+        </button>
       </div>
 
       {/* بيانات أساسية */}
