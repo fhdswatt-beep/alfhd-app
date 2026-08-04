@@ -8360,8 +8360,8 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
           → رجوع للقائمة
         </button>
         <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F5F5F5', flex: 1 }}>تعديل منتج: {form.car_name || '—'}</h3>
-        <button onClick={deleteWholeProduct} disabled={deleting} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.25)', borderRadius: 9, color: '#F25050', fontSize: 12.5, fontWeight: 700, cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
-          <Trash2 size={13} /> {deleting ? 'جاري الحذف...' : 'حذف المنتج نهائياً'}
+        <button onClick={deleteWholeProduct} disabled={deleting} title="حذف المنتج نهائياً" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, flexShrink: 0, background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 8, color: '#F25050', cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
+          <Trash2 size={13} />
         </button>
       </div>
 
@@ -8379,7 +8379,7 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
         <WhField label="أسماء بديلة (اللهجة العراقية)">
           <input value={form.aliases} onChange={e => setForm(f => ({ ...f, aliases: e.target.value }))} placeholder="مرزي، بيكم، بيك اب" style={whInp} />
         </WhField>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
           <button onClick={() => setForm(f => ({ ...f, ai_available: !f.ai_available }))}
             style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${form.ai_available ? 'rgba(34,197,94,0.3)' : 'rgba(242,80,80,0.25)'}`, background: form.ai_available ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.1)', color: form.ai_available ? '#22C55E' : '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             {form.ai_available ? '🤖 الذكاء يعرضه متوفر' : '🤖 الذكاء يعرضه غير متوفر'}
