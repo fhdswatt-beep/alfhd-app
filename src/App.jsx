@@ -2401,21 +2401,21 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           governorate_code: found.governorate_code,
           governorate_name: gov?.name || null,
         };
-        // حدّث المنطقة والكود فقط إذا وُجدت منطقة فعلية (لا نمسح منطقة صحيحة بـ null)
-        if (found.city_id && found.city_name) {
+        // مهم جداً: نحدّث city_id فقط (لازم لشركة التوصيل) — ممنوع نغيّر نص المنطقة
+        // اللي كتبه الزبون أبداً، حتى لو التطابق التلقائي لقى اسم مختلف شوي.
+        // هذا كان يسبب تغيّر العنوان بصمت بعد الطباعة.
+        if (found.city_id) {
           patch.city_id = found.city_id;
-          patch.area = found.city_name;
         }
         o = {
           ...o,
           governorateCode: found.governorate_code,
           governorateName: gov?.name || o.governorateName,
           cityId: found.city_id || o.cityId,
-          area: (found.city_name || o.area),
         };
         try { await sbUpdate('alfhd_orders', o.id, patch); } catch (_e) { /* تجاهل */ }
         setOrders((prev) => prev.map((x) => x.id === o.id ? {
-          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id || x.cityId, area: (found.city_name || x.area),
+          ...x, governorateCode: found.governorate_code, governorateName: gov?.name, cityId: found.city_id || x.cityId,
         } : x));
       }
     }
@@ -8340,7 +8340,7 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
   async function addSeatOption(colorId) {
     try {
       const color = colors.find(c => c.id === colorId);
-      const r = await sbI('wh_product_seat_options', { color_id: colorId, seats: 5, kashat_type: null, has_box: false, box_required: false, price_iqd: 0, quantity: 0, location: '', ai_available: true, origin: color?.origin || 'both', drivetrain: 'all', sort_order: (color?.seatOptions?.length || 0) });
+      const r = await sbI('wh_product_seat_options', { color_id: colorId, seats: 5, kashat_type: null, has_box: false, box_required: false, box_size: null, price_iqd: 0, quantity: 0, location: '', ai_available: true, origin: color?.origin || 'both', drivetrain: 'all', sort_order: (color?.seatOptions?.length || 0) });
       if (r?.[0]) setColors(prev => prev.map(c => c.id === colorId ? { ...c, seatOptions: [...c.seatOptions, r[0]] } : c));
     } catch (e) { alert('فشل الإضافة: ' + e.message); }
   }
@@ -8456,8 +8456,14 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
                             <option value={7}>7 راكب</option>
                           </select>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: o.box_required ? '#F0A020' : '#8FA0B5', cursor: 'pointer', padding: '6px 8px', background: o.box_required ? 'rgba(240,160,32,0.1)' : 'transparent', borderRadius: 7, border: o.box_required ? '1px solid rgba(240,160,32,0.3)' : '1px solid transparent' }}>
-                            <input type="checkbox" checked={!!o.box_required} onChange={e => updateSeatOption(c.id, o.id, { box_required: e.target.checked, has_box: e.target.checked })} /> صندوق إلزامي
+                            <input type="checkbox" checked={!!o.box_required} onChange={e => updateSeatOption(c.id, o.id, { box_required: e.target.checked, has_box: e.target.checked, box_size: e.target.checked ? o.box_size : null })} /> صندوق إلزامي
                           </label>
+                          {o.box_required && (
+                            <>
+                              <WhChip active={o.box_size === 'large'} label="صندوق كبير" onClick={() => updateSeatOption(c.id, o.id, { box_size: o.box_size === 'large' ? null : 'large' })} />
+                              <WhChip active={o.box_size === 'small'} label="صندوق صغير" onClick={() => updateSeatOption(c.id, o.id, { box_size: o.box_size === 'small' ? null : 'small' })} />
+                            </>
+                          )}
                         </div>
                         {/* كشنات — علّم على اللي موجود */}
                         <WhChipRow label="الكشنات">
