@@ -6754,6 +6754,11 @@ export default function AlFhdApp() {
   const aiFiredRef = React.useRef(new Set());
 
   useEffect(() => {
+    // معطّل عمداً: صار عندنا نظامين بالسيرفر (webhook فوري + فحص دوري كل ثانية)
+    // أسرع وأثبت من هذا النظام (كان يعتمد على فتح المتصفح، ويسبب تكرار
+    // محاولات مع الأنظمة الثانية ويزيد الحمل بلا داعي).
+    return undefined;
+    // eslint-disable-next-line no-unreachable
     if (!storageReady) return undefined;
     let busy = false;
 
