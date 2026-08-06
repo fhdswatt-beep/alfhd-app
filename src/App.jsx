@@ -8361,8 +8361,8 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
     <div style={{ direction: 'rtl' }}>
       {allProducts && onSwitchProduct && <WhFloatingSearch products={allProducts} onSelect={onSwitchProduct} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#EAF0F7', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-          → رجوع للقائمة
+        <button onClick={async () => { await saveBasic(); onBack(); }} disabled={savingBasic} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 9, color: '#fff', fontSize: 13, fontWeight: 800, cursor: savingBasic ? 'default' : 'pointer', opacity: savingBasic ? 0.7 : 1 }}>
+          {savingBasic ? '⏳ جاري الحفظ...' : '💾 حفظ ورجوع'}
         </button>
         <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F5F5F5', flex: 1 }}>تعديل منتج: {form.car_name || '—'}</h3>
         <button onClick={deleteWholeProduct} disabled={deleting} title="حذف المنتج نهائياً" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, flexShrink: 0, background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 8, color: '#F25050', cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
@@ -8388,9 +8388,6 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
           <button onClick={() => setForm(f => ({ ...f, ai_available: !f.ai_available }))}
             style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${form.ai_available ? 'rgba(34,197,94,0.3)' : 'rgba(242,80,80,0.25)'}`, background: form.ai_available ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.1)', color: form.ai_available ? '#22C55E' : '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             {form.ai_available ? '🤖 الذكاء يعرضه متوفر' : '🤖 الذكاء يعرضه غير متوفر'}
-          </button>
-          <button onClick={saveBasic} disabled={savingBasic} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            {savingBasic ? 'جاري الحفظ...' : 'حفظ البيانات الأساسية'}
           </button>
         </div>
       </div>
