@@ -8374,7 +8374,7 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
       <div style={{ background: 'linear-gradient(145deg,#17212B,#1A2736)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#8B9AB3', marginBottom: 10 }}>البيانات الأساسية</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
-          <WhField label="اسم السيارة"><input value={form.car_name} onChange={e => setForm(f => ({ ...f, car_name: e.target.value }))} style={whInp} /></WhField>
+          <WhField label="اسم السيارة"><input value={form.car_name} onChange={e => setForm(f => ({ ...f, car_name: e.target.value }))} autoFocus={form.car_name === 'منتج جديد'} onFocus={e => { if (form.car_name === 'منتج جديد') e.target.select(); }} style={whInp} /></WhField>
           <WhField label="النوع">
             <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={whInp}>
               {WH_PRODUCT_TYPES.map(tt => <option key={tt.id} value={tt.id}>{tt.label}</option>)}
@@ -8558,8 +8558,17 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
       } catch (e) { console.error('فشل تحميل تصنيف الركاب:', e); }
     })();
   }, [products.length]);
-  function openNew(){setEditing(null);setNewCarMode(false);setForm({car_name:'',type:'mother_dosah',quantity:0,cost_iqd:0,price_iqd:0,location:'',branch:'',shelf:'',notes:'',image_url:'',origin:'both',colors:[],aliases:''});setModal(true);}
   const scrollPosRef = useRef(0);
+  async function openNew(){
+    try {
+      const r = await sbI('wh_products', { car_name: 'منتج جديد', type: 'mother_dosah', ai_available: true });
+      if (r?.[0]) {
+        setProducts(prev => [r[0], ...prev]);
+        const mainEl=document.querySelector('.alfhd-main-area'); scrollPosRef.current = mainEl?mainEl.scrollTop:window.scrollY;
+        setEditingFull(r[0]);
+      }
+    } catch(e){ alert('فشل إنشاء المنتج: ' + e.message); }
+  }
   function openEdit(p){ const mainEl=document.querySelector('.alfhd-main-area'); scrollPosRef.current = mainEl?mainEl.scrollTop:window.scrollY; setEditingFull(p); }
   // ضغط الصورة لـ base64 وتخزينها مع المنتج
   function handlePickImage(e){
