@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageSquare, Package, Users, LogOut, Search, Plus, BarChart3, CheckCircle2, XCircle, Truck, Printer, ChevronDown, X, Menu, Shield, ShieldCheck,
  Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook, ArrowUpRight, Sparkles, Bot, Pin, Phone, MapPin, Calendar, RefreshCw, Mic, Send, Image, ArrowRight, AlertCircle,
- Warehouse, ShoppingCart, CreditCard, DollarSign, TrendingUp, Percent, Home, Bell, Download, Upload, Clock, AlertTriangle, Copy, MessageCircle, FileText, } from 'lucide-react';
+ Warehouse, ShoppingCart, CreditCard, DollarSign, TrendingUp, Percent, Home, Bell, Download, Upload, Clock, AlertTriangle, Copy, MessageCircle, FileText, Key, } from 'lucide-react';
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
@@ -7088,6 +7088,42 @@ function AIAssistantView({ currentUser }) {
   const [bulkImgType, setBulkImgType] = React.useState(null); // النوع اللي نرفعله صورة جماعية
   const [bulkImgBusy, setBulkImgBusy] = React.useState(false);
   const [bulkImgDone, setBulkImgDone] = React.useState(0);
+  // ── API الذكاء الاصطناعي — كارتات مزوّدين متعددين ──
+  const [providers, setProviders] = React.useState([]);
+  const [providersLoading, setProvidersLoading] = React.useState(false);
+  const [newProvider, setNewProvider] = React.useState(null); // {name, api_key, api_base_url, model}
+  const [savingProvider, setSavingProvider] = React.useState(false);
+  const loadProviders = React.useCallback(async () => {
+    setProvidersLoading(true);
+    try { const rows = await sbSelect('ai_api_providers', '&order=sort_order.asc,created_at.asc'); setProviders(rows || []); }
+    catch (e) { console.error('providers load error:', e); }
+    setProvidersLoading(false);
+  }, []);
+  async function toggleProviderActive(id) {
+    try {
+      // نفّعل هذا ونطفي الباقي — واحد بس مفعّل بأي وقت
+      await Promise.all(providers.map(p => sbUpdate('ai_api_providers', p.id, { is_active: p.id === id })));
+      setProviders(prev => prev.map(p => ({ ...p, is_active: p.id === id })));
+    } catch (e) { alert('فشل التفعيل: ' + e.message); }
+  }
+  async function deleteProvider(id) {
+    if (!confirm('حذف هذا المفتاح نهائياً؟')) return;
+    try { await sbDelete('ai_api_providers', id); setProviders(prev => prev.filter(p => p.id !== id)); }
+    catch (e) { alert('فشل الحذف: ' + e.message); }
+  }
+  async function saveNewProvider() {
+    if (!newProvider?.name?.trim() || !newProvider?.api_key?.trim() || !newProvider?.api_base_url?.trim() || !newProvider?.model?.trim()) {
+      alert('عبّي كل الحقول (الاسم، المفتاح، الرابط، اسم النموذج)'); return;
+    }
+    setSavingProvider(true);
+    try {
+      const r = await sbInsert('ai_api_providers', { name: newProvider.name.trim(), api_key: newProvider.api_key.trim(), api_base_url: newProvider.api_base_url.trim(), model: newProvider.model.trim(), is_active: false, sort_order: providers.length });
+      if (r?.[0]) setProviders(prev => [...prev, r[0]]);
+      setNewProvider(null);
+    } catch (e) { alert('فشل الإضافة: ' + e.message); }
+    setSavingProvider(false);
+  }
+  React.useEffect(() => { if (tab === 'api' && providers.length === 0 && !providersLoading) loadProviders(); }, [tab]);
 
   // رفع صورة موحّدة لكل منتجات نوع معين — ترفع مرة وحدة لستوريج وتستخدم الرابط للكل
   function handleBulkImage(e, typeId) {
@@ -7523,6 +7559,7 @@ function AIAssistantView({ currentUser }) {
           { id: 'products', label: 'المنتجات',  icon: Package, badge: null },
           { id: 'training', label: 'التدريب',   icon: Sparkles, badge: null },
           { id: 'settings', label: 'الإعدادات', icon: Shield, badge: null },
+          { id: 'api',      label: 'API الذكاء', icon: Key, badge: null },
           ...(drafts.length > 0 ? [{ id: 'drafts', label: 'مسودات', icon: Edit3, badge: drafts.length }] : []),
         ].map((t) => {
           const Icon = t.icon; const on = tab === t.id;
@@ -8051,6 +8088,79 @@ function AIAssistantView({ currentUser }) {
             );
           })}
         </div>
+      </>)}
+
+      {/* ═══════ API الذكاء الاصطناعي — كارتات مزوّدين متعددين ═══════ */}
+      {tab === 'api' && (<>
+        <div style={{ ...box, background: 'rgba(42,171,238,0.06)', borderColor: 'rgba(42,171,238,0.2)' }}>
+          <div style={{ fontSize: 13, color: '#8B98A9', lineHeight: 1.8 }}>
+            كل كارت = مفتاح API لمزوّد ذكاء اصطناعي. <b style={{ color: '#22C55E' }}>الأخضر</b> هو المفعّل حالياً (اللي يشتغل فعلياً بالمحادثات) — ما ينفعّل غيره إلا لو ضغطت عليه، وينطفي الباقي تلقائياً.
+          </div>
+        </div>
+        {providersLoading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#8B98A9' }}>جاري التحميل...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+            {providers.map((p) => {
+              const on = !!p.is_active;
+              return (
+                <div key={p.id} style={{ ...box, marginBottom: 0, border: `1px solid ${on ? 'rgba(34,197,94,0.35)' : '#222C42'}`, background: on ? 'rgba(34,197,94,0.05)' : '#131B26' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: on ? '#22C55E' : '#F25050', flexShrink: 0, boxShadow: on ? '0 0 8px rgba(34,197,94,0.6)' : 'none' }} />
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{p.name}</div>
+                        <div style={{ fontSize: 11.5, color: '#8B98A9', marginTop: 2 }}>{p.model} · {p.api_base_url}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => toggleProviderActive(p.id)} disabled={on} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${on ? 'rgba(34,197,94,0.35)' : 'rgba(42,171,238,0.3)'}`, background: on ? 'rgba(34,197,94,0.14)' : 'rgba(42,171,238,0.1)', color: on ? '#22C55E' : '#2AABEE', fontSize: 12, fontWeight: 800, cursor: on ? 'default' : 'pointer' }}>
+                        {on ? '● مفعّل الآن' : 'شغّله'}
+                      </button>
+                      <button onClick={() => deleteProvider(p.id)} style={{ padding: 8, background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 8, color: '#F25050', cursor: 'pointer' }}><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {providers.length === 0 && <div style={{ ...box, textAlign: 'center', color: '#8B98A9' }}>ما فيه أي مزوّد مسجل بعد</div>}
+          </div>
+        )}
+
+        {/* إضافة مزوّد جديد */}
+        {newProvider ? (
+          <div style={box}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12, color: '#F5F5F5' }}>مزوّد جديد</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 11.5, color: '#8B98A9', marginBottom: 4 }}>اسم يظهر بالكارت (مثلاً NVIDIA NIM)</div>
+                <input style={inp} value={newProvider.name || ''} onChange={(e) => setNewProvider({ ...newProvider, name: e.target.value })} placeholder="اسم المزوّد" />
+              </div>
+              <div>
+                <div style={{ fontSize: 11.5, color: '#8B98A9', marginBottom: 4 }}>رابط الـ API (Base URL)</div>
+                <input style={inp} value={newProvider.api_base_url || ''} onChange={(e) => setNewProvider({ ...newProvider, api_base_url: e.target.value })} placeholder="مثلاً https://integrate.api.nvidia.com/v1" dir="ltr" />
+              </div>
+              <div>
+                <div style={{ fontSize: 11.5, color: '#8B98A9', marginBottom: 4 }}>اسم النموذج (Model)</div>
+                <input style={inp} value={newProvider.model || ''} onChange={(e) => setNewProvider({ ...newProvider, model: e.target.value })} placeholder="مثلاً meta/llama-3.3-70b-instruct" dir="ltr" />
+              </div>
+              <div>
+                <div style={{ fontSize: 11.5, color: '#8B98A9', marginBottom: 4 }}>مفتاح API (Key)</div>
+                <input style={inp} type="password" value={newProvider.api_key || ''} onChange={(e) => setNewProvider({ ...newProvider, api_key: e.target.value })} placeholder="المفتاح السري" dir="ltr" />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={saveNewProvider} disabled={savingProvider} style={{ padding: '9px 18px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+                  {savingProvider ? 'جاري الحفظ...' : 'حفظ المزوّد'}
+                </button>
+                <button onClick={() => setNewProvider(null)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#8B98A9', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>إلغاء</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setNewProvider({ name: '', api_key: '', api_base_url: '', model: '' })} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 9, border: '1px dashed rgba(42,171,238,0.4)', background: 'transparent', color: '#2AABEE', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <Plus size={15} /> إضافة مزوّد API جديد
+          </button>
+        )}
       </>)}
 
       {/* ═══════ المسودات (وضع المراجعة) ═══════ */}
