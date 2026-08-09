@@ -255,13 +255,13 @@ const STATUS_CONFIG = { pending:   { label: 'قيد التوصيل', color: '#3B
  delivered: { label: 'مستلم',       color: '#4ADE80', bg: 'rgba(74,222,128,0.12)', icon: CheckCircle2 }, };
 const DELIVERY_STATUS_CONFIG = { NEW_ORDER_TO_PRINT:     { label: 'جاهز للطباعة عند جيني', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
  READY_TO_PICKUP:        { label: 'جاهز للاستلام من المخزن', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
- IN_SC:                  { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' }, OUT_FOR_DELIVERY:       { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
- OFD:                    { label: 'قيد التوصيل', color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' }, DELIVERED:              { label: 'مستلم ✓', color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' },
+ IN_SC:                  { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' }, OUT_FOR_DELIVERY:       { label: 'قيد التوصيل', color: '#4C8DFF', bg: 'rgba(76,141,255,0.12)' },
+ OFD:                    { label: 'قيد التوصيل', color: '#4C8DFF', bg: 'rgba(76,141,255,0.12)' }, DELIVERED:              { label: 'مستلم ✓', color: '#34D399', bg: 'rgba(52,211,153,0.12)' },
  FAILED_DELIVERY:        { label: 'فشل التوصيل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' }, RETURNED_TO_MERCHANT:   { label: 'راجع للمرسل', color: '#F45B69', bg: 'rgba(244,91,105,0.12)' },
  RETURN_IN_PROGRESS:     { label: 'جارٍ الإرجاع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' }, CANCELLED:              { label: 'ملغي', color: '#8FA0B5', bg: 'rgba(84,104,128,0.12)' },
  ON_HOLD:                { label: 'معلّق', color: '#F0A868', bg: 'rgba(240,168,104,0.12)' },
- sorting:   { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' }, shipping:  { label: 'قيد التوصيل',     color: '#2AABEE', bg: 'rgba(42,171,238,0.12)' },
- delivered: { label: 'مستلم ✓',         color: '#4DDB6B', bg: 'rgba(77,219,107,0.12)' }, returned:  { label: 'راجع',            color: '#F45B69', bg: 'rgba(244,91,105,0.12)' }, };
+ sorting:   { label: 'داخل مركز الفرز', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)' }, shipping:  { label: 'قيد التوصيل',     color: '#4C8DFF', bg: 'rgba(76,141,255,0.12)' },
+ delivered: { label: 'مستلم ✓',         color: '#34D399', bg: 'rgba(52,211,153,0.12)' }, returned:  { label: 'راجع',            color: '#F45B69', bg: 'rgba(244,91,105,0.12)' }, };
 const ORDER_STAGES = [ { id: 'ready',    label: 'جاهزة للطباعة' }, { id: 'prep',     label: 'مطبوع' }, { id: 'delivery', label: 'لدى شركة التوصيل' }, ];
 const ORDER_STAGE_CONFIG = { ready: { label: 'جاهز للطباعة', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Printer },
  prep: { label: 'مطبوع', color: '#F0A868', bg: 'rgba(240,168,104,0.12)', icon: Package }, delivery: { label: 'لدى شركة التوصيل', color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', icon: Truck },
@@ -308,9 +308,9 @@ function FahdLogo({ size = 56 }) { return ( <svg width={size} height={size} view
     d="M50 18 C35 18 24 30 22 45 C21 52 24 58 28 63 L32 58 C29 54 27 50 28 45 C29 35 38 26 50 26 C62 26 71 35 72 45 C73 50 71 54 68 58 L72 63 C76 58 79 52 78 45 C76 30 65 18 50 18 Z"
     fill="url(#fahdGrad)"
    />
-   <circle cx="40" cy="42" r="3" fill="#0A0E17" />
-   <circle cx="60" cy="42" r="3" fill="#0A0E17" />
-   <path d="M50 48 L46 55 L54 55 Z" fill="#0A0E17" opacity="0.7" />
+   <circle cx="40" cy="42" r="3" fill="#070A0F" />
+   <circle cx="60" cy="42" r="3" fill="#070A0F" />
+   <path d="M50 48 L46 55 L54 55 Z" fill="#070A0F" opacity="0.7" />
    <path
     d="M30 68 Q50 78 70 68 L66 82 Q50 90 34 82 Z"
     fill="url(#fahdGrad)"
@@ -427,11 +427,11 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
   <div onClick={() => setMenuOpen(false)}
    style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,0.55)', display: 'flex', justifyContent: 'flex-start' }}>
    <div onClick={(e) => e.stopPropagation()}
-    style={{ width: 285, maxWidth: '82vw', height: '100%', background: '#131B26', borderLeft: '1px solid #222C42', display: 'flex', flexDirection: 'column', direction: 'rtl', animation: 'alfhdSlideIn .2s ease' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '20px 16px', borderBottom: '1px solid #222C42' }}>
+    style={{ width: 285, maxWidth: '82vw', height: '100%', background: '#0F141C', borderLeft: '1px solid #1B222D', display: 'flex', flexDirection: 'column', direction: 'rtl', animation: 'alfhdSlideIn .2s ease' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '20px 16px', borderBottom: '1px solid #1B222D' }}>
      <FahdLogo size={32} />
      <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5' }}>AlFhd</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#F4F7FB' }}>AlFhd</div>
       <div style={{ fontSize: 12, color: '#8FA0B5' }}>{currentUser.name}</div>
      </div>
      <button onClick={() => setMenuOpen(false)} style={{ padding: 8, background: 'transparent', border: 'none', color: '#8B98A9', cursor: 'pointer', display: 'flex' }}><X size={19} /></button>
@@ -442,19 +442,19 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
       return (
        <button key={item.id} onClick={() => { setActiveView(item.id); setMenuOpen(false); }}
         style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 12px', marginBottom: 8, borderRadius: 12, border: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif", textAlign: 'right',
-         background: active ? 'rgba(42,171,238,0.12)' : 'transparent' }}>
-        <div style={{ width: 38, height: 38, borderRadius: 11, background: active ? 'rgba(42,171,238,0.18)' : '#0E1621', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-         <Icon size={18} color={active ? '#2AABEE' : '#8B98A9'} />
+         background: active ? 'rgba(76,141,255,0.12)' : 'transparent' }}>
+        <div style={{ width: 38, height: 38, borderRadius: 11, background: active ? 'rgba(76,141,255,0.18)' : '#0A0E14', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+         <Icon size={18} color={active ? '#4C8DFF' : '#8B98A9'} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-         <div style={{ fontSize: 13.5, fontWeight: 700, color: active ? '#2AABEE' : '#F5F5F5' }}>{item.label}</div>
+         <div style={{ fontSize: 13.5, fontWeight: 700, color: active ? '#4C8DFF' : '#F4F7FB' }}>{item.label}</div>
          <div style={{ fontSize: 12, color: '#8FA0B5', marginTop: 2 }}>{item.desc}</div>
         </div>
        </button>
       );
      })}
     </div>
-    <div style={{ padding: 12, borderTop: '1px solid #222C42' }}>
+    <div style={{ padding: 12, borderTop: '1px solid #1B222D' }}>
      <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '12px', borderRadius: 11, border: 'none', background: 'rgba(242,80,80,0.10)', color: '#F25050', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cairo', sans-serif" }}>
       <LogOut size={15} /> تسجيل الخروج
      </button>
@@ -471,7 +471,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
       <span style={styles.mobileHeaderTitle}>AlFhd</span>
      </div>
      {visibleMenu.length > 0 && (
-      <button onClick={() => setMenuOpen(true)} style={{ ...styles.mobileLogoutBtn, background: 'rgba(42,171,238,0.10)', color: '#2AABEE' }}>
+      <button onClick={() => setMenuOpen(true)} style={{ ...styles.mobileLogoutBtn, background: 'rgba(76,141,255,0.10)', color: '#4C8DFF' }}>
        <Menu size={19} />
       </button>
      )}
@@ -500,7 +500,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
     </div>
     {visibleMenu.length > 0 && (
      <button onClick={() => setMenuOpen(true)} title="الأقسام الإدارية"
-      style={{ padding: 8, borderRadius: 10, border: 'none', background: 'rgba(42,171,238,0.10)', color: '#2AABEE', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      style={{ padding: 8, borderRadius: 10, border: 'none', background: 'rgba(76,141,255,0.10)', color: '#4C8DFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Menu size={18} />
      </button>
     )}
@@ -543,7 +543,7 @@ function avatarColorFromName(name = '') { let hash = 0;
 function PlatformBadge({ platform, size = 'md' }) { const isWhatsApp = platform === 'whatsapp';
  const dim = size === 'lg' ? 18 : 17;
  return ( <div style={{ position: 'absolute', bottom: 0, left: 0, width: dim, height: dim, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-   background: isWhatsApp ? '#25D366' : '#0A8CFF', border: '2.5px solid #0A0E17', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', }}>
+   background: isWhatsApp ? '#25D366' : '#0A8CFF', border: '2.5px solid #070A0F', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', }}>
    {isWhatsApp ? ( <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.79.47 3.47 1.29 4.93L2 22l5.31-1.39a9.87 9.87 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 17.92h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.1.82.83-3.03-.2-.31a8.16 8.16 0 0 1-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.55-3.7 8.2-8.26 8.2z" />
     </svg> ) : ( <svg width={dim * 0.52} height={dim * 0.52} viewBox="0 0 24 24" fill="white">
@@ -561,7 +561,7 @@ function ConvAvatar({ conv, size = 'md' }) { const color = avatarColorFromName(c
      alt={conv.customer || ''}
      loading="lazy"
      onError={() => setImgFailed(true)}
-     style={{ ...wrapStyle, objectFit: 'cover', background: '#222C42' }}
+     style={{ ...wrapStyle, objectFit: 'cover', background: '#1B222D' }}
     /> ) : ( <div style={{ ...wrapStyle, background: `${color}22`, color, border: `1px solid ${color}44` }}>
      {conv?.avatar && conv.avatar !== '👤' ? conv.avatar : (conv?.customer?.[0] || '👤')}
     </div> )}
@@ -734,7 +734,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
   setConversations?.((prev) => prev.map((c) => ( c.id === convId ? { ...c, tab: 'handoff' } : c )));
   try { await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' }); } catch (e) { console.error('handoff tab update error:', e); } }
 
- // ── التقاط رسالة "تم تثبيت طلبك" من الذكاء وإنشاء الطلب بنفس منطق الموقع ──
+ // ── التقاط رسالة "تم تثبيت طلبك" ��ن الذكاء وإنشاء الطلب بنفس منطق الموقع ──
  // نفس البنية المستخدمة بالتثبيت اليدوي — ما نستخدم منطق جديد
  async function maybeCreateOrderFromAI(convId, messages) {
   const conv = conversations.find((c) => c.id === convId);
@@ -964,18 +964,18 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
   setRecording(false);
   if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
   setRecSeconds(0); }
- const TG_PANEL = '#17212B';
- const TG_INPUT = '#242F3D';
- const TG_BLUE  = '#2AABEE';
+ const TG_PANEL = '#141A22';
+ const TG_INPUT = '#1E2630';
+ const TG_BLUE  = '#4C8DFF';
  const TG_DIM   = '#8FA0B5';
  const TG_SUB   = '#8B9AB3';
- const TG_TEXT  = '#F5F5F5';
+ const TG_TEXT  = '#F4F7FB';
  const TG_RED   = '#E53935';
  const TG_BDR   = 'rgba(255,255,255,0.07)';
  const tabLabels = { normal: 'اعتيادية', pinned: 'مثبّت بها طلب', handoff: 'بحاجة إلى موظف', ready: 'بيانات كاملة' };
  const tabIcons  = { normal: MessageSquare, pinned: Pin, ready: CheckCircle2, handoff: AlertCircle };
  return ( /* ─── حاوية المحادثات ─── */
-  <div style={{ display: 'flex', overflow: 'hidden', direction: 'rtl', background: '#0E1621', width: '100%', height: '100%', }} className="alfhd-conv-fullscreen">
+  <div style={{ display: 'flex', overflow: 'hidden', direction: 'rtl', background: '#0A0E14', width: '100%', height: '100%', }} className="alfhd-conv-fullscreen">
    {/* ══════════════ قائمة المحادثات (يمين) ══════════════ */}
    <div
     style={{ width: 340, minWidth: 280, maxWidth: 360, display: 'flex', flexDirection: 'column', background: TG_PANEL, borderLeft: `1px solid ${TG_BDR}`,
@@ -1085,7 +1085,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
          {/* عداد الغير مقروء فقط — أحمر */}
          {unreadCount > 0 && ( <span style={{ position: 'absolute', top: -7, right: -10, minWidth: 16, height: 16, padding: '0 4px',
            borderRadius: 20, background: '#E53935', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center',
-           border: `2px solid #17212B`, lineHeight: 1, }}>
+           border: `2px solid #141A22`, lineHeight: 1, }}>
            {unreadCount > 99 ? '99+' : unreadCount}
           </span> )}
         </div>
@@ -1101,7 +1101,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
      {/* زر تعليم الكل كمقروء */}
      {filtered.reduce((s, c) => s + Number(c.unread || 0), 0) > 0 && ( <button
        onClick={() => markAllRead(filtered)}
-       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '8px', background: 'rgba(42,171,238,0.07)',
+       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '8px', background: 'rgba(76,141,255,0.07)',
         border: 'none', color: TG_BLUE, fontSize: 12, fontWeight: 600, }}
       >
        <CheckCircle2 size={13} />
@@ -1118,7 +1118,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
          className="alfhd-conv-item"
          style={{ display: 'flex', gap: 12, padding: '12px 16px', width: '100%', background: 'transparent', border: 'none',
           borderRight: isActive ? `3px solid ${TG_BLUE}` : '3px solid transparent', borderRadius: 0, textAlign: 'right', alignItems: 'center',
-          backgroundColor: isActive ? 'rgba(42,171,238,0.13)' : 'transparent', transition: 'background 0.12s ease', minHeight: 72, }}
+          backgroundColor: isActive ? 'rgba(76,141,255,0.13)' : 'transparent', transition: 'background 0.12s ease', minHeight: 72, }}
         >
          {/* أفاتار أكبر */}
          <div style={{ flexShrink: 0 }}>
@@ -1144,7 +1144,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
           </div>
           {/* طلب مثبّت — صغير تحت */}
           {c.orderId && ( <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: TG_BLUE, fontWeight: 600,
-            background: 'rgba(42,171,238,0.10)', borderRadius: 10, padding: '2px 8px', }}>
+            background: 'rgba(76,141,255,0.10)', borderRadius: 10, padding: '2px 8px', }}>
             📦 طلب مثبّت
            </div> )}
          </div>
@@ -1153,7 +1153,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
    </div>
    {/* ══════════════ منطقة المحادثة (يسار) ══════════════ */}
    <div
-    style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0E1621', height: '100%', overflow: 'hidden', minWidth: 0, }}
+    style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0A0E14', height: '100%', overflow: 'hidden', minWidth: 0, }}
     className={`alfhd-conv-detail${selectedConv ? ' alfhd-conv-detail-active-mobile' : ' alfhd-conv-detail-empty'}`}
    >
     {selectedConv ? ( <>
@@ -1217,14 +1217,14 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
        )}
        {!selectedConv.orderId && ( <button
          onClick={() => onCreateOrderFromConv?.(selectedConv)}
-         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 20,
+         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(76,141,255,0.10)', border: 'none', borderRadius: 20,
           color: TG_BLUE, fontSize: 12, fontWeight: 700, flexShrink: 0, }}
         >
          <Pin size={13} /> تثبيت طلب
         </button> )}
       </div>
       {/* ── كرت الطلب المثبّت (قابل للطي — مطوي افتراضياً حتى ما يغطي المحادثة) ── */}
-      {linkedOrder && ( <div style={{ background: 'rgba(42,171,238,0.06)', borderBottom: `1px solid rgba(42,171,238,0.15)`, padding: orderCardOpen ? '10px 16px' : '7px 16px', flexShrink: 0, }} className="alfhd-linked-order">
+      {linkedOrder && ( <div style={{ background: 'rgba(76,141,255,0.06)', borderBottom: `1px solid rgba(76,141,255,0.15)`, padding: orderCardOpen ? '10px 16px' : '7px 16px', flexShrink: 0, }} className="alfhd-linked-order">
         <button
          onClick={() => setOrderCardOpen((v) => !v)}
          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: TG_BLUE, marginBottom: orderCardOpen ? 8 : 0, cursor: 'pointer' }}
@@ -1255,22 +1255,22 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
           <span style={{ fontSize: 12.5, color: TG_BLUE, fontWeight: 700 }}>{linkedOrder.total.toLocaleString()} د.ع</span>
          </div>
         </div>
-        <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 8, padding: '8px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
+        <button onClick={() => onOpenOrderDetails?.(linkedOrder)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 8, padding: '8px', background: 'rgba(76,141,255,0.10)', border: 'none', borderRadius: 9, color: TG_BLUE, fontSize: 12, fontWeight: 700 }}>
          <Eye size={13} /> عرض تفاصيل الطلب
         </button>
         </>)}
        </div> )}
       {/* ── منطقة الرسائل ── */}
       <div
-       style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 16px', background: '#0E1621', }}
+       style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 16px', background: '#0A0E14', }}
        ref={scrollRef}
        className="alfhd-chat-scroll"
       >
        {loadingMsgs ? ( <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
          <RefreshCw size={22} color={TG_DIM} style={{ animation: 'spin 1s linear infinite' }} />
         </div> ) : messages.length === 0 ? ( <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 16, color: TG_DIM }}>
-         <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(42,171,238,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <MessageSquare size={32} color="#2AABEE" strokeWidth={1.5} />
+         <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(76,141,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <MessageSquare size={32} color="#4C8DFF" strokeWidth={1.5} />
          </div>
          <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: TG_SUB, marginBottom: 4 }}>ابدأ المحادثة</div>
@@ -1302,7 +1302,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
             {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
             {(m.type === 'file' || m.type === 'document' || (m.mediaUrl && !['image','video','audio','text'].includes(m.type))) && m.mediaUrl && (
              <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" download style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', textDecoration: 'none', color: 'inherit', minWidth: 180 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(42,171,238,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FileText size={19} color="#2AABEE" /></div>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(76,141,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FileText size={19} color="#4C8DFF" /></div>
               <div style={{ minWidth: 0, flex: 1 }}>
                <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fileName || m.content || 'ملف مرفق'}</div>
                <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>اضغط للفتح أو التحميل</div>
@@ -1390,7 +1390,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
           <span style={{ fontSize: 14, fontWeight: 800, color: TG_TEXT, fontFamily: 'monospace' }}>{formatRecTime(recSeconds)}</span>
           <span style={{ fontSize: 12, color: TG_DIM }}>جارٍ التسجيل…</span>
          </div>
-         <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#2AABEE,#229ED9)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
+         <button style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,#4C8DFF,#3A78E8)`, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={stopRecording}><Send size={16} /></button>
         </div> ) : ( <>
          <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileInputRef.current?.click()} disabled={sendingMsg}><Image size={18} /></button>
          <button style={{ width: 34, height: 34, borderRadius: 9, background: 'transparent', border: 'none', color: TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={startRecording} disabled={sendingMsg}><Mic size={18} /></button>
@@ -1403,7 +1403,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
           disabled={sendingMsg}
          />
          <button
-          style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: composerText.trim() ? `linear-gradient(135deg,#2AABEE,#229ED9)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
+          style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: composerText.trim() ? `linear-gradient(135deg,#4C8DFF,#3A78E8)` : TG_INPUT, border: 'none', color: composerText.trim() ? '#fff' : TG_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
           onClick={handleSendText}
           disabled={sendingMsg || !composerText.trim()}
          >
@@ -1626,15 +1626,15 @@ function CityPicker({ govCode, value, onChange, invalid }) {
         disabled={!govCode}
         style={{
           ...styles.formInput, borderRadius: 9,
-          border: invalid ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-          background: govCode ? '#242F3D' : '#1a212b',
+          border: invalid ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(76,141,255,0.25)',
+          background: govCode ? '#1E2630' : '#1a212b',
         }}
         placeholder={govCode ? 'ابحث أو اختر المنطقة...' : 'اختر المحافظة أولاً'}
       />
       {open && govCode && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-          background: '#1a212b', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9,
+          background: '#1a212b', border: '1px solid rgba(76,141,255,0.3)', borderRadius: 9,
           maxHeight: 220, overflowY: 'auto', marginTop: 2, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
         }}>
           {loading && <div style={{ padding: 8, color: '#8FA0B5', fontSize: 12 }}>جارٍ التحميل...</div>}
@@ -1648,7 +1648,7 @@ function CityPicker({ govCode, value, onChange, invalid }) {
               key={c.city_name}
               onMouseDown={() => { onChange(c.city_name); setSearch(''); setOpen(false); }}
               style={{ padding: '8px 12px', fontSize: 13, color: '#E7ECF3', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(42,171,238,0.12)'}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(76,141,255,0.12)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
               {c.city_name}
@@ -2619,7 +2619,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         return false;
       }
 
-      // تحديث الطلب محلياً + قاعدة البيانات بالحالة الجديدة من جيني
+      // تحديث الطلب محلياً + قاعدة البيانات بالحال�� الجديدة من جيني
       const patch = {
         delivery_step: data.new_status || order.deliveryStep,
         delivery_step_ar: data.new_status_ar || order.deliveryStepAr,
@@ -2766,7 +2766,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     // مستلم: تأكيد وأرشفة
     if (isDelivered) {
       actions.push(
-        <button key="archive" style={btnStyle('#4DDB6B', '77,219,107,0.08')}
+        <button key="archive" style={btnStyle('#34D399', '77,219,107,0.08')}
           onClick={() => markOrderConverted(o)}>
           <CheckCircle2 size={13} /> تأكيد الاستلام وأرشفة الطلب
         </button>
@@ -3053,12 +3053,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;font-family:Cairo,Arial}
         body{padding:16px;background:#fff;color:#111}
-        .np{padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;margin-bottom:14px;cursor:pointer}
+        .np{padding:10px 22px;background:#4C8DFF;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;margin-bottom:14px;cursor:pointer}
         .sheet{border:2px solid #111;border-radius:12px;padding:20px;margin-bottom:16px;page-break-after:always}
         .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #ccc;font-size:16px}
         .lbl{color:#666;font-weight:700}.val{font-weight:800}
-        .loc-box,.prep-box{margin-top:16px;border:2px dashed #2AABEE;border-radius:10px;padding:16px;text-align:center}
-        .loc-title,.prep-title{font-size:14px;color:#2AABEE;font-weight:800;margin-bottom:8px}
+        .loc-box,.prep-box{margin-top:16px;border:2px dashed #4C8DFF;border-radius:10px;padding:16px;text-align:center}
+        .loc-title,.prep-title{font-size:14px;color:#4C8DFF;font-weight:800;margin-bottom:8px}
         .loc-val,.prep-val{font-size:30px;font-weight:800;min-height:40px}
         .prep-box{border-color:#22A559}.prep-title{color:#22A559}
         .empty{color:#bbb;letter-spacing:3px}
@@ -3081,9 +3081,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       const isDelivered = ['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU);
       const isReturned = stepU.startsWith('RTO');
       let color, bg;
-      if (isDelivered) { color = '#4DDB6B'; bg = 'rgba(77,219,107,0.12)'; }
+      if (isDelivered) { color = '#34D399'; bg = 'rgba(52,211,153,0.12)'; }
       else if (isReturned) { color = '#F25050'; bg = 'rgba(242,80,80,0.12)'; }
-      else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) { color = '#2AABEE'; bg = 'rgba(42,171,238,0.12)'; }
+      else if (['OFD','OUT_FOR_DELIVERY'].includes(stepU)) { color = '#4C8DFF'; bg = 'rgba(76,141,255,0.12)'; }
       else { color = '#A78BFA'; bg = 'rgba(167,139,250,0.12)'; }
       // حالة جيني الفعلية فقط (كما هي عند شركة التوصيل)
       const label = o.deliveryStepAr || 'بانتظار التحديث';
@@ -3093,7 +3093,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       // في قسم "مطبوع": نعرض حالة التجهيز الفعلية
       const ps = o.prepStatus;
       if (ps === 'done' || ps === 'prepared') {
-        return <div style={{ ...styles.orderStatusPill, color: '#4DDB6B', background: 'rgba(77,219,107,0.12)' }}>تم التجهيز</div>;
+        return <div style={{ ...styles.orderStatusPill, color: '#34D399', background: 'rgba(52,211,153,0.12)' }}>تم التجهيز</div>;
       }
       if (ps === 'rejected' || ps === 'not_prepared') {
         return <div style={{ ...styles.orderStatusPill, color: '#F45B69', background: 'rgba(244,91,105,0.12)' }}>لم يتم التجهيز</div>;
@@ -3110,11 +3110,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     const page = pages.find((p) => p.id === o.pageId);
     const isRejected = o.prepStatus === 'rejected';
     const stepU = (o.deliveryStep || '').toUpperCase();
-    let stripColor = '#2AABEE';
-    if (o.converted) stripColor = '#4DDB6B';
+    let stripColor = '#4C8DFF';
+    if (o.converted) stripColor = '#34D399';
     else if (isRejected) stripColor = '#F25050';
     else if (stepU.startsWith('RTO')) stripColor = '#F25050';
-    else if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) stripColor = '#4DDB6B';
+    else if (['DELIVERED','DELIVERED_ARCHIVED','DELIVERED_PRICE_CHANGED','PARTIALLY_DELIVERED','FORCE_DELIVERY','PAYED'].includes(stepU)) stripColor = '#34D399';
     else if (stepU) stripColor = '#F0A868';
     // في قسم المطبوع: لون حسب حاجة المتابعة
     const fLevel = prepMode ? followupLevel(o) : null;
@@ -3135,7 +3135,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <button onClick={() => togglePrepSelect(o.id)}
               style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <span style={{ width: 20, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: isSel ? '#2AABEE' : 'transparent', border: `1.5px solid ${isSel ? '#2AABEE' : '#8FA0B5'}` }}>
+                background: isSel ? '#4C8DFF' : 'transparent', border: `1.5px solid ${isSel ? '#4C8DFF' : '#8FA0B5'}` }}>
                 {isSel && <CheckCircle2 size={13} color="#fff" />}
               </span>
               <span style={{ fontSize: 12, color: '#9FB0C3', fontWeight: 600 }}>تحديد</span>
@@ -3148,7 +3148,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <div style={{ flex: 1 }} />
             <button onClick={() => printSingleOrder(o)}
               style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8, cursor: 'pointer',
-                background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', color: '#2AABEE', fontSize: 12, fontWeight: 700 }}>
+                background: 'rgba(76,141,255,0.12)', border: '1px solid rgba(76,141,255,0.3)', color: '#4C8DFF', fontSize: 12, fontWeight: 700 }}>
               <Printer size={13} /> طباعة
             </button>
           </div>
@@ -3232,15 +3232,15 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             );
             const { product, confidence } = match;
             return (
-              <div style={{ background: confidence === 'high' ? 'rgba(77,219,107,0.07)' : 'rgba(42,171,238,0.07)', border: `1px solid ${confidence === 'high' ? 'rgba(77,219,107,0.22)' : 'rgba(42,171,238,0.22)'}`, borderRadius: 9, padding: '8px 8px', marginTop: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: confidence === 'high' ? '#4DDB6B' : '#2AABEE', marginBottom: 4 }}>
+              <div style={{ background: confidence === 'high' ? 'rgba(52,211,153,0.07)' : 'rgba(76,141,255,0.07)', border: `1px solid ${confidence === 'high' ? 'rgba(52,211,153,0.22)' : 'rgba(76,141,255,0.22)'}`, borderRadius: 9, padding: '8px 8px', marginTop: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: confidence === 'high' ? '#34D399' : '#4C8DFF', marginBottom: 4 }}>
                   📦 المنتج في المخزن {confidence === 'high' ? '✓' : '~'}
                 </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5F5F5' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F4F7FB' }}>
                   {product.car_name} — {PRODUCT_TYPE_LABELS[product.type]}
                 </div>
                 {product.location && (
-                  <div style={{ fontSize: 12, color: '#2AABEE', marginTop: 4, fontWeight: 700 }}>
+                  <div style={{ fontSize: 12, color: '#4C8DFF', marginTop: 4, fontWeight: 700 }}>
                     📍 الموقع: {product.location}
                   </div>
                 )}
@@ -3253,7 +3253,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
           {/* ── معلومات شركة التوصيل (للمتابعة فقط — التحكم من جيني) ── */}
           {o.jenniSent && (o.deliveryNote || o.jenniTracking) && (
-            <div style={{ marginTop: 8, padding: '8px 8px', background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.12)', borderRadius: 10 }}>
+            <div style={{ marginTop: 8, padding: '8px 8px', background: 'rgba(76,141,255,0.05)', border: '1px solid rgba(76,141,255,0.12)', borderRadius: 10 }}>
               {o.deliveryNote && (
                 <div style={{ fontSize: 12, color: '#8B9AB3', marginBottom: 4 }}>📝 {o.deliveryNote}</div>
               )}
@@ -3289,7 +3289,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </button>
           {/* زر طباعة فردي — في قسم الطباعة فقط (المطبوع له زره الخاص بالأعلى) */}
           {section === 'ready' && (
-            <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#2AABEE', borderColor: 'rgba(42,171,238,0.3)' }} title="طباعة باركود هذا الطلب">
+            <button onClick={() => printJenniBarcode(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#4C8DFF', borderColor: 'rgba(76,141,255,0.3)' }} title="طباعة باركود هذا الطلب">
               <Printer size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>طباعة</span>
             </button>
           )}
@@ -3323,7 +3323,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           {[
             { label: 'طلبات اليوم', value: todayStats.total, color: '#3B82F6' },
             { label: 'طُبعت اليوم', value: todayStats.printed, color: '#F0A868' },
-            { label: 'سُلّمت اليوم', value: todayStats.delivered, color: '#4DDB6B' },
+            { label: 'سُلّمت اليوم', value: todayStats.delivered, color: '#34D399' },
             { label: 'رواجع اليوم', value: todayStats.returned, color: '#F45B69' },
           ].map((s) => (
             <div key={s.label} style={{ flex: '1 1 auto', minWidth: 80, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11, padding: '8px 12px' }}>
@@ -3371,9 +3371,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             onClick={() => ocrInputRef.current?.click()}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 12px', background: 'rgba(42,171,238,0.10)',
-              border: '1px solid rgba(42,171,238,0.22)', borderRadius: 10,
-              color: '#2AABEE', fontSize: 12.5, fontWeight: 700,
+              padding: '8px 12px', background: 'rgba(76,141,255,0.10)',
+              border: '1px solid rgba(76,141,255,0.22)', borderRadius: 10,
+              color: '#4C8DFF', fontSize: 12.5, fontWeight: 700,
             }}
             disabled={ocrLoading}
           >
@@ -3389,10 +3389,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '8px 16px',
-              background: 'linear-gradient(135deg,#2AABEE,#229ED9)',
+              background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)',
               border: 'none', borderRadius: 10,
               color: '#fff', fontSize: 12.5, fontWeight: 700,
-              boxShadow: '0 2px 8px rgba(42,171,238,0.35)',
+              boxShadow: '0 2px 8px rgba(76,141,255,0.35)',
             }}
           >
             <Plus size={15} /> طلب جديد
@@ -3405,10 +3405,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '8px 16px',
-                background: 'linear-gradient(135deg,#4DDB6B,#22C55E)',
+                background: 'linear-gradient(135deg,#34D399,#22C55E)',
                 border: 'none', borderRadius: 10,
                 color: '#fff', fontSize: 12.5, fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(77,219,107,0.35)',
+                boxShadow: '0 2px 8px rgba(52,211,153,0.35)',
               }}
             >
               <Printer size={15} /> طباعة الكل ({stageOrders.length})
@@ -3510,7 +3510,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               </button>
               <button onClick={printSelectedPrep}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(135deg,#2AABEE,#229ED9)', color: '#fff', fontSize: 13, fontWeight: 800 }}>
+                  background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)', color: '#fff', fontSize: 13, fontWeight: 800 }}>
                 <Printer size={15} /> طباعة المحدد ({prepSelected.length})
               </button>
               </>
@@ -3521,7 +3521,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           {(() => {
             const list = prepSubTab === 'followup' ? prepFollowup : prepAllOrders;
             if (list.length === 0) {
-              return <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>{prepSubTab === 'followup' ? 'لا توجد طلبات بحاجة لمتابعة' : 'لا توجد طلبات مطبوعة'}</p></div>;
+              return <div style={styles.emptyState}><Package size={32} color="#2A323E" /><p>{prepSubTab === 'followup' ? 'لا توجد طلبات بحاجة لمتابعة' : 'لا توجد طلبات مطبوعة'}</p></div>;
             }
             return <div style={styles.ordersGrid}>{list.map((o) => renderOrderCard(o, 0, true))}</div>;
           })()}
@@ -3530,7 +3530,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         <div style={styles.ordersGrid} className={`alfhd-orders-grid${printTarget === 'ready' ? ' alfhd-print-area' : ''}`}>
           {stageOrders.length === 0 ? (
             <div style={styles.emptyState}>
-              {isReady ? <Package size={32} color="#39425C" /> : <Truck size={32} color="#39425C" />}
+              {isReady ? <Package size={32} color="#2A323E" /> : <Truck size={32} color="#2A323E" />}
               <p>{isReady ? 'لا توجد طلبات جاهزة للطباعة' : 'لا توجد طلبات لدى شركة التوصيل بعد'}</p>
             </div>
           ) : stageOrders.map(renderOrderCard)}
@@ -3575,9 +3575,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                       <button key={d.id} onClick={() => setJenniActionDateId(d.id)}
                         style={{
                           flex: 1, padding: '8px 4px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                          background: jenniActionDateId === d.id ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.04)',
-                          border: jenniActionDateId === d.id ? '1.5px solid #2AABEE' : '1px solid rgba(255,255,255,0.1)',
-                          color: jenniActionDateId === d.id ? '#2AABEE' : '#9FB0C3',
+                          background: jenniActionDateId === d.id ? 'rgba(76,141,255,0.18)' : 'rgba(255,255,255,0.04)',
+                          border: jenniActionDateId === d.id ? '1.5px solid #4C8DFF' : '1px solid rgba(255,255,255,0.1)',
+                          color: jenniActionDateId === d.id ? '#4C8DFF' : '#9FB0C3',
                         }}>{d.t}</button>
                     ))}
                   </div>
@@ -3596,7 +3596,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 rows={3}
                 style={{
                   width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 9,
-                  background: '#242F3D', border: '1.5px solid rgba(42,171,238,0.25)', color: '#E7ECF3',
+                  background: '#1E2630', border: '1.5px solid rgba(76,141,255,0.25)', color: '#E7ECF3',
                   fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
                 }}
               />
@@ -3607,7 +3607,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   إلغاء
                 </button>
                 <button onClick={confirmJenniAction} disabled={jenniActionBusy}
-                  style={{ flex: 2, padding: '12px', borderRadius: 9, background: jenniActionBusy ? '#1a5a7a' : '#2AABEE', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: jenniActionBusy ? 'wait' : 'pointer' }}>
+                  style={{ flex: 2, padding: '12px', borderRadius: 9, background: jenniActionBusy ? '#1a5a7a' : '#4C8DFF', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: jenniActionBusy ? 'wait' : 'pointer' }}>
                   {jenniActionBusy ? 'جارٍ الإرسال...' : 'تأكيد وإرسال لشركة التوصيل'}
                 </button>
               </div>
@@ -3628,11 +3628,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <div style={{
               margin: '0 16px 2px',
               padding: '8px 12px',
-              background: 'rgba(42,171,238,0.07)',
-              border: '1px solid rgba(42,171,238,0.20)',
+              background: 'rgba(76,141,255,0.07)',
+              border: '1px solid rgba(76,141,255,0.20)',
               borderRadius: 9,
               fontSize: 12,
-              color: '#2AABEE',
+              color: '#4C8DFF',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -3686,8 +3686,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   style={{
                     ...styles.formInput,
                     borderRadius: 9,
-                    border: !editingOrder.customer.trim() ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-                    background: '#242F3D',
+                    border: !editingOrder.customer.trim() ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(76,141,255,0.25)',
+                    background: '#1E2630',
                   }}
                   placeholder="اسم الزبون الكامل"
                 />
@@ -3716,8 +3716,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                         style={{
                           ...styles.formInput,
                           borderRadius: 9,
-                          border: phoneErr ? '1.5px solid rgba(242,80,80,0.5)' : phoneOk ? '1.5px solid rgba(77,219,107,0.4)' : '1.5px solid rgba(242,80,80,0.5)',
-                          background: '#242F3D',
+                          border: phoneErr ? '1.5px solid rgba(242,80,80,0.5)' : phoneOk ? '1.5px solid rgba(52,211,153,0.4)' : '1.5px solid rgba(242,80,80,0.5)',
+                          background: '#1E2630',
                           direction: 'ltr',
                           textAlign: 'right',
                         }}
@@ -3726,7 +3726,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                       />
                       {!raw && <span style={{ fontSize: 12, color: '#F25050', marginTop: 4, fontWeight: 600 }}>⚠ مطلوب</span>}
                       {phoneErr && <span style={{ fontSize: 12, color: '#F25050', marginTop: 4, fontWeight: 600 }}>⚠ صيغة خاطئة — المطلوب: 07XXXXXXXXX</span>}
-                      {phoneOk && <span style={{ fontSize: 12, color: '#4DDB6B', marginTop: 4, fontWeight: 600 }}>✓ صالح لشركة التوصيل</span>}
+                      {phoneOk && <span style={{ fontSize: 12, color: '#34D399', marginTop: 4, fontWeight: 600 }}>✓ صالح لشركة التوصيل</span>}
                     </>
                   );
                 })()}
@@ -3760,9 +3760,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                       }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8,
-                        padding: '8px 8px', background: 'rgba(42,171,238,0.10)',
-                        border: '1px solid rgba(42,171,238,0.22)', borderRadius: 8,
-                        color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer', width: '100%',
+                        padding: '8px 8px', background: 'rgba(76,141,255,0.10)',
+                        border: '1px solid rgba(76,141,255,0.22)', borderRadius: 8,
+                        color: '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: 'pointer', width: '100%',
                         justifyContent: 'center',
                       }}
                     >
@@ -3779,8 +3779,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   style={{
                     ...styles.formInput,
                     borderRadius: 9,
-                    border: !editingOrder.governorateCode ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(42,171,238,0.25)',
-                    background: '#242F3D',
+                    border: !editingOrder.governorateCode ? '1.5px solid rgba(242,80,80,0.5)' : '1.5px solid rgba(76,141,255,0.25)',
+                    background: '#1E2630',
                   }}
                 >
                   <option value="">— اختر المحافظة —</option>
@@ -3830,8 +3830,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                         style={{
                           ...styles.formInput,
                           borderRadius: 9,
-                          border: totalOk ? '1.5px solid rgba(42,171,238,0.25)' : '1.5px solid rgba(242,80,80,0.5)',
-                          background: '#242F3D',
+                          border: totalOk ? '1.5px solid rgba(76,141,255,0.25)' : '1.5px solid rgba(242,80,80,0.5)',
+                          background: '#1E2630',
                           direction: 'ltr',
                           textAlign: 'right',
                         }}
@@ -3849,7 +3849,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <input
                   value={editingOrder.address}
                   onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#1E2630' }}
                   placeholder="أقرب نقطة دالة، رقم الدار..."
                 />
               </div>
@@ -3860,7 +3860,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <input
                   value={editingOrder.storageLocation || ''}
                   onChange={(e) => setEditingOrder({ ...editingOrder, storageLocation: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(240,168,104,0.2)', background: '#242F3D' }}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(240,168,104,0.2)', background: '#1E2630' }}
                   placeholder="مثال: فرع A رف 3"
                 />
               </div>
@@ -3871,7 +3871,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <input
                   value={editingOrder.orderType}
                   onChange={(e) => setEditingOrder({ ...editingOrder, orderType: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#1E2630' }}
                   placeholder="مثال: أرضيات سيارة، ملابس..."
                 />
               </div>
@@ -3882,7 +3882,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <textarea
                   value={editingOrder.items}
                   onChange={(e) => setEditingOrder({ ...editingOrder, items: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D', minHeight: 70, resize: 'vertical' }}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#1E2630', minHeight: 70, resize: 'vertical' }}
                   placeholder="وصف المنتجات والكميات"
                 />
               </div>
@@ -3893,7 +3893,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <select aria-label="خيار"
                   value={editingOrder.conversationId || ''}
                   onChange={(e) => setEditingOrder({ ...editingOrder, conversationId: e.target.value })}
-                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#242F3D' }}
+                  style={{ ...styles.formInput, borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: '#1E2630' }}
                 >
                   <option value="">بدون ربط</option>
                   {conversations.map((c) => <option key={c.id} value={c.id}>{c.customer}</option>)}
@@ -3908,14 +3908,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                   <div style={{
                     padding: '8px 12px',
                     borderRadius: 10,
-                    background: ready ? 'rgba(77,219,107,0.08)' : 'rgba(242,80,80,0.08)',
-                    border: ready ? '1px solid rgba(77,219,107,0.25)' : '1px solid rgba(242,80,80,0.25)',
+                    background: ready ? 'rgba(52,211,153,0.08)' : 'rgba(242,80,80,0.08)',
+                    border: ready ? '1px solid rgba(52,211,153,0.25)' : '1px solid rgba(242,80,80,0.25)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     fontSize: 12,
                     fontWeight: 700,
-                    color: ready ? '#4DDB6B' : '#F25050',
+                    color: ready ? '#34D399' : '#F25050',
                   }}>
                     {ready ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
                     {ready
@@ -3967,7 +3967,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                 <span style={{ fontSize: 12, color: '#8B9AB3' }}>{neglectedSelected.length} محدد</span>
                 <div style={{ flex: 1 }} />
                 <button onClick={() => restoreNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(42,171,238,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#2AABEE' : '#8FA0B5', fontSize: 12, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 8, background: neglectedSelected.length ? 'rgba(76,141,255,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${neglectedSelected.length ? 'rgba(76,141,255,0.4)' : 'rgba(255,255,255,0.08)'}`, color: neglectedSelected.length ? '#4C8DFF' : '#8FA0B5', fontSize: 12, fontWeight: 700, cursor: neglectedSelected.length ? 'pointer' : 'not-allowed' }}>
                   <Printer size={13} /> إعادة للطباعة
                 </button>
                 <button onClick={() => deleteNeglected(neglectedSelected)} disabled={!neglectedSelected.length}
@@ -3989,8 +3989,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                     const sel = neglectedSelected.includes(o.id);
                     return (
                       <div key={o.id} onClick={() => toggleNeglectedSelect(o.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px', borderRadius: 11, cursor: 'pointer', background: sel ? 'rgba(42,171,238,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${sel ? 'rgba(42,171,238,0.4)' : 'rgba(255,255,255,0.06)'}` }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? '#2AABEE' : 'transparent', border: `1.5px solid ${sel ? '#2AABEE' : '#8FA0B5'}` }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px', borderRadius: 11, cursor: 'pointer', background: sel ? 'rgba(76,141,255,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${sel ? 'rgba(76,141,255,0.4)' : 'rgba(255,255,255,0.06)'}` }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel ? '#4C8DFF' : 'transparent', border: `1.5px solid ${sel ? '#4C8DFF' : '#8FA0B5'}` }}>
                           {sel && <CheckCircle2 size={13} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -4039,8 +4039,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                     <div key={batch.batchId} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Printer size={18} color="#2AABEE" />
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(76,141,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Printer size={18} color="#4C8DFF" />
                           </div>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>{batch.orders.length} وصل</div>
@@ -4049,7 +4049,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                         </div>
                         <button
                           onClick={() => handleReprintBatch(batch.batchId, batch.orders)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(42,171,238,0.12)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(76,141,255,0.12)', border: '1px solid rgba(76,141,255,0.3)', borderRadius: 9, color: '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                         >
                           <Printer size={13} /> إعادة طباعة
                         </button>
@@ -4088,7 +4088,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <div style={{ flex: 1, overflow: 'auto', background: '#f7f7f7', minHeight: 200 }}>
               {printModal.loading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 16, color: '#555' }}>
-                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#2AABEE', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
+                  <div style={{ width: 40, height: 40, border: '4px solid #ddd', borderTopColor: '#4C8DFF', borderRadius: '50%', animation: 'alfhd-spin 0.8s linear infinite' }} />
                   <div style={{ fontSize: 15, fontWeight: 600 }}>{printModal.note || 'جارٍ التحميل...'}</div>
                   <style>{`@keyframes alfhd-spin{to{transform:rotate(360deg)}}`}</style>
                 </div>
@@ -4167,7 +4167,7 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
                 } catch (_e) { alert('تعذّر النسخ'); }
               }}
               title="نسخ معلومات الطلب"
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 9, background: copied ? 'rgba(77,219,107,0.15)' : 'rgba(42,171,238,0.12)', border: `1px solid ${copied ? 'rgba(77,219,107,0.4)' : 'rgba(42,171,238,0.3)'}`, color: copied ? '#4DDB6B' : '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 9, background: copied ? 'rgba(52,211,153,0.15)' : 'rgba(76,141,255,0.12)', border: `1px solid ${copied ? 'rgba(52,211,153,0.4)' : 'rgba(76,141,255,0.3)'}`, color: copied ? '#34D399' : '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
             >
               {copied ? <><CheckCircle2 size={14} /> نُسخت</> : <><Copy size={14} /> نسخ</>}
             </button>
@@ -4182,8 +4182,8 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
             </div>
           )}
           {o.prepStatus === 'done' && o.prepByName && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(77,219,107,0.08)', border: '1px solid rgba(77,219,107,0.2)', borderRadius: 10, marginBottom: 4 }}>
-              <CheckCircle2 size={15} color="#4DDB6B" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 10, marginBottom: 4 }}>
+              <CheckCircle2 size={15} color="#34D399" />
               <span style={{ fontSize: 12.5, color: '#EAF0FB' }}>تم التجهيز — <strong>موظف التجهيز: {o.prepByName}</strong></span>
             </div>
           )}
@@ -4232,12 +4232,12 @@ function OrderDetailModal({ order, page, section, onClose, onEdit, onDelete, onS
                     <div key={i} style={{ display: 'flex', gap: 8, position: 'relative', paddingBottom: isLast ? 0 : 16 }}>
                       {/* نقطة وخط */}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: isLast ? '#4DDB6B' : '#2AABEE', boxShadow: isLast ? '0 0 0 3px rgba(77,219,107,0.2)' : 'none', marginTop: 2 }} />
-                        {!isLast && <div style={{ width: 2, flex: 1, background: 'rgba(42,171,238,0.25)', marginTop: 2 }} />}
+                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: isLast ? '#34D399' : '#4C8DFF', boxShadow: isLast ? '0 0 0 3px rgba(52,211,153,0.2)' : 'none', marginTop: 2 }} />
+                        {!isLast && <div style={{ width: 2, flex: 1, background: 'rgba(76,141,255,0.25)', marginTop: 2 }} />}
                       </div>
                       {/* المحتوى */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: isLast ? '#4DDB6B' : '#E7ECF3' }}>{h.step_ar || h.step}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: isLast ? '#34D399' : '#E7ECF3' }}>{h.step_ar || h.step}</div>
                         {h.branch && <div style={{ fontSize: 12, color: '#9FB0C3', marginTop: 2 }}>{h.branch}</div>}
                         {h.date && <div style={{ fontSize: 12, color: '#8FA0B5', marginTop: 2, fontFamily: 'monospace' }}>{h.date}</div>}
                         {h.note && <div style={{ fontSize: 12, color: '#F0A868', marginTop: 2 }}>{h.note}</div>}
@@ -4623,13 +4623,13 @@ function StatsView({ orders, pages, conversations, setOrders }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <span style={{
                       width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                      background: i < 3 ? 'rgba(42,171,238,0.18)' : 'rgba(255,255,255,0.05)',
-                      color: i < 3 ? '#2AABEE' : '#9FB0C3', fontSize: 12, fontWeight: 800,
+                      background: i < 3 ? 'rgba(76,141,255,0.18)' : 'rgba(255,255,255,0.05)',
+                      color: i < 3 ? '#4C8DFF' : '#9FB0C3', fontSize: 12, fontWeight: 800,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>{i + 1}</span>
                     <span style={{ fontSize: 12.5, color: '#EAF0FB', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2AABEE', flexShrink: 0 }}>{a.count} طلب</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#4C8DFF', flexShrink: 0 }}>{a.count} طلب</span>
                 </div>
               ))}
             </div>
@@ -4806,7 +4806,7 @@ function BestSellersPanel({ data, onClose }) {
         </div>
         <div style={styles.modalBody}>
           {data.length === 0 ? (
-            <div style={styles.emptyState}><Package size={28} color="#39425C" /><p>لا توجد بيانات كافية</p></div>
+            <div style={styles.emptyState}><Package size={28} color="#2A323E" /><p>لا توجد بيانات كافية</p></div>
           ) : data.map((d, i) => (
             <div key={i} style={styles.bestSellerRow}>
               <div style={styles.bestSellerRank}>{i + 1}</div>
@@ -4846,7 +4846,7 @@ function ConvertedOrdersPanel({ orders, pages, onClose }) {
             <input aria-label="بحث بالاسم، الرقم، الهاتف، أو المدير" placeholder="بحث بالاسم، الرقم، الهاتف، أو المدير..." value={q} onChange={(e) => setQ(e.target.value)} style={styles.searchInput} />
           </div>
           {shown.length === 0 ? (
-            <div style={styles.emptyState}><Send size={28} color="#39425C" /><p>لا توجد طلبات محوّلة</p></div>
+            <div style={styles.emptyState}><Send size={28} color="#2A323E" /><p>لا توجد طلبات محوّلة</p></div>
           ) : shown.map((o) => {
             const page = pages.find((p) => p.id === o.pageId);
             return (
@@ -4910,7 +4910,7 @@ function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
       else { alert('الباركود غير متاح'); return; }
       const win = window.open('', '_blank');
       if (!win) { alert('السماح بالنوافذ المنبثقة مطلوب'); return; }
-      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>إعادة طباعة</title><style>body{margin:0;padding:14px;font-family:Cairo,Arial}@media print{.np{display:none}}</style></head><body><button class="np" onclick="window.print()" style="padding:10px 22px;background:#2AABEE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length}</button>${body}</body></html>`);
+      win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>إعادة طباعة</title><style>body{margin:0;padding:14px;font-family:Cairo,Arial}@media print{.np{display:none}}</style></head><body><button class="np" onclick="window.print()" style="padding:10px 22px;background:#4C8DFF;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:12px;cursor:pointer;">🖨️ طباعة ${valid.length}</button>${body}</body></html>`);
       win.document.close();
     } catch (e) { alert(`خطأ: ${e.message}`); }
     setSelected(new Set());
@@ -4930,7 +4930,7 @@ function NeglectedOrdersPanel({ orders, pages, setOrders, onClose }) {
             <input aria-label="بحث" placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} style={styles.searchInput} />
           </div>
           {shown.length === 0 ? (
-            <div style={styles.emptyState}><Package size={28} color="#39425C" /><p>لا توجد طلبات مهملة</p></div>
+            <div style={styles.emptyState}><Package size={28} color="#2A323E" /><p>لا توجد طلبات مهملة</p></div>
           ) : shown.map((o) => {
             const page = pages.find((p) => p.id === o.pageId);
             const isSel = selected.has(o.id);
@@ -4970,7 +4970,7 @@ function DonutChart({ data }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
       <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r={radius} fill="none" stroke="#222C42" strokeWidth="18" />
+        <circle cx="80" cy="80" r={radius} fill="none" stroke="#1B222D" strokeWidth="18" />
         {data.map((d, i) => {
           const fraction = d.value / total;
           const dash = fraction * circumference;
@@ -5246,8 +5246,8 @@ function PagesView({ pages, setPages }) {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
           padding: '12px 16px',
-          background: 'rgba(42,171,238,0.07)', border: '1px solid rgba(42,171,238,0.18)',
-          borderRadius: 12, color: '#2AABEE', fontSize: 13,
+          background: 'rgba(76,141,255,0.07)', border: '1px solid rgba(76,141,255,0.18)',
+          borderRadius: 12, color: '#4C8DFF', fontSize: 13,
         }}>
           <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
           جارٍ التحقق من حسابك على فيسبوك وجلب صفحاتك...
@@ -5257,11 +5257,11 @@ function PagesView({ pages, setPages }) {
       {/* صفحات مرشحة للربط */}
       {fbCandidates && fbCandidates.length > 0 && (
         <div style={{
-          marginBottom: 20, background: 'linear-gradient(145deg,#17212B,#1A2736)',
-          border: '1px solid rgba(42,171,238,0.22)', borderRadius: 14, padding: 16,
+          marginBottom: 20, background: 'linear-gradient(145deg,#141A22,#181F29)',
+          border: '1px solid rgba(76,141,255,0.22)', borderRadius: 14, padding: 16,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Facebook size={15} color="#2AABEE" />
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#F4F7FB', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Facebook size={15} color="#4C8DFF" />
             اختر الصفحة للربط
           </div>
           {fbCandidates.map((c) => (
@@ -5274,7 +5274,7 @@ function PagesView({ pages, setPages }) {
                 : <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg,#1877F2,#0D5FBF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Facebook size={20} color="#fff" /></div>
               }
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#F5F5F5' }}>{c.name}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#F4F7FB' }}>{c.name}</div>
                 <div style={{ fontSize: 12, color: '#8FA0B5', marginTop: 2 }}>ID: {c.fb_page_id}</div>
               </div>
               <button
@@ -5297,7 +5297,7 @@ function PagesView({ pages, setPages }) {
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 16, padding: '60px 20px',
-          background: 'linear-gradient(145deg,#17212B,#1A2736)',
+          background: 'linear-gradient(145deg,#141A22,#181F29)',
           border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
         }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(24,119,242,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -5313,7 +5313,7 @@ function PagesView({ pages, setPages }) {
           {pages.map((p) => (
             <div key={p.id} style={{
               position: 'relative', overflow: 'hidden',
-              background: 'linear-gradient(145deg,#17212B,#1A2736)',
+              background: 'linear-gradient(145deg,#141A22,#181F29)',
               border: p.connected ? '1px solid rgba(29,209,107,0.22)' : '1px solid rgba(255,255,255,0.08)',
               borderRadius: 16,
               boxShadow: p.connected
@@ -5325,7 +5325,7 @@ function PagesView({ pages, setPages }) {
               <div style={{
                 position: 'absolute', top: 0, right: 0, left: 0, height: 3,
                 background: p.connected
-                  ? 'linear-gradient(90deg,transparent,#1DDB6B,transparent)'
+                  ? 'linear-gradient(90deg,transparent,#34D399,transparent)'
                   : 'linear-gradient(90deg,transparent,#1877F2,transparent)',
                 opacity: 0.8,
               }} />
@@ -5347,14 +5347,14 @@ function PagesView({ pages, setPages }) {
                   <div className={p.connected ? 'alfhd-pulse' : ''} style={{
                     position: 'absolute', bottom: -2, left: -2,
                     width: 16, height: 16, borderRadius: '50%',
-                    background: p.connected ? '#1DDB6B' : '#8FA0B5',
-                    border: '2.5px solid #17212B',
+                    background: p.connected ? '#34D399' : '#8FA0B5',
+                    border: '2.5px solid #141A22',
                   }} />
                 </div>
 
                 {/* معلومات الصفحة */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#F5F5F5', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#F4F7FB', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {p.name}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8FA0B5' }}>
@@ -5367,7 +5367,7 @@ function PagesView({ pages, setPages }) {
                       padding: '4px 8px', borderRadius: 20,
                       background: p.connected ? 'rgba(29,219,107,0.12)' : 'rgba(84,104,128,0.15)',
                       fontSize: 12, fontWeight: 700,
-                      color: p.connected ? '#1DDB6B' : '#8B9AB3',
+                      color: p.connected ? '#34D399' : '#8B9AB3',
                     }}>
                       <Facebook size={11} />
                       {p.connected ? 'ماسنجر متصل' : 'ماسنجر غير متصل'}
@@ -5413,10 +5413,10 @@ function PagesView({ pages, setPages }) {
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     padding: '8px',
-                    background: p.connected ? 'rgba(29,219,107,0.08)' : 'rgba(42,171,238,0.08)',
-                    border: p.connected ? '1px solid rgba(29,219,107,0.22)' : '1px solid rgba(42,171,238,0.22)',
+                    background: p.connected ? 'rgba(29,219,107,0.08)' : 'rgba(76,141,255,0.08)',
+                    border: p.connected ? '1px solid rgba(29,219,107,0.22)' : '1px solid rgba(76,141,255,0.22)',
                     borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                    color: p.connected ? '#1DDB6B' : '#2AABEE',
+                    color: p.connected ? '#34D399' : '#4C8DFF',
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -5492,7 +5492,7 @@ function PagesView({ pages, setPages }) {
                     <div>٣. اضغط "الربط برقم الهاتف بدلاً من ذلك"</div>
                     <div>٤. أدخل الكود أعلاه</div>
                   </div>
-                  {waPairStatus && <div style={{ fontSize: 12, color: '#2AABEE', textAlign: 'center', marginTop: 12, fontWeight: 600 }}>{waPairStatus}</div>}
+                  {waPairStatus && <div style={{ fontSize: 12, color: '#4C8DFF', textAlign: 'center', marginTop: 12, fontWeight: 600 }}>{waPairStatus}</div>}
                 </>
               ) : (
                 /* إدخال الرقم */
@@ -5640,7 +5640,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
     return (
       <div style={{ ...styles.userCard, opacity: u.active ? 1 : 0.5 }} className="alfhd-order-card">
         <div style={styles.userCardTop}>
-          <div style={{ ...styles.userCardAvatar, background: u.role === 'admin' ? 'linear-gradient(135deg,#60A5FA,#1D4ED8)' : '#222C42', color: u.role === 'admin' ? '#fff' : '#3B82F6' }}>
+          <div style={{ ...styles.userCardAvatar, background: u.role === 'admin' ? 'linear-gradient(135deg,#60A5FA,#1D4ED8)' : '#1B222D', color: u.role === 'admin' ? '#fff' : '#3B82F6' }}>
             {u.name[0]}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -5711,7 +5711,7 @@ function AdminView({ users, setUsers, orders, conversations, onViewConversation,
 
       {adminTab === 'warehouse' && (
         warehouse.length === 0 ? (
-          <div style={styles.emptyState}><Package size={32} color="#39425C" /><p>لا يوجد موظفو تجهيز بعد</p></div>
+          <div style={styles.emptyState}><Package size={32} color="#2A323E" /><p>لا يوجد موظفو تجهيز بعد</p></div>
         ) : (
           <div style={styles.usersGrid} className="alfhd-users-grid">
             {warehouse.map((u) => <UserCard key={u.id} u={u} isWarehouse />)}
@@ -5842,7 +5842,7 @@ function FulfillmentList({ orders, users, onViewConversation, onContactWhatsApp 
 
 
   if (orders.length === 0) {
-    return <div style={styles.emptyState}><CheckCircle2 size={32} color="#39425C" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
+    return <div style={styles.emptyState}><CheckCircle2 size={32} color="#2A323E" /><p>لا توجد طلبات تم التعامل معها بعد</p></div>;
   }
 
   return (
@@ -6067,7 +6067,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
                 <Package size={18} color="#F0A868" />
               </div>
               <div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: '#F5F5F5' }}>التجهيز</div>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: '#F4F7FB' }}>التجهيز</div>
                 <div style={{ fontSize: 12, color: '#9FB0C3' }}>{currentUser.name}</div>
               </div>
             </div>
@@ -6083,9 +6083,9 @@ function PrepWorkerView({ currentUser, onLogout }) {
           </div>
 
           <div style={{ padding: '8px 16px 24px', overflowY: 'auto', flex: 1 }}>
-            {loading && <div style={styles.emptyState}><Package size={30} color="#39425C" /><p>جارٍ التحميل...</p></div>}
+            {loading && <div style={styles.emptyState}><Package size={30} color="#2A323E" /><p>جارٍ التحميل...</p></div>}
             {!loading && pending.length === 0 && (
-              <div style={styles.emptyState}><CheckCircle2 size={34} color="#4DDB6B" /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
+              <div style={styles.emptyState}><CheckCircle2 size={34} color="#34D399" /><p>ما في طلبات بحاجة للتجهيز حالياً 🎉</p></div>
             )}
             <div style={styles.ordersGrid}>
               {pending.map((o, i) => {
@@ -6093,14 +6093,14 @@ function PrepWorkerView({ currentUser, onLogout }) {
                 const claimedByMe = claimed && o.prepBy === currentUser.id;
                 const claimedByOther = claimed && o.prepBy && o.prepBy !== currentUser.id;
                 // لون الشريط العلوي حسب الحالة
-                const topColor = claimedByMe ? '#2AABEE' : claimedByOther ? '#A78BFA' : '#F0A868';
+                const topColor = claimedByMe ? '#4C8DFF' : claimedByOther ? '#A78BFA' : '#F0A868';
                 return (
                 <div key={o.id} style={{
                   ...styles.orderCard,
                   animationDelay: `${Math.min(i * 0.04, 0.4)}s`,
                   opacity: claimedByOther ? 0.72 : 1,
-                  border: claimedByMe ? '1.5px solid rgba(42,171,238,0.5)' : claimedByOther ? '1px solid rgba(167,139,250,0.3)' : undefined,
-                  background: claimedByMe ? 'rgba(42,171,238,0.04)' : claimedByOther ? 'rgba(167,139,250,0.03)' : undefined,
+                  border: claimedByMe ? '1.5px solid rgba(76,141,255,0.5)' : claimedByOther ? '1px solid rgba(167,139,250,0.3)' : undefined,
+                  background: claimedByMe ? 'rgba(76,141,255,0.04)' : claimedByOther ? 'rgba(167,139,250,0.03)' : undefined,
                 }} className="alfhd-order-card alfhd-card-enter">
                   <div style={{ height: 3, background: topColor, width: '100%' }} />
                   <div style={{ padding: 16 }}>
@@ -6109,11 +6109,11 @@ function PrepWorkerView({ currentUser, onLogout }) {
                       <div style={{
                         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
                         padding: '8px 12px', borderRadius: 9,
-                        background: claimedByMe ? 'rgba(42,171,238,0.12)' : 'rgba(167,139,250,0.12)',
-                        border: `1px solid ${claimedByMe ? 'rgba(42,171,238,0.3)' : 'rgba(167,139,250,0.3)'}`,
+                        background: claimedByMe ? 'rgba(76,141,255,0.12)' : 'rgba(167,139,250,0.12)',
+                        border: `1px solid ${claimedByMe ? 'rgba(76,141,255,0.3)' : 'rgba(167,139,250,0.3)'}`,
                       }}>
-                        <Package size={13} color={claimedByMe ? '#2AABEE' : '#A78BFA'} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: claimedByMe ? '#2AABEE' : '#A78BFA' }}>
+                        <Package size={13} color={claimedByMe ? '#4C8DFF' : '#A78BFA'} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: claimedByMe ? '#4C8DFF' : '#A78BFA' }}>
                           {claimedByMe ? '🔧 قيد التجهيز عندك' : `🔒 قيد التجهيز من قبل ${o.prepByName || 'موظف آخر'}`}
                         </span>
                       </div>
@@ -6124,11 +6124,11 @@ function PrepWorkerView({ currentUser, onLogout }) {
                       onClick={() => !claimedByOther && claimOrder(o)}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: claimedByOther ? 'not-allowed' : 'pointer' }}
                     >
-                      <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(42,171,238,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Package size={19} color="#2AABEE" />
+                      <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(76,141,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Package size={19} color="#4C8DFF" />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{o.customer || 'زبون'} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F4F7FB' }}>{o.customer || 'زبون'} <span style={{ fontSize: 12, color: '#5E6986' }}>#{o.orderNo}</span></div>
                         <div style={{ fontSize: 12, color: '#9FB0C3' }}>{o.governorateName}{o.area ? ' - ' + o.area : ''}</div>
                       </div>
                       {!claimed && (
@@ -6150,9 +6150,9 @@ function PrepWorkerView({ currentUser, onLogout }) {
                           return (
                             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <MapPin size={13} color={m.ambiguous ? '#F0A868' : (loc ? '#4DDB6B' : '#8FA0B5')} />
+                                <MapPin size={13} color={m.ambiguous ? '#F0A868' : (loc ? '#34D399' : '#8FA0B5')} />
                                 {loc ? (
-                                  <span style={{ fontSize: 13.5, fontWeight: 800, color: m.ambiguous ? '#F0A868' : '#4DDB6B' }}>{loc}</span>
+                                  <span style={{ fontSize: 13.5, fontWeight: 800, color: m.ambiguous ? '#F0A868' : '#34D399' }}>{loc}</span>
                                 ) : (
                                   <span style={{ fontSize: 12, color: '#9FB0C3' }}>لا يوجد عنوان مخزن لهذا المنتج</span>
                                 )}
@@ -6189,7 +6189,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
                     {/* أزرار تم / لم يتم — معطّلة إن كان الطلب محجوزاً من موظف آخر */}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => markDone(o)} disabled={busyId === o.id || claimedByOther}
-                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(77,219,107,0.14)', border: '1px solid rgba(77,219,107,0.35)', color: '#4DDB6B', fontSize: 13.5, fontWeight: 800, cursor: (busyId === o.id || claimedByOther) ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        style={{ flex: 1, padding: '12px', borderRadius: 11, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.35)', color: '#34D399', fontSize: 13.5, fontWeight: 800, cursor: (busyId === o.id || claimedByOther) ? 'not-allowed' : 'pointer', opacity: claimedByOther ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                         <CheckCircle2 size={16} /> تم التجهيز
                       </button>
                       <button onClick={() => { setRejectTarget(o); setRejectReason(''); }} disabled={busyId === o.id || claimedByOther}
@@ -6226,7 +6226,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="مثال: المنتج غير متوفر، نقص بالمخزون..."
                 rows={3}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 9, background: '#242F3D', border: '1.5px solid rgba(242,80,80,0.25)', color: '#E7ECF3', fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 9, background: '#1E2630', border: '1.5px solid rgba(242,80,80,0.25)', color: '#E7ECF3', fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }}
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                 <button onClick={() => setRejectTarget(null)} disabled={!!busyId}
@@ -6256,7 +6256,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 32, background: '#0E1621', color: '#F5F5F5', minHeight: '100vh', fontFamily: 'Cairo, sans-serif', direction: 'rtl' }}>
+        <div style={{ padding: 32, background: '#0A0E14', color: '#F4F7FB', minHeight: '100vh', fontFamily: 'Cairo, sans-serif', direction: 'rtl' }}>
           <div style={{ background: 'rgba(242,80,80,0.1)', border: '1px solid rgba(242,80,80,0.3)', borderRadius: 12, padding: 20, maxWidth: 600, margin: '40px auto' }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#F25050', marginBottom: 12 }}>⚠️ خطأ في التطبيق</div>
             <div style={{ fontSize: 13, color: '#F0A868', marginBottom: 8, fontFamily: 'monospace', direction: 'ltr' }}>
@@ -6456,7 +6456,7 @@ export default function AlFhdApp() {
   const knownOrderIdsRef = React.useRef(null);
   const orderSignatureRef = React.useRef('');
   const rejectedIdsRef = React.useRef(null);
-  // ── إضافة إشعار لمركز الإشعارات (مع صوت وإشعار متصفح) ──
+  // ── إضافة إشعار لمركز الإشعارات (مع ص��ت وإشعار متصفح) ──
   const pushNotif = useCallback((notif) => {
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -6863,7 +6863,7 @@ export default function AlFhdApp() {
           }}
           style={{
             position: 'relative', width: 40, height: 40, borderRadius: '50%',
-            background: 'rgba(23,33,43,0.95)', border: '1px solid rgba(42,171,238,0.3)',
+            background: 'rgba(23,33,43,0.95)', border: '1px solid rgba(76,141,255,0.3)',
             color: '#E7ECF3', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
             animation: notifications.some((n) => !n.read) ? 'alfhdBellGlow 1.6s var(--ease-tg) infinite' : 'none',
@@ -6884,7 +6884,7 @@ export default function AlFhdApp() {
         {showNotifications && (
           <div style={{
             position: 'absolute', top: 52, left: 0, width: 320, maxWidth: '90vw', maxHeight: 420, overflowY: 'auto',
-            background: '#17212B', border: '1px solid rgba(42,171,238,0.25)', borderRadius: 14,
+            background: '#141A22', border: '1px solid rgba(76,141,255,0.25)', borderRadius: 14,
             boxShadow: '0 12px 36px rgba(0,0,0,0.6)', padding: 8,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 8px 8px' }}>
@@ -6904,10 +6904,10 @@ export default function AlFhdApp() {
             {notifications.map((n) => (
               <div key={n.id} style={{
                 padding: '8px 12px', marginBottom: 4, borderRadius: 10,
-                background: n.type === 'returned' ? 'rgba(242,80,80,0.08)' : 'rgba(77,219,107,0.06)',
-                border: `1px solid ${n.type === 'returned' ? 'rgba(242,80,80,0.2)' : 'rgba(77,219,107,0.15)'}`,
+                background: n.type === 'returned' ? 'rgba(242,80,80,0.08)' : 'rgba(52,211,153,0.06)',
+                border: `1px solid ${n.type === 'returned' ? 'rgba(242,80,80,0.2)' : 'rgba(52,211,153,0.15)'}`,
               }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: n.type === 'returned' ? '#F25050' : '#4DDB6B' }}>{n.title}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: n.type === 'returned' ? '#F25050' : '#34D399' }}>{n.title}</div>
                 <div style={{ fontSize: 12, color: '#9FB0C3', marginTop: 4, lineHeight: 1.5 }}>{n.body}</div>
                 <div style={{ fontSize: 12, color: '#8FA0B5', marginTop: 4 }}>{new Date(n.time).toLocaleString('ar')}</div>
               </div>
@@ -7458,13 +7458,13 @@ function AIAssistantView({ currentUser }) {
 
   const filteredProducts = products.filter((p) => !prodSearch.trim() || (p.car_name || '').includes(prodSearch.trim()));
 
-  const box = { background: '#131B26', border: '1px solid #222C42', borderRadius: 14, padding: 16, marginBottom: 16 };
-  const label = { fontSize: 13, fontWeight: 700, color: '#F5F5F5', marginBottom: 8, display: 'block' };
-  const ta = { width: '100%', minHeight: 150, background: '#0E1621', border: '1px solid #222C42', borderRadius: 10, color: '#F5F5F5', padding: 12, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', direction: 'rtl', lineHeight: 1.7 };
-  const inp = { width: '100%', background: '#0E1621', border: '1px solid #222C42', borderRadius: 10, color: '#F5F5F5', padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', direction: 'rtl' };
-  const tabBtn = (id) => ({ padding: '8px 16px', borderRadius: 10, border: 'none', background: tab === id ? '#2AABEE' : '#131B26', color: tab === id ? '#fff' : '#8B98A9', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' });
+  const box = { background: '#0F141C', border: '1px solid #1B222D', borderRadius: 14, padding: 16, marginBottom: 16 };
+  const label = { fontSize: 13, fontWeight: 700, color: '#F4F7FB', marginBottom: 8, display: 'block' };
+  const ta = { width: '100%', minHeight: 150, background: '#0A0E14', border: '1px solid #1B222D', borderRadius: 10, color: '#F4F7FB', padding: 12, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', direction: 'rtl', lineHeight: 1.7 };
+  const inp = { width: '100%', background: '#0A0E14', border: '1px solid #1B222D', borderRadius: 10, color: '#F4F7FB', padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', direction: 'rtl' };
+  const tabBtn = (id) => ({ padding: '8px 16px', borderRadius: 10, border: 'none', background: tab === id ? '#4C8DFF' : '#0F141C', color: tab === id ? '#fff' : '#8B98A9', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' });
   const stat = (v, l, c) => (
-    <div style={{ flex: '1 1 100px', background: '#131B26', border: '1px solid #222C42', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+    <div style={{ flex: '1 1 100px', background: '#0F141C', border: '1px solid #1B222D', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
       <div style={{ fontSize: 21, fontWeight: 800, color: c }}>{v}</div>
       <div style={{ fontSize: 12, color: '#8B98A9', marginTop: 2 }}>{l}</div>
     </div>
@@ -7473,8 +7473,8 @@ function AIAssistantView({ currentUser }) {
   return (
     <div style={{ padding: 16, maxWidth: 960, margin: '0 auto', direction: 'rtl' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <Bot size={21} color="#2AABEE" />
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#F5F5F5', margin: 0 }}>الذكاء الصناعي</h2>
+        <Bot size={21} color="#4C8DFF" />
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#F4F7FB', margin: 0 }}>الذكاء الصناعي</h2>
         <span style={{
           marginRight: 'auto', fontSize: 12, fontWeight: 700, padding: '4px 8px', borderRadius: 20,
           background: settings.enabled_globally ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.12)',
@@ -7497,14 +7497,14 @@ function AIAssistantView({ currentUser }) {
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 11,
-                border: `1px solid ${on ? 'rgba(42,171,238,0.4)' : '#222C42'}`,
-                background: on ? 'rgba(42,171,238,0.14)' : 'transparent',
-                color: on ? '#2AABEE' : '#8B98A9', fontSize: 12.5, fontWeight: on ? 800 : 600,
+                border: `1px solid ${on ? 'rgba(76,141,255,0.4)' : '#1B222D'}`,
+                background: on ? 'rgba(76,141,255,0.14)' : 'transparent',
+                color: on ? '#4C8DFF' : '#8B98A9', fontSize: 12.5, fontWeight: on ? 800 : 600,
                 cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
               <Icon size={14} strokeWidth={on ? 2.4 : 1.9} />
               {t.label}
               {t.badge != null && t.badge > 0 && (
-                <span style={{ background: on ? 'rgba(42,171,238,0.3)' : 'rgba(255,255,255,0.08)',
+                <span style={{ background: on ? 'rgba(76,141,255,0.3)' : 'rgba(255,255,255,0.08)',
                   borderRadius: 20, padding: '2px 8px', fontSize: 12, fontWeight: 800,
                   whiteSpace: 'nowrap', minWidth: 17, textAlign: 'center' }}>{t.badge}</span>
               )}
@@ -7516,24 +7516,24 @@ function AIAssistantView({ currentUser }) {
       {/* ═══════ لوحة عامة ═══════ */}
       {tab === 'dash' && (<>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {stat(todayCount, 'ردود اليوم', '#2AABEE')}
+          {stat(todayCount, 'ردود اليوم', '#4C8DFF')}
           {stat(`${accuracy}%`, 'نسبة النجاح', accuracy >= 90 ? '#22C55E' : accuracy >= 70 ? '#F59E0B' : '#F25050')}
           {stat(escCount, 'صُعّدت لموظف', '#F59E0B')}
           {stat(activeConvs, 'محادثات فعّالة', '#22C55E')}
           {stat(pausedConvs, 'محادثات متوقفة', '#94A3B8')}
           {stat(`${availProducts}/${products.length}`, 'منتجات متوفرة', '#22C55E')}
-          {stat(bookingLogs, 'طلبات ثبّتها الذكاء', '#2AABEE')}
+          {stat(bookingLogs, 'طلبات ثبّتها الذكاء', '#4C8DFF')}
           {stat(`${convRate}%`, 'نسبة التحويل لطلب', convRate >= 20 ? '#22C55E' : '#F59E0B')}
         </div>
 
         {/* ── تشخيص الرد التلقائي ── */}
-        <div style={{ ...box, background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.2)' }}>
+        <div style={{ ...box, background: 'rgba(76,141,255,0.05)', border: '1px solid rgba(76,141,255,0.2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ ...label, marginBottom: 0, color: '#2AABEE' }}>تشخيص الرد التلقائي</span>
+            <span style={{ ...label, marginBottom: 0, color: '#4C8DFF' }}>تشخيص الرد التلقائي</span>
             <span style={{ fontSize: 12, color: '#8B98A9' }}>ما يرد على الزبائن؟ اضغط وشوف وين الخلل</span>
             <button onClick={runDiagnostics} disabled={diagBusy}
               style={{ marginRight: 'auto', padding: '8px 16px', borderRadius: 9, border: 'none',
-                background: '#2AABEE', color: '#fff', fontSize: 12.5, fontWeight: 800,
+                background: '#4C8DFF', color: '#fff', fontSize: 12.5, fontWeight: 800,
                 cursor: diagBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
               {diagBusy ? 'جاري الفحص...' : 'افحص الآن'}
             </button>
@@ -7547,16 +7547,16 @@ function AIAssistantView({ currentUser }) {
                   <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start',
                     padding: '10px 12px', borderRadius: 12,
                     background: `${c}12`, border: `1px solid ${c}38` }}>
-                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: c, color: '#0E1621',
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: c, color: '#0A0E14',
                       fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center',
                       justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5' }}>{st.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F4F7FB' }}>{st.name}</div>
                       <div style={{ fontSize: 12, color: c, marginTop: 2 }}>{st.detail}</div>
                       {st.fix && (
                         <div style={{ fontSize: 12, color: '#8B98A9', marginTop: 5, lineHeight: 1.7,
                           paddingTop: 5, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
-                          <b style={{ color: '#F5F5F5' }}>الحل:</b> {st.fix}
+                          <b style={{ color: '#F4F7FB' }}>الحل:</b> {st.fix}
                         </div>
                       )}
                     </div>
@@ -7604,7 +7604,7 @@ function AIAssistantView({ currentUser }) {
               <span style={{ position: 'absolute', top: 3, [settings.enabled_globally ? 'right' : 'left']: 3, width: 25, height: 25, borderRadius: '50%', background: '#fff', transition: 'all .2s' }} />
             </button>
           </div>
-          <button onClick={save} disabled={saving} style={{ marginTop: 12, padding: '8px 20px', borderRadius: 10, border: 'none', background: '#2AABEE', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={save} disabled={saving} style={{ marginTop: 12, padding: '8px 20px', borderRadius: 10, border: 'none', background: '#4C8DFF', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
             {saving ? 'جاري الحفظ...' : 'حفظ'}
           </button>
         </div>
@@ -7615,14 +7615,14 @@ function AIAssistantView({ currentUser }) {
             <span style={{ ...label, marginBottom: 0 }}>محادثة اختبار</span>
             <span style={{ fontSize: 12, color: '#8FA0B5' }}>الذكاء يتذكر كل الرسائل — مثل زبون حقيقي</span>
             {testChat.length > 0 && (
-              <button onClick={resetTest} style={{ marginRight: 'auto', padding: '4px 12px', borderRadius: 8, border: '1px solid #222C42', background: 'transparent', color: '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button onClick={resetTest} style={{ marginRight: 'auto', padding: '4px 12px', borderRadius: 8, border: '1px solid #1B222D', background: 'transparent', color: '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <RefreshCw size={11} /> محادثة جديدة
               </button>
             )}
           </div>
 
           {/* شاشة المحادثة */}
-          <div style={{ background: '#0E1621', border: '1px solid #222C42', borderRadius: 12, padding: 12, minHeight: 120, maxHeight: 420, overflowY: 'auto', marginBottom: 8 }}>
+          <div style={{ background: '#0A0E14', border: '1px solid #1B222D', borderRadius: 12, padding: 12, minHeight: 120, maxHeight: 420, overflowY: 'auto', marginBottom: 8 }}>
             {testChat.length === 0 && (
               <div style={{ color: '#8FA0B5', fontSize: 12.5, textAlign: 'center', padding: '24px 8px', lineHeight: 1.8 }}>
                 ابدأ محادثة تجريبية<br />
@@ -7632,14 +7632,14 @@ function AIAssistantView({ currentUser }) {
             {testChat.map((m, i) => (
               <div key={i} style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-start' : 'flex-end' }}>
                 <div style={{ maxWidth: '85%', padding: '8px 12px', borderRadius: 13,
-                  background: m.role === 'user' ? '#1E2B3C' : (m.escalated ? 'rgba(245,158,11,0.12)' : 'rgba(42,171,238,0.12)'),
+                  background: m.role === 'user' ? '#1E2B3C' : (m.escalated ? 'rgba(245,158,11,0.12)' : 'rgba(76,141,255,0.12)'),
                   border: m.escalated ? '1px solid rgba(245,158,11,0.25)' : 'none' }}>
                   <div style={{ fontSize: 12, color: '#8FA0B5', marginBottom: 4, fontWeight: 700 }}>
                     {m.role === 'user' ? 'الزبون' : 'الذكاء'}
                   </div>
                   {m.error && <div style={{ fontSize: 12, color: '#F25050' }}>خطأ: {m.error}</div>}
                   {m.escalated && <div style={{ fontSize: 12, color: '#F59E0B', fontWeight: 700, marginBottom: m.text ? 5 : 0 }}>⚠ صعّده لموظف — {m.reason}</div>}
-                  {m.text && <div style={{ fontSize: 13, color: '#F5F5F5', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{m.text}</div>}
+                  {m.text && <div style={{ fontSize: 13, color: '#F4F7FB', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{m.text}</div>}
                   {m.image && (
                     <div style={{ marginTop: 8 }}>
                       <div style={{ fontSize: 12, color: '#22C55E', marginBottom: 4, fontWeight: 700 }}>✓ يرسل صورة المنتج</div>
@@ -7648,10 +7648,10 @@ function AIAssistantView({ currentUser }) {
                   )}
                   {m.role === 'assistant' && Array.isArray(m.tools) && m.tools.length > 0 && (
                     <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontSize: 12, color: '#2AABEE', cursor: 'pointer', fontWeight: 700 }}>
+                      <summary style={{ fontSize: 12, color: '#4C8DFF', cursor: 'pointer', fontWeight: 700 }}>
                         على شنو اعتمد؟ ({m.tools.length}) {m.valid === false && <span style={{ color: '#F25050' }}>· ما اجتاز التحقق</span>}
                       </summary>
-                      <pre style={{ fontSize: 12, color: '#8B98A9', background: '#131B26', padding: 8, borderRadius: 7, overflowX: 'auto', marginTop: 8, direction: 'ltr', textAlign: 'left', maxHeight: 200 }}>
+                      <pre style={{ fontSize: 12, color: '#8B98A9', background: '#0F141C', padding: 8, borderRadius: 7, overflowX: 'auto', marginTop: 8, direction: 'ltr', textAlign: 'left', maxHeight: 200 }}>
                         {JSON.stringify(m.tools, null, 1)}
                       </pre>
                     </details>
@@ -7659,7 +7659,7 @@ function AIAssistantView({ currentUser }) {
                   {/* زر إعادة الإجابة — يعيد توليد رد الذكاء لنفس السؤال */}
                   {m.role === 'assistant' && i === testChat.length - 1 && !testing && (
                     <button onClick={regenerateLast}
-                      style={{ marginTop: 8, padding: '4px 12px', borderRadius: 8, border: '1px solid rgba(42,171,238,0.3)', background: 'rgba(42,171,238,0.08)', color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      style={{ marginTop: 8, padding: '4px 12px', borderRadius: 8, border: '1px solid rgba(76,141,255,0.3)', background: 'rgba(76,141,255,0.08)', color: '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <RefreshCw size={11} /> أعد الإجابة (شوف بعد التحسين)
                     </button>
                   )}
@@ -7675,7 +7675,7 @@ function AIAssistantView({ currentUser }) {
               onChange={(e) => setTestQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') runTest(); }} />
             <button onClick={runTest} disabled={testing || !testQ.trim()}
-              style={{ padding: '0 20px', borderRadius: 10, border: 'none', background: testing || !testQ.trim() ? '#3A4658' : '#2AABEE', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+              style={{ padding: '0 20px', borderRadius: 10, border: 'none', background: testing || !testQ.trim() ? '#3A4658' : '#4C8DFF', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
               إرسال
             </button>
           </div>
@@ -7688,11 +7688,11 @@ function AIAssistantView({ currentUser }) {
             ? <div style={{ fontSize: 12.5, color: '#22C55E' }}>✓ ما فيه أي حالة تصعيد — كل الردود مرت بنجاح</div>
             : logs.filter((l) => l.escalated).slice(0, 5).map((l) => (
               <div key={l.id} style={{ borderRight: '3px solid #F59E0B', paddingRight: 8, marginBottom: 8 }}>
-                <div style={{ fontSize: 12.5, color: '#F5F5F5' }}>{l.customer_message || '(بدون نص)'}</div>
+                <div style={{ fontSize: 12.5, color: '#F4F7FB' }}>{l.customer_message || '(بدون نص)'}</div>
                 <div style={{ fontSize: 12, color: '#F59E0B', marginTop: 2 }}>{l.escalation_reason}</div>
               </div>
             ))}
-          <button onClick={() => setTab('log')} style={{ marginTop: 8, padding: '8px 16px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={() => setTab('log')} style={{ marginTop: 8, padding: '8px 16px', borderRadius: 9, border: '1px solid #1B222D', background: 'transparent', color: '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             عرض السجل الكامل
           </button>
         </div>
@@ -7735,10 +7735,10 @@ function AIAssistantView({ currentUser }) {
 
       {/* ═══════ التدريب والتعليمات ═══════ */}
       {tab === 'training' && (<>
-        <div style={{ ...box, background: 'rgba(42,171,238,0.05)', border: '1px solid rgba(42,171,238,0.18)' }}>
+        <div style={{ ...box, background: 'rgba(76,141,255,0.05)', border: '1px solid rgba(76,141,255,0.18)' }}>
           <div style={{ fontSize: 12.5, color: '#8B98A9', lineHeight: 1.8 }}>
-            <b style={{ color: '#2AABEE' }}>كيف يشتغل التدريب:</b><br />
-            الذكاء الصناعي <b style={{ color: '#F5F5F5' }}>ممنوع</b> يذكر أي سعر أو توفر أو حالة طلب من نفسه — لازم يستعلم من قاعدة بياناتك مباشرة كل مرة. التعليمات أدناه تحدد <b style={{ color: '#F5F5F5' }}>أسلوبه</b> و<b style={{ color: '#F5F5F5' }}>حدوده</b>، مو معلومات المنتجات (هذي تنجاب حية من المخزن).
+            <b style={{ color: '#4C8DFF' }}>كيف يشتغل التدريب:</b><br />
+            الذكاء الصناعي <b style={{ color: '#F4F7FB' }}>ممنوع</b> يذكر أي سعر أو توفر أو حالة طلب من نفسه — لازم يستعلم من قاعدة بياناتك مباشرة كل مرة. التعليمات أدناه تحدد <b style={{ color: '#F4F7FB' }}>أسلوبه</b> و<b style={{ color: '#F4F7FB' }}>حدوده</b>، مو معلومات المنتجات (هذي تنجاب حية من المخزن).
           </div>
         </div>
 
@@ -7752,7 +7752,7 @@ function AIAssistantView({ currentUser }) {
           </div>
           <div>
             <div style={{ fontSize: 12, color: '#8FA0B5', fontWeight: 700 }}>تصحيحاتك المحفوظة</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: correctionCount >= 35 ? '#F59E0B' : '#2AABEE' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: correctionCount >= 35 ? '#F59E0B' : '#4C8DFF' }}>
               {correctionCount}<span style={{ fontSize: 12, color: '#8FA0B5' }}> / 40</span>
             </div>
           </div>
@@ -7797,14 +7797,14 @@ function AIAssistantView({ currentUser }) {
           {enhancePreview && (
             <div style={{ marginTop: 12, padding: 16, borderRadius: 12, background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)' }}>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: '#A78BFA', marginBottom: 8 }}>النسخة المحسّنة (احترافية وصارمة):</div>
-              <div style={{ fontSize: 13, color: '#E7ECF3', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto', background: '#0E1621', padding: 12, borderRadius: 9 }}>{enhancePreview}</div>
+              <div style={{ fontSize: 13, color: '#E7ECF3', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto', background: '#0A0E14', padding: 12, borderRadius: 9 }}>{enhancePreview}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <button onClick={() => { setSettings({ ...settings, system_prompt: enhancePreview }); setEnhancePreview(null); }}
                   style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: '#22C55E', color: '#fff', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                   ✓ اعتمد النسخة المحسّنة
                 </button>
                 <button onClick={() => setEnhancePreview(null)}
-                  style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#8B98A9', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid #1B222D', background: 'transparent', color: '#8B98A9', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   إلغاء
                 </button>
               </div>
@@ -7824,7 +7824,7 @@ function AIAssistantView({ currentUser }) {
           </div>
         </div>
 
-        <button onClick={save} disabled={saving} style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: '#2AABEE', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={save} disabled={saving} style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: '#4C8DFF', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
           {saving ? 'جاري الحفظ...' : 'حفظ التعليمات والتدريب'}
         </button>
       </>)}
@@ -7835,9 +7835,9 @@ function AIAssistantView({ currentUser }) {
           <input aria-label="ابحث بالسجل — نص الزبون، الرد، سبب التصعيد، اسم منتج" style={{ ...inp, marginBottom: 8 }} placeholder="ابحث بالسجل — نص الزبون، الرد، سبب التصعيد، اسم منتج..." value={logSearch} onChange={(e) => setLogSearch(e.target.value)} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {[['all', `الكل (${total})`], ['ok', `ناجحة (${okCount})`], ['escalated', `مُصعّدة (${escCount})`]].map(([id, lbl]) => (
-              <button key={id} onClick={() => setLogFilter(id)} style={{ padding: '8px 12px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', background: logFilter === id ? '#2AABEE' : '#0E1621', color: logFilter === id ? '#fff' : '#8B98A9' }}>{lbl}</button>
+              <button key={id} onClick={() => setLogFilter(id)} style={{ padding: '8px 12px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', background: logFilter === id ? '#4C8DFF' : '#0A0E14', color: logFilter === id ? '#fff' : '#8B98A9' }}>{lbl}</button>
             ))}
-            <button onClick={loadLogs} style={{ marginRight: 'auto', padding: '8px 12px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#8B98A9', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+            <button onClick={loadLogs} style={{ marginRight: 'auto', padding: '8px 12px', borderRadius: 9, border: '1px solid #1B222D', background: 'transparent', color: '#8B98A9', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
               <RefreshCw size={12} /> تحديث
             </button>
           </div>
@@ -7858,11 +7858,11 @@ function AIAssistantView({ currentUser }) {
                 </span>
               </div>
               {l.customer_message && <div style={{ fontSize: 12.5, color: '#8B98A9', marginBottom: 4 }}><b style={{ color: '#8FA0B5' }}>الزبون:</b> {l.customer_message}</div>}
-              {l.reply_text && <div style={{ fontSize: 12.5, color: '#F5F5F5', marginBottom: 4, lineHeight: 1.7 }}><b style={{ color: '#8FA0B5' }}>الرد:</b> {l.reply_text}</div>}
+              {l.reply_text && <div style={{ fontSize: 12.5, color: '#F4F7FB', marginBottom: 4, lineHeight: 1.7 }}><b style={{ color: '#8FA0B5' }}>الرد:</b> {l.reply_text}</div>}
               {l.escalation_reason && <div style={{ fontSize: 12, color: '#F59E0B', marginBottom: 4 }}><b>سبب التصعيد:</b> {l.escalation_reason}</div>}
 
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => setExpandedLog(isOpen ? null : l.id)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #222C42', background: 'transparent', color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => setExpandedLog(isOpen ? null : l.id)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #1B222D', background: 'transparent', color: '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {isOpen ? 'إخفاء المصدر' : `على شنو اعتمد؟ (${tools.length} استعلام)`}
                 </button>
                 <button onClick={() => { setCorrecting(l.id); setCorrectionText(''); }} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(242,80,80,0.25)', background: 'rgba(242,80,80,0.06)', color: '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -7871,11 +7871,11 @@ function AIAssistantView({ currentUser }) {
               </div>
 
               {isOpen && (
-                <div style={{ marginTop: 8, background: '#0E1621', border: '1px solid #222C42', borderRadius: 10, padding: 12 }}>
+                <div style={{ marginTop: 8, background: '#0A0E14', border: '1px solid #1B222D', borderRadius: 10, padding: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#8FA0B5', marginBottom: 8 }}>الاستعلامات التي بُني عليها الرد (مصدر الحقيقة)</div>
                   {tools.length === 0 && <div style={{ fontSize: 12, color: '#F25050' }}>⚠ ما استعلم على شي — أي رقم بالرد غير موثق</div>}
                   {tools.map((t, i) => (
-                    <pre key={i} style={{ fontSize: 12, color: '#8B98A9', background: '#131B26', padding: 8, borderRadius: 8, overflowX: 'auto', margin: '0 0 8px', direction: 'ltr', textAlign: 'left', fontFamily: 'monospace' }}>
+                    <pre key={i} style={{ fontSize: 12, color: '#8B98A9', background: '#0F141C', padding: 8, borderRadius: 8, overflowX: 'auto', margin: '0 0 8px', direction: 'ltr', textAlign: 'left', fontFamily: 'monospace' }}>
                       {JSON.stringify(t, null, 1)}
                     </pre>
                   ))}
@@ -7896,11 +7896,11 @@ function AIAssistantView({ currentUser }) {
                     </div>
                     <input value={glossaryTerm} onChange={(e) => setGlossaryTerm(e.target.value)}
                       placeholder="مثال: طباكات = حواف الباب البلاستيك من جوة"
-                      style={{ width: '100%', background: '#0E1621', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 9, color: '#F5F5F5', padding: '8px 12px', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', background: '#0A0E14', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 9, color: '#F4F7FB', padding: '8px 12px', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button onClick={() => saveCorrection(l)} style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: '#22C55E', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>احفظ التصحيح</button>
-                    <button onClick={() => { setCorrecting(null); setCorrectionText(''); setGlossaryTerm(''); }} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#8B98A9', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
+                    <button onClick={() => { setCorrecting(null); setCorrectionText(''); setGlossaryTerm(''); }} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid #1B222D', background: 'transparent', color: '#8B98A9', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
                   </div>
                 </div>
               )}
@@ -7921,8 +7921,8 @@ function AIAssistantView({ currentUser }) {
           </div>
 
           {/* رفع صورة موحّدة لكل نوع */}
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #222C42' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5F5F5', marginBottom: 8 }}>صورة موحّدة لكل نوع</div>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1B222D' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F4F7FB', marginBottom: 8 }}>صورة موحّدة لكل نوع</div>
             <div style={{ fontSize: 12, color: '#8FA0B5', marginBottom: 8, lineHeight: 1.6 }}>ارفع صورة وحدة تنطبق على كل منتجات النوع فوراً. مفيدة الآن — لاحقاً تقدر تغيّر صورة أي منتج لحاله.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {WH_PRODUCT_TYPES.map((t) => {
@@ -7931,17 +7931,17 @@ function AIAssistantView({ currentUser }) {
                 const withImg = typeProds.filter((p) => p.image_url).length;
                 const sample = typeProds.find((p) => p.image_url);
                 return (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0E1621', border: '1px solid #222C42', borderRadius: 11 }}>
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0A0E14', border: '1px solid #1B222D', borderRadius: 11 }}>
                     {sample?.image_url
                       ? <img src={sample.image_url} alt="" style={{ width: 42, height: 42, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }} onError={(e) => { e.target.style.display = 'none'; }} />
-                      : <div style={{ width: 42, height: 42, borderRadius: 9, background: '#222C42', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>{t.icon}</div>}
+                      : <div style={{ width: 42, height: 42, borderRadius: 9, background: '#1B222D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>{t.icon}</div>}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5' }}>{t.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F4F7FB' }}>{t.label}</div>
                       <div style={{ fontSize: 12, color: withImg === typeProds.length ? '#22C55E' : '#F59E0B' }}>
                         {withImg}/{typeProds.length} عندهم صورة
                       </div>
                     </div>
-                    <label style={{ padding: '8px 12px', background: 'rgba(42,171,238,0.1)', border: '1px solid rgba(42,171,238,0.3)', borderRadius: 9, color: '#2AABEE', fontSize: 12, fontWeight: 700, cursor: bulkImgBusy ? 'wait' : 'pointer', flexShrink: 0 }}>
+                    <label style={{ padding: '8px 12px', background: 'rgba(76,141,255,0.1)', border: '1px solid rgba(76,141,255,0.3)', borderRadius: 9, color: '#4C8DFF', fontSize: 12, fontWeight: 700, cursor: bulkImgBusy ? 'wait' : 'pointer', flexShrink: 0 }}>
                       {bulkImgBusy && bulkImgType === t.id ? `${bulkImgDone}/${typeProds.length}...` : (withImg > 0 ? 'تغيير' : 'رفع صورة')}
                       <input type="file" accept="image/*" disabled={bulkImgBusy}
                         onChange={(e) => handleBulkImage(e, t.id)}
@@ -7954,7 +7954,7 @@ function AIAssistantView({ currentUser }) {
           </div>
           {/* تعديل جماعي للأسعار (على نتيجة البحث الحالية) */}
           {prodSearch.trim() && filteredProducts.length > 0 && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #222C42', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1B222D', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#8B98A9', fontWeight: 700 }}>تعديل سعر الـ{filteredProducts.length} منتج الظاهرين:</span>
               <input aria-label="مبلغ" id="bulkPrice" type="number" placeholder="مبلغ" style={{ ...inp, width: 90, padding: '8px 8px' }} />
               <button onClick={async () => {
@@ -7966,7 +7966,7 @@ function AIAssistantView({ currentUser }) {
                 }
                 setProducts((prev) => prev.map((x) => filteredProducts.find((f) => f.id === x.id) ? { ...x, price_iqd: v } : x));
                 alert('تم');
-              }} style={{ padding: '8px 12px', borderRadius: 9, border: 'none', background: '#2AABEE', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              }} style={{ padding: '8px 12px', borderRadius: 9, border: 'none', background: '#4C8DFF', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 تعيين موحّد
               </button>
               <button onClick={async () => {
@@ -7979,7 +7979,7 @@ function AIAssistantView({ currentUser }) {
                 }
                 setProducts((prev) => prev.map((x) => { const f = filteredProducts.find((f) => f.id === x.id); return f ? { ...x, price_iqd: Math.round((Number(x.price_iqd) || 0) * (1 + pct / 100)) } : x; }));
                 alert('تم');
-              }} style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#22C55E', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              }} style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid #1B222D', background: 'transparent', color: '#22C55E', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 نسبة %
               </button>
             </div>
@@ -7992,9 +7992,9 @@ function AIAssistantView({ currentUser }) {
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: i < filteredProducts.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                 {p.image_url
                   ? <img src={p.image_url} alt="" onError={(e) => { e.target.style.display = 'none'; }} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                  : <div style={{ width: 36, height: 36, borderRadius: 8, background: '#222C42', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 15 }}>📦</div>}
+                  : <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1B222D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 15 }}>📦</div>}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5F5F5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.car_name}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F4F7FB', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.car_name}</div>
                   <div style={{ fontSize: 12, color: '#8FA0B5', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>{WH_PRODUCT_TYPES.find((t) => t.id === p.type)?.label || p.type}</span>
                     {/* تعديل السعر السريع */}
@@ -8007,7 +8007,7 @@ function AIAssistantView({ currentUser }) {
                         catch (err) { alert('فشل: ' + err.message); }
                       }}
                       placeholder="السعر"
-                      style={{ width: 62, background: !p.price_iqd ? 'rgba(242,80,80,0.1)' : '#0E1621', border: `1px solid ${!p.price_iqd ? 'rgba(242,80,80,0.3)' : '#222C42'}`, borderRadius: 6, color: !p.price_iqd ? '#F25050' : '#F5F5F5', padding: '2px 8px', fontSize: 12, fontFamily: 'inherit', textAlign: 'center' }}
+                      style={{ width: 62, background: !p.price_iqd ? 'rgba(242,80,80,0.1)' : '#0A0E14', border: `1px solid ${!p.price_iqd ? 'rgba(242,80,80,0.3)' : '#1B222D'}`, borderRadius: 6, color: !p.price_iqd ? '#F25050' : '#F4F7FB', padding: '2px 8px', fontSize: 12, fontFamily: 'inherit', textAlign: 'center' }}
                     />
                     {!p.image_url && <span style={{ color: '#F59E0B' }}>⚠ بلا صورة</span>}
                   </div>
@@ -8023,7 +8023,7 @@ function AIAssistantView({ currentUser }) {
 
       {/* ═══════ API الذكاء الاصطناعي — كارتات مزوّدين متعددين ═══════ */}
       {tab === 'api' && (<>
-        <div style={{ ...box, background: 'rgba(42,171,238,0.06)', borderColor: 'rgba(42,171,238,0.2)' }}>
+        <div style={{ ...box, background: 'rgba(76,141,255,0.06)', borderColor: 'rgba(76,141,255,0.2)' }}>
           <div style={{ fontSize: 13, color: '#8B98A9', lineHeight: 1.8 }}>
             كل كارت = مفتاح API لمزوّد ذكاء اصطناعي. <b style={{ color: '#22C55E' }}>الأخضر</b> هو المفعّل حالياً (اللي يشتغل فعلياً بالمحادثات) — ما ينفعّل غيره إلا لو ضغطت عليه، وينطفي الباقي تلقائياً.
           </div>
@@ -8035,17 +8035,17 @@ function AIAssistantView({ currentUser }) {
             {providers.map((p) => {
               const on = !!p.is_active;
               return (
-                <div key={p.id} style={{ ...box, marginBottom: 0, border: `1px solid ${on ? 'rgba(34,197,94,0.35)' : '#222C42'}`, background: on ? 'rgba(34,197,94,0.05)' : '#131B26' }}>
+                <div key={p.id} style={{ ...box, marginBottom: 0, border: `1px solid ${on ? 'rgba(34,197,94,0.35)' : '#1B222D'}`, background: on ? 'rgba(34,197,94,0.05)' : '#0F141C' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: on ? '#22C55E' : '#F25050', flexShrink: 0, boxShadow: on ? '0 0 8px rgba(34,197,94,0.6)' : 'none' }} />
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>{p.name}</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#F4F7FB' }}>{p.name}</div>
                         <div style={{ fontSize: 11.5, color: '#8B98A9', marginTop: 2 }}>{p.model} · {p.api_base_url}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => toggleProviderActive(p.id)} disabled={on} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${on ? 'rgba(34,197,94,0.35)' : 'rgba(42,171,238,0.3)'}`, background: on ? 'rgba(34,197,94,0.14)' : 'rgba(42,171,238,0.1)', color: on ? '#22C55E' : '#2AABEE', fontSize: 12, fontWeight: 800, cursor: on ? 'default' : 'pointer' }}>
+                      <button onClick={() => toggleProviderActive(p.id)} disabled={on} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${on ? 'rgba(34,197,94,0.35)' : 'rgba(76,141,255,0.3)'}`, background: on ? 'rgba(34,197,94,0.14)' : 'rgba(76,141,255,0.1)', color: on ? '#22C55E' : '#4C8DFF', fontSize: 12, fontWeight: 800, cursor: on ? 'default' : 'pointer' }}>
                         {on ? '● مفعّل الآن' : 'شغّله'}
                       </button>
                       <button onClick={() => deleteProvider(p.id)} style={{ padding: 8, background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 8, color: '#F25050', cursor: 'pointer' }}><Trash2 size={13} /></button>
@@ -8061,7 +8061,7 @@ function AIAssistantView({ currentUser }) {
         {/* إضافة مزوّد جديد */}
         {newProvider ? (
           <div style={box}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12, color: '#F5F5F5' }}>مزوّد جديد</div>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12, color: '#F4F7FB' }}>مزوّد جديد</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
                 <div style={{ fontSize: 11.5, color: '#8B98A9', marginBottom: 4 }}>اسم يظهر بالكارت (مثلاً NVIDIA NIM)</div>
@@ -8080,15 +8080,15 @@ function AIAssistantView({ currentUser }) {
                 <input style={inp} type="password" value={newProvider.api_key || ''} onChange={(e) => setNewProvider({ ...newProvider, api_key: e.target.value })} placeholder="المفتاح السري" dir="ltr" />
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={saveNewProvider} disabled={savingProvider} style={{ padding: '9px 18px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+                <button onClick={saveNewProvider} disabled={savingProvider} style={{ padding: '9px 18px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
                   {savingProvider ? 'جاري الحفظ...' : 'حفظ المزوّد'}
                 </button>
-                <button onClick={() => setNewProvider(null)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid #222C42', background: 'transparent', color: '#8B98A9', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>إلغاء</button>
+                <button onClick={() => setNewProvider(null)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid #1B222D', background: 'transparent', color: '#8B98A9', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>إلغاء</button>
               </div>
             </div>
           </div>
         ) : (
-          <button onClick={() => setNewProvider({ name: '', api_key: '', api_base_url: '', model: '' })} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 9, border: '1px dashed rgba(42,171,238,0.4)', background: 'transparent', color: '#2AABEE', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={() => setNewProvider({ name: '', api_key: '', api_base_url: '', model: '' })} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 9, border: '1px dashed rgba(76,141,255,0.4)', background: 'transparent', color: '#4C8DFF', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
             <Plus size={15} /> إضافة مزوّد API جديد
           </button>
         )}
@@ -8099,9 +8099,9 @@ function AIAssistantView({ currentUser }) {
         <div style={box}>
           {drafts.length === 0 && <div style={{ color: '#8B98A9', fontSize: 13 }}>ما فيه مسودات تنتظر موافقة</div>}
           {drafts.map((d) => (
-            <div key={d.id} style={{ borderBottom: '1px solid #222C42', padding: '12px 0' }}>
+            <div key={d.id} style={{ borderBottom: '1px solid #1B222D', padding: '12px 0' }}>
               <div style={{ fontSize: 12, color: '#8FA0B5', marginBottom: 4 }}>{new Date(d.created_at).toLocaleString('ar-IQ')}</div>
-              <div style={{ fontSize: 12.5, color: '#F5F5F5', lineHeight: 1.7, marginBottom: 8 }}>{d.draft_text}</div>
+              <div style={{ fontSize: 12.5, color: '#F4F7FB', lineHeight: 1.7, marginBottom: 8 }}>{d.draft_text}</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => approveDraft(d, true)} style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: '#22C55E', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>موافق</button>
                 <button onClick={() => approveDraft(d, false)} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid rgba(242,80,80,0.25)', background: 'transparent', color: '#F25050', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>رفض</button>
@@ -8138,9 +8138,9 @@ function whDaysUntil(d) { return d ? Math.ceil((new Date(d)-new Date())/86400000
 function WhModal({ title, onClose, children }) {
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.72)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:16 }} onClick={onClose}>
-      <div style={{ background:'linear-gradient(145deg,#17212B,#1A2736)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:16, width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.7)' }} onClick={e=>e.stopPropagation()}>
+      <div style={{ background:'linear-gradient(145deg,#141A22,#181F29)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:16, width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.7)' }} onClick={e=>e.stopPropagation()}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding: '16px 20px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-          <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#F5F5F5' }}>{title}</h3>
+          <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#F4F7FB' }}>{title}</h3>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#8FA0B5', cursor:'pointer' }}><X size={18}/></button>
         </div>
         <div style={{ padding: '16px 20px' }}>{children}</div>
@@ -8156,7 +8156,7 @@ function WhField({ label, required, children }) {
     </div>
   );
 }
-// شريحة قابلة للتعليم — تستخدم بدل القوائم المنسدلة لحقول متعددة الاختيار
+// شريحة قابلة للتعليم — تستخدم بدل القوائم المنسدلة لحقول متعددة الا��تيار
 function WhChip({ active, label, onClick }) {
   return (
     <button type="button" onClick={onClick} style={{
@@ -8186,14 +8186,14 @@ function WhFloatingSearch({ products, onSelect }) {
     <>
       <button onClick={() => setOpen(true)} title="ابحث عن المنتجات" style={{
         position: 'fixed', bottom: 'calc(78px + env(safe-area-inset-bottom, 0px))', left: 16, zIndex: 9999, width: 52, height: 52, borderRadius: '50%',
-        background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', color: '#fff', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(42,171,238,0.45)',
+        background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)', border: 'none', color: '#fff', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(76,141,255,0.45)',
       }}>
         <Search size={20} />
       </button>
       {open && (
         <div onClick={() => { setOpen(false); setQ(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9998, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '10vh 16px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#17212B', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 14, width: '100%', maxWidth: 420 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#141A22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 14, width: '100%', maxWidth: 420 }}>
             <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث عن اسم المنتج..." style={whInp} />
             <div style={{ marginTop: 10, maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {q.trim() && results.length === 0 && <div style={{ color: '#8FA0B5', fontSize: 12.5, textAlign: 'center', padding: 12 }}>ما فيه نتائج</div>}
@@ -8209,7 +8209,7 @@ function WhFloatingSearch({ products, onSelect }) {
     </>
   );
 }
-const whInp = { width:'100%', background:'#242F3D', border:'1px solid rgba(255,255,255,0.07)', borderRadius:9, color:'#F5F5F5', fontSize:13, padding: '8px 12px', outline:'none', boxSizing:'border-box', fontFamily:'Cairo,sans-serif' };
+const whInp = { width:'100%', background:'#1E2630', border:'1px solid rgba(255,255,255,0.07)', borderRadius:9, color:'#F4F7FB', fontSize:13, padding: '8px 12px', outline:'none', boxSizing:'border-box', fontFamily:'Cairo,sans-serif' };
 // تحويل تلقائي: 110 → 110000، 1100 → 110000، 85 → 85000
 function formatPriceInput(v) {
   const digits = String(v || '').replace(/[^\d]/g, '');
@@ -8230,12 +8230,12 @@ function WhDashboard({ products, sales, debts, suppliers }) {
   const totalDebt = debts.filter(d=>d.status==='unpaid').reduce((s,d)=>s+(d.amount_iqd||0),0);
   const urgent = debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7);
   const stats = [
-    {l:'مبيعات اليوم', v:whFmt(todayRev), c:'#4DDB6B', I:TrendingUp},
-    {l:'مبيعات الشهر', v:whFmt(monthRev), c:'#2AABEE', I:BarChart3},
+    {l:'مبيعات اليوم', v:whFmt(todayRev), c:'#34D399', I:TrendingUp},
+    {l:'مبيعات الشهر', v:whFmt(monthRev), c:'#4C8DFF', I:BarChart3},
     {l:'رصيد المخزن',  v:whFmt(stockVal), c:'#A78BFA', I:Warehouse},
     {l:'إجمالي الديون',v:whFmt(totalDebt),c:'#F25050', I:CreditCard},
     {l:'أصناف المنتجات',v:products.length, c:'#F0A868', I:Package},
-    {l:'موزعون',       v:suppliers.length, c:'#2AABEE', I:Truck},
+    {l:'موزعون',       v:suppliers.length, c:'#4C8DFF', I:Truck},
   ];
   return (
     <div>
@@ -8248,7 +8248,7 @@ function WhDashboard({ products, sales, debts, suppliers }) {
       )}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:12,marginBottom: 20}}>
         {stats.map(s=>(
-          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: '12px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
+          <div key={s.l} style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: '12px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.4)'}}>
             <s.I size={18} color={s.c} style={{marginBottom:8}}/>
             <div style={{fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
             <div style={{fontSize: 12,color:'#8FA0B5',marginTop: 4}}>{s.l}</div>
@@ -8256,12 +8256,12 @@ function WhDashboard({ products, sales, debts, suppliers }) {
         ))}
       </div>
       {low.length>0&&(
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:13,padding: 16,marginBottom: 16}}>
+        <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:13,padding: 16,marginBottom: 16}}>
           <div style={{fontSize:13,fontWeight:800,color:'#F25050',marginBottom: 8}}>منتجات تحتاج تزويد</div>
           {low.map(p=>(
             <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding: '8px 8px',background:'rgba(242,80,80,0.06)',borderRadius:9,marginBottom: 8,border:'1px solid rgba(242,80,80,0.15)'}}>
               <div>
-                <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}</div>
+                <div style={{fontSize:12.5,fontWeight:700,color:'#F4F7FB'}}>{p.car_name} — {WH_PRODUCT_TYPES.find(t=>t.id===p.type)?.label}</div>
                 {p.location&&<div style={{fontSize: 12,color:'#8FA0B5'}}>📍 {p.location}</div>}
               </div>
               <div style={{fontSize:22,fontWeight:800,color:p.quantity===0?'#F25050':'#F0A868'}}>{p.quantity}</div>
@@ -8269,12 +8269,12 @@ function WhDashboard({ products, sales, debts, suppliers }) {
           ))}
         </div>
       )}
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: 16}}>
-        <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom: 8}}>آخر المبيعات</div>
+      <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: 16}}>
+        <div style={{fontSize:13,fontWeight:800,color:'#F4F7FB',marginBottom: 8}}>آخر المبيعات</div>
         {sales.slice(0,5).map(s=>(
           <div key={s.id} style={{display:'flex',justifyContent:'space-between',padding: '8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-            <div><div style={{fontSize:12.5,fontWeight:600,color:'#F5F5F5'}}>{s.product_name}</div><div style={{fontSize: 12,color:'#8FA0B5'}}>{s.date} · {s.customer_name||'زبون'}</div></div>
-            <div style={{fontSize:13,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
+            <div><div style={{fontSize:12.5,fontWeight:600,color:'#F4F7FB'}}>{s.product_name}</div><div style={{fontSize: 12,color:'#8FA0B5'}}>{s.date} · {s.customer_name||'زبون'}</div></div>
+            <div style={{fontSize:13,fontWeight:800,color:'#34D399'}}>{whFmt(s.total_iqd)}</div>
           </div>
         ))}
         {!sales.length&&<div style={{color:'#8FA0B5',fontSize:13,textAlign:'center',padding:20}}>لا توجد مبيعات بعد</div>}
@@ -8402,17 +8402,17 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
     <div style={{ direction: 'rtl' }}>
       {allProducts && onSwitchProduct && <WhFloatingSearch products={allProducts} onSelect={onSwitchProduct} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-        <button onClick={async () => { await saveBasic(); onBack(); }} disabled={savingBasic} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 9, color: '#fff', fontSize: 13, fontWeight: 800, cursor: savingBasic ? 'default' : 'pointer', opacity: savingBasic ? 0.7 : 1 }}>
+        <button onClick={async () => { await saveBasic(); onBack(); }} disabled={savingBasic} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)', border: 'none', borderRadius: 9, color: '#fff', fontSize: 13, fontWeight: 800, cursor: savingBasic ? 'default' : 'pointer', opacity: savingBasic ? 0.7 : 1 }}>
           {savingBasic ? '⏳ جاري الحفظ...' : '💾 حفظ ورجوع'}
         </button>
-        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F5F5F5', flex: 1 }}>تعديل منتج: {form.car_name || '—'}</h3>
+        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#F4F7FB', flex: 1 }}>تعديل منتج: {form.car_name || '—'}</h3>
         <button onClick={deleteWholeProduct} disabled={deleting} title="حذف المنتج نهائياً" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, flexShrink: 0, background: 'rgba(242,80,80,0.08)', border: '1px solid rgba(242,80,80,0.18)', borderRadius: 8, color: '#F25050', cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
           <Trash2 size={13} />
         </button>
       </div>
 
       {/* بيانات أساسية */}
-      <div style={{ background: 'linear-gradient(145deg,#17212B,#1A2736)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: 16, marginBottom: 16 }}>
+      <div style={{ background: 'linear-gradient(145deg,#141A22,#181F29)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#8B9AB3', marginBottom: 10 }}>البيانات الأساسية</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
           <WhField label="اسم السيارة"><input value={form.car_name} onChange={e => setForm(f => ({ ...f, car_name: e.target.value }))} autoFocus={form.car_name === 'منتج جديد'} onFocus={e => { if (form.car_name === 'منتج جديد') e.target.select(); }} style={whInp} /></WhField>
@@ -8435,8 +8435,8 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
 
       {/* الألوان */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#F5F5F5' }}>الألوان والصور والخيارات</div>
-        <button onClick={addColor} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', background: 'linear-gradient(135deg,#2AABEE,#229ED9)', border: 'none', borderRadius: 9, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#F4F7FB' }}>الألوان والصور والخيارات</div>
+        <button onClick={addColor} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)', border: 'none', borderRadius: 9, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
           <Plus size={13} /> إضافة لون
         </button>
       </div>
@@ -8450,10 +8450,10 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {colors.map((c) => (
-            <div key={c.id} style={{ background: 'linear-gradient(145deg,#17212B,#1A2736)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: 14 }}>
+            <div key={c.id} style={{ background: 'linear-gradient(145deg,#141A22,#181F29)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: 14 }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
                 {/* الصورة */}
-                <label style={{ position: 'relative', width: 72, height: 72, borderRadius: 10, background: '#0E1621', border: '1px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, overflow: 'hidden' }}>
+                <label style={{ position: 'relative', width: 72, height: 72, borderRadius: 10, background: '#0A0E14', border: '1px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, overflow: 'hidden' }}>
                   {c.image_url ? <img src={c.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
                     (uploadingColorId === c.id ? <RefreshCw size={18} style={{ color: '#8FA0B5', animation: 'spin 1s linear infinite' }} /> : <span style={{ fontSize: 11, color: '#8FA0B5', textAlign: 'center' }}>📷<br />صورة</span>)}
                   <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadColorImage(c.id, e.target.files?.[0])} />
@@ -8475,7 +8475,7 @@ function ProductEditPage({ product, onBack, sbI, sbU, sbD, setProducts, allProdu
               <div style={{ marginRight: 84 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#8B9AB3' }}>خيارات الركاب والسعر لهذا اللون</div>
-                  <button onClick={() => addSeatOption(c.id)} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px', background: 'rgba(42,171,238,0.1)', border: '1px solid rgba(42,171,238,0.2)', borderRadius: 7, color: '#2AABEE', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  <button onClick={() => addSeatOption(c.id)} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 8px', background: 'rgba(76,141,255,0.1)', border: '1px solid rgba(76,141,255,0.2)', borderRadius: 7, color: '#4C8DFF', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                     <Plus size={11} /> خيار جديد
                   </button>
                 </div>
@@ -8709,9 +8709,9 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
     <div>
       <WhFloatingSearch products={products} onSelect={openEdit} />
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom: 16,flexWrap:'wrap',gap:8}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المنتجات والمخزون</h3>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F4F7FB'}}>المنتجات والمخزون</h3>
         <div style={{display:'flex',gap: 8}}>
-          <button onClick={openNew} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+          <button onClick={openNew} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#4C8DFF,#3A78E8)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>
             <Plus size={13}/> منتج جديد
           </button>
           {/* قائمة 3 نقاط: تصدير / استيراد / بحث عن موقع */}
@@ -8737,13 +8737,13 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           <input aria-label="بحث" value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." style={{...whInp,paddingRight: 28}}/>
         </div>
         {[{id:'all',label:'الكل'},...WH_PRODUCT_TYPES].map(t=>(
-          <button key={t.id} onClick={()=>{setType(t.id);setSeatFilter('all');}} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${type===t.id?'#2AABEE':'rgba(255,255,255,0.07)'}`,background:type===t.id?'rgba(42,171,238,0.15)':'transparent',color:type===t.id?'#2AABEE':'#8FA0B5',fontSize:11.5,fontWeight:700,cursor:'pointer'}}>
+          <button key={t.id} onClick={()=>{setType(t.id);setSeatFilter('all');}} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${type===t.id?'#4C8DFF':'rgba(255,255,255,0.07)'}`,background:type===t.id?'rgba(76,141,255,0.15)':'transparent',color:type===t.id?'#4C8DFF':'#8FA0B5',fontSize:11.5,fontWeight:700,cursor:'pointer'}}>
             {t.icon||''} {t.label}
           </button>
         ))}
       </div>
       {type==='mother_dosah' && (
-        <div style={{display:'flex',gap: 6,marginBottom:12,paddingRight:4,borderRight:'2px solid rgba(42,171,238,0.25)'}}>
+        <div style={{display:'flex',gap: 6,marginBottom:12,paddingRight:4,borderRight:'2px solid rgba(76,141,255,0.25)'}}>
           {[{id:'all',label:'الكل'},{id:5,label:'خمسة راكب 🚗'},{id:7,label:'سبعة راكب 🚐'}].map(sf=>(
             <button key={sf.id} onClick={()=>setSeatFilter(sf.id)} style={{padding: '6px 12px',borderRadius:14,border:`1px solid ${seatFilter===sf.id?'#22C55E':'rgba(255,255,255,0.07)'}`,background:seatFilter===sf.id?'rgba(34,197,94,0.14)':'rgba(255,255,255,0.02)',color:seatFilter===sf.id?'#22C55E':'#8FA0B5',fontSize:11,fontWeight:700,cursor:'pointer'}}>
               {sf.label}
@@ -8751,7 +8751,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           ))}
         </div>
       )}
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
+      <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
         {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#8FA0B5'}}>لا توجد منتجات</div>: (() => {
           const renderCard = (p,i,arr) => {
             const t=WH_PRODUCT_TYPES.find(x=>x.id===p.type);
@@ -8762,13 +8762,13 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                 <div style={{display:'flex',alignItems:'center',gap: 12,marginBottom:10}}>
                   {p.image_url
                     ? <img src={p.image_url} alt="" onError={(e)=>{e.target.style.display='none';}} style={{width:44,height:44,borderRadius:10,objectFit:'cover',flexShrink:0,border:'1px solid rgba(255,255,255,0.08)'}}/>
-                    : <div style={{width:44,height:44,borderRadius:10,background:`${t?.color||'#2AABEE'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:19,flexShrink:0}}>{t?.icon}</div>}
+                    : <div style={{width:44,height:44,borderRadius:10,background:`${t?.color||'#4C8DFF'}22`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:19,flexShrink:0}}>{t?.icon}</div>}
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13.5,fontWeight:800,color:'#F5F5F5',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.car_name}</div>
-                    <span style={{fontSize: 11.5,color:t?.color,background:`${t?.color||'#2AABEE'}15`,padding: '2px 8px',borderRadius:18,display:'inline-block',marginTop:4}}>{t?.label}</span>
+                    <div style={{fontSize:13.5,fontWeight:800,color:'#F4F7FB',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.car_name}</div>
+                    <span style={{fontSize: 11.5,color:t?.color,background:`${t?.color||'#4C8DFF'}15`,padding: '2px 8px',borderRadius:18,display:'inline-block',marginTop:4}}>{t?.label}</span>
                   </div>
                   <div style={{textAlign:'center',flexShrink:0}}>
-                    <div style={{fontSize:19,fontWeight:800,color:isLow?'#F25050':'#4DDB6B'}}>{p.quantity}{isLow&&' ⚠️'}</div>
+                    <div style={{fontSize:19,fontWeight:800,color:isLow?'#F25050':'#34D399'}}>{p.quantity}{isLow&&' ⚠️'}</div>
                     <div style={{fontSize: 10.5,color:'#8FA0B5'}}>قطعة</div>
                   </div>
                 </div>
@@ -8788,7 +8788,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                     style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',background:avail?'rgba(34,197,94,0.14)':'rgba(242,80,80,0.12)',border:`1px solid ${avail?'rgba(34,197,94,0.35)':'rgba(242,80,80,0.3)'}`,borderRadius:8,color:avail?'#22C55E':'#F25050',cursor:'pointer',fontSize:12,fontWeight:800}}
                   ><span style={{width:8,height:8,borderRadius:'50%',background:avail?'#22C55E':'#F25050',display:'inline-block'}}/>{avail?'متوفر للذكاء':'غير متوفر للذكاء'}</button>
                   <div style={{display:'flex',gap: 4}}>
-                    <button onClick={()=>openEdit(p)} style={{padding: 8,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:8,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={13}/></button>
+                    <button onClick={()=>openEdit(p)} style={{padding: 8,background:'rgba(76,141,255,0.1)',border:'1px solid rgba(76,141,255,0.2)',borderRadius:8,color:'#4C8DFF',cursor:'pointer'}}><Edit3 size={13}/></button>
                     <button onClick={()=>del(p.id)} style={{padding: 8,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:8,color:'#F25050',cursor:'pointer'}}><Trash2 size={13}/></button>
                   </div>
                 </div>
@@ -8801,7 +8801,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           const sevenGroup = filtered.filter(p => seatGroups[p.id] === 7);
           const fiveGroup = filtered.filter(p => seatGroups[p.id] !== 7);
           const sectionHeader = (label, count) => (
-            <div style={{padding:'10px 16px',background:'rgba(42,171,238,0.06)',borderBottom:'1px solid rgba(255,255,255,0.06)',fontSize:12.5,fontWeight:800,color:'#2AABEE'}}>
+            <div style={{padding:'10px 16px',background:'rgba(76,141,255,0.06)',borderBottom:'1px solid rgba(255,255,255,0.06)',fontSize:12.5,fontWeight:800,color:'#4C8DFF'}}>
               {label} <span style={{color:'#8FA0B5',fontWeight:600}}>({count})</span>
             </div>
           );
@@ -8832,11 +8832,11 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                     const branch=bm?bm[1].trim():'—';const shelf=sm?sm[1].trim():'—';
                     return(
                       <div key={p.id} style={{padding: '12px 12px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:11}}>
-                        <div style={{fontSize:13.5,fontWeight:700,color:'#F5F5F5',marginBottom: 8}}>{p.car_name}</div>
+                        <div style={{fontSize:13.5,fontWeight:700,color:'#F4F7FB',marginBottom: 8}}>{p.car_name}</div>
                         <div style={{display:'flex',gap:8}}>
-                          <div style={{flex:1,background:'rgba(42,171,238,0.08)',borderRadius:8,padding: '8px 8px'}}>
+                          <div style={{flex:1,background:'rgba(76,141,255,0.08)',borderRadius:8,padding: '8px 8px'}}>
                             <div style={{fontSize: 12,color:'#8FA0B5'}}>الفرع</div>
-                            <div style={{fontSize:14,fontWeight:800,color:'#2AABEE'}}>{branch}</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#4C8DFF'}}>{branch}</div>
                           </div>
                           <div style={{flex:1,background:'rgba(240,168,104,0.08)',borderRadius:8,padding: '8px 8px'}}>
                             <div style={{fontSize: 12,color:'#8FA0B5'}}>الرف</div>
@@ -8844,7 +8844,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                           </div>
                           <div style={{textAlign:'center',padding: '8px 8px'}}>
                             <div style={{fontSize: 12,color:'#8FA0B5'}}>الكمية</div>
-                            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{p.quantity}</div>
+                            <div style={{fontSize:14,fontWeight:800,color:'#34D399'}}>{p.quantity}</div>
                           </div>
                         </div>
                       </div>
@@ -8883,10 +8883,10 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           </WhField>
           <WhField label="المنشأ (يحدد شنو يجاوب الذكاء الصناعي)">
             <div style={{display:'flex',gap: 8}}>
-              {[['both','خليجي وأمريكي','#2AABEE'],['gulf','خليجي فقط','#8B5CF6'],['american','أمريكي فقط','#F59E0B']].map(([v,lbl,col])=>(
+              {[['both','خليجي وأمريكي','#4C8DFF'],['gulf','خليجي فقط','#8B5CF6'],['american','أمريكي فقط','#F59E0B']].map(([v,lbl,col])=>(
                 <button key={v} type="button" onClick={()=>setForm(f=>({...f,origin:v}))}
                   style={{flex:1,padding: '8px 8px',borderRadius:9,border:'none',fontSize:11.5,fontWeight:700,cursor:'pointer',fontFamily:'inherit',
-                    background:(form.origin||'both')===v?`${col}22`:'#0E1621',color:(form.origin||'both')===v?col:'#8FA0B5'}}>{lbl}</button>
+                    background:(form.origin||'both')===v?`${col}22`:'#0A0E14',color:(form.origin||'both')===v?col:'#8FA0B5'}}>{lbl}</button>
               ))}
             </div>
           </WhField>
@@ -8907,7 +8907,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                 </div>
               ))}
               <button type="button" onClick={()=>setForm(f=>({...f,colors:[...(f.colors||[]),{name:'',scope:'all'}]}))}
-                style={{padding: '8px',borderRadius:9,border:'1px dashed #222C42',background:'transparent',color:'#2AABEE',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                style={{padding: '8px',borderRadius:9,border:'1px dashed #1B222D',background:'transparent',color:'#4C8DFF',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                 + إضافة لون
               </button>
               <div style={{fontSize:11,color:'#8FA0B5',lineHeight:1.6}}>إذا ما ضفت أي لون، الذكاء يعتبر المتوفر أسود فقط.</div>
@@ -8926,7 +8926,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                   <Image size={20} color="#8FA0B5"/>
                 </div>
               )}
-              <label style={{padding: '8px 16px',background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.3)',borderRadius:9,color:'#2AABEE',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              <label style={{padding: '8px 16px',background:'rgba(76,141,255,0.1)',border:'1px solid rgba(76,141,255,0.3)',borderRadius:9,color:'#4C8DFF',fontSize:12,fontWeight:700,cursor:'pointer'}}>
                 {imgUploading?'جارٍ المعالجة...':(form.image_url?'تغيير الصورة':'اختر صورة')}
                 <input type="file" accept="image/*" onChange={handlePickImage} style={{display:'none'}}/>
               </label>
@@ -8934,13 +8934,13 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
           </WhField>
           <div style={{display:'flex',gap: 8,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding: '8px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#4C8DFF,#3A78E8)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
           </div>
         </WhModal>
       )}
       {carModal&&(
         <WhModal title="إضافة سيارة جديدة" onClose={()=>setCarModal(false)}>
-          <div style={{background:'rgba(42,171,238,0.07)',border:'1px solid rgba(42,171,238,0.18)',borderRadius:9,padding: 12,marginBottom: 12,fontSize:12,color:'#2AABEE'}}>
+          <div style={{background:'rgba(76,141,255,0.07)',border:'1px solid rgba(76,141,255,0.18)',borderRadius:9,padding: 12,marginBottom: 12,fontSize:12,color:'#4C8DFF'}}>
             سيتم إضافة الأنواع الثلاثة (أم الدوسة، ربل حوضي، جلد) تلقائياً
           </div>
           <WhField label="اسم السيارة" required>
@@ -8986,31 +8986,31 @@ function WhSales({ sales, setSales, products, sbI }) {
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: 16}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>المبيعات</h3>
-        <button onClick={()=>setModal(true)} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> تسجيل بيعة</button>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F4F7FB'}}>المبيعات</h3>
+        <button onClick={()=>setModal(true)} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#34D399,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> تسجيل بيعة</button>
       </div>
       <div style={{display:'flex',gap: 8,marginBottom: 16,flexWrap:'wrap'}}>
-        {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
-          <button key={v} onClick={()=>setPeriod(v)} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${period===v?'#4DDB6B':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(77,219,107,0.14)':'transparent',color:period===v?'#4DDB6B':'#8FA0B5',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
+        {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الك��']].map(([v,l])=>(
+          <button key={v} onClick={()=>setPeriod(v)} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${period===v?'#34D399':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(52,211,153,0.14)':'transparent',color:period===v?'#34D399':'#8FA0B5',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
         ))}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap: 8,marginBottom: 16}}>
-        {[{l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B'},{l:'عدد الصفقات',v:filtered.length,c:'#2AABEE'},{l:'قطع مباعة',v:filtered.reduce((s,x)=>s+x.quantity,0),c:'#A78BFA'}].map(s=>(
-          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding: '12px 16px',textAlign:'center'}}>
+        {[{l:'الإيرادات',v:whFmt(rev),c:'#34D399'},{l:'عدد الصفقات',v:filtered.length,c:'#4C8DFF'},{l:'قطع مباعة',v:filtered.reduce((s,x)=>s+x.quantity,0),c:'#A78BFA'}].map(s=>(
+          <div key={s.l} style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding: '12px 16px',textAlign:'center'}}>
             <div style={{fontSize:18,fontWeight:800,color:s.c}}>{s.v}</div>
             <div style={{fontSize: 12,color:'#8FA0B5',marginTop: 4}}>{s.l}</div>
           </div>
         ))}
       </div>
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
+      <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
         {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#8FA0B5'}}>لا توجد مبيعات</div>:
         filtered.map((s,i)=>(
           <div key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding: '12px 16px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none'}}>
             <div>
-              <div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{s.product_name}</div>
+              <div style={{fontSize:12.5,fontWeight:700,color:'#F4F7FB'}}>{s.product_name}</div>
               <div style={{fontSize: 12,color:'#8FA0B5',marginTop:2}}>{s.date} · {s.customer_name||'زبون'} · {s.quantity} قطعة</div>
             </div>
-            <div style={{fontSize:14,fontWeight:800,color:'#4DDB6B'}}>{whFmt(s.total_iqd)}</div>
+            <div style={{fontSize:14,fontWeight:800,color:'#34D399'}}>{whFmt(s.total_iqd)}</div>
           </div>
         ))}
       </div>
@@ -9026,12 +9026,12 @@ function WhSales({ sales, setSales, products, sbI }) {
             <WhField label="الكمية" required><input type="number" min="1" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:Number(e.target.value)||0}))} style={whInp}/></WhField>
             <WhField label="السعر (د.ع)" required><input type="number" value={form.price_iqd} onChange={e=>setForm(f=>({...f,price_iqd:Number(e.target.value)||0}))} style={whInp}/></WhField>
           </div>
-          <div style={{background:'rgba(77,219,107,0.07)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,padding: '8px 12px',marginBottom:12,fontSize:16,fontWeight:800,color:'#4DDB6B'}}>{whFmt(form.price_iqd*form.quantity)}</div>
+          <div style={{background:'rgba(52,211,153,0.07)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:9,padding: '8px 12px',marginBottom:12,fontSize:16,fontWeight:800,color:'#34D399'}}>{whFmt(form.price_iqd*form.quantity)}</div>
           <WhField label="اسم الزبون"><input aria-label="اختياري" value={form.customer_name} onChange={e=>setForm(f=>({...f,customer_name:e.target.value}))} placeholder="اختياري" style={whInp}/></WhField>
           <WhField label="التاريخ"><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={whInp}/></WhField>
           <div style={{display:'flex',gap: 8,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding: '8px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ البيعة'}</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#34D399,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ البيعة'}</button>
           </div>
         </WhModal>
       )}
@@ -9061,34 +9061,34 @@ function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: 16}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>موزعو الجملة</h3>
-        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موزع جديد</button>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F4F7FB'}}>موزعو الجملة</h3>
+        <button onClick={openNew} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#4C8DFF,#3A78E8)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موزع جديد</button>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap: 12}}>
         {suppliers.map(s=>(
-          <div key={s.id} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding: 16,position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,right:0,left:0,height:3,background:'linear-gradient(90deg,transparent,#2AABEE,transparent)',opacity:0.7}}/>
+          <div key={s.id} style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding: 16,position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:0,right:0,left:0,height:3,background:'linear-gradient(90deg,transparent,#4C8DFF,transparent)',opacity:0.7}}/>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom: 8}}>
               <div>
-                <div style={{fontSize:14,fontWeight:800,color:'#F5F5F5'}}>{s.name}</div>
-                {s.phone&&<div style={{fontSize:12,color:'#2AABEE',marginTop: 4}}>📞 {s.phone}</div>}
+                <div style={{fontSize:14,fontWeight:800,color:'#F4F7FB'}}>{s.name}</div>
+                {s.phone&&<div style={{fontSize:12,color:'#4C8DFF',marginTop: 4}}>📞 {s.phone}</div>}
                 {s.address&&<div style={{fontSize:12,color:'#8FA0B5',marginTop:2}}>📍 {s.address}</div>}
               </div>
               <div style={{display:'flex',gap: 4}}>
-                <button onClick={()=>openEdit(s)} style={{padding: 8,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
+                <button onClick={()=>openEdit(s)} style={{padding: 8,background:'rgba(76,141,255,0.1)',border:'1px solid rgba(76,141,255,0.2)',borderRadius:7,color:'#4C8DFF',cursor:'pointer'}}><Edit3 size={12}/></button>
                 <button onClick={()=>del(s.id)} style={{padding: 8,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
               </div>
             </div>
             {s.available_products&&(
-              <div style={{background:'rgba(42,171,238,0.06)',border:'1px solid rgba(42,171,238,0.12)',borderRadius:8,padding: '8px 8px'}}>
-                <div style={{fontSize: 12,color:'#2AABEE',fontWeight:700,marginBottom: 4}}>المتوفر عنده:</div>
+              <div style={{background:'rgba(76,141,255,0.06)',border:'1px solid rgba(76,141,255,0.12)',borderRadius:8,padding: '8px 8px'}}>
+                <div style={{fontSize: 12,color:'#4C8DFF',fontWeight:700,marginBottom: 4}}>المتوفر عنده:</div>
                 <div style={{fontSize:12,color:'#8B9AB3'}}>{s.available_products}</div>
               </div>
             )}
             {s.notes&&<div style={{fontSize:11.5,color:'#8FA0B5',marginTop:8}}>📝 {s.notes}</div>}
           </div>
         ))}
-        {!suppliers.length&&<div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#8FA0B5'}}>لا يوجد موزعون بعد</div>}
+        {!suppliers.length&&<div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#8FA0B5'}}>لا يوجد موزعون بعد</div>}
       </div>
       {modal&&(
         <WhModal title={editing?'تعديل موزع':'إضافة موزع جديد'} onClose={()=>setModal(false)}>
@@ -9099,7 +9099,7 @@ function WhSuppliers({ suppliers, setSuppliers, sbI, sbU, sbD }) {
           <WhField label="ملاحظات"><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...whInp,minHeight:55,resize:'vertical'}}/></WhField>
           <div style={{display:'flex',gap: 8,marginTop:8}}>
             <button onClick={()=>setModal(false)} style={{flex:1,padding: '8px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={save} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#2AABEE,#229ED9)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
+            <button onClick={save} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#4C8DFF,#3A78E8)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'حفظ'}</button>
           </div>
         </WhModal>
       )}
@@ -9133,15 +9133,15 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: 16}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>الديون والمصاريف</h3>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F4F7FB'}}>الديون والمصاريف</h3>
         <button onClick={openNew} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'rgba(242,80,80,0.1)',border:'1px solid rgba(242,80,80,0.28)',borderRadius:9,color:'#F25050',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> إضافة دين</button>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap: 12,marginBottom: 16}}>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:12,padding: '12px 16px'}}>
+        <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(242,80,80,0.2)',borderRadius:12,padding: '12px 16px'}}>
           <div style={{fontSize:18,fontWeight:800,color:'#F25050'}}>{whFmt(totalUnpaid)}</div>
           <div style={{fontSize: 12,color:'#8FA0B5',marginTop: 4}}>إجمالي الديون غير المسددة</div>
         </div>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding: '12px 16px'}}>
+        <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding: '12px 16px'}}>
           <div style={{fontSize:18,fontWeight:800,color:'#F0A868'}}>{debts.filter(d=>d.status==='unpaid'&&whDaysUntil(d.due_date)!==null&&whDaysUntil(d.due_date)<=7).length}</div>
           <div style={{fontSize: 12,color:'#8FA0B5',marginTop: 4}}>ديون تستحق خلال 7 أيام</div>
         </div>
@@ -9151,7 +9151,7 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
           <button key={v} onClick={()=>setFilter(v)} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${filter===v?'#F25050':'rgba(255,255,255,0.07)'}`,background:filter===v?'rgba(242,80,80,0.12)':'transparent',color:filter===v?'#F25050':'#8FA0B5',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
         ))}
       </div>
-      <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
+      <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,overflow:'hidden'}}>
         {filtered.length===0?<div style={{padding:40,textAlign:'center',color:'#8FA0B5'}}>لا توجد ديون</div>:
         filtered.map((d,i)=>{
           const type=WH_DEBT_TYPES.find(t=>t.id===d.type);
@@ -9159,19 +9159,19 @@ function WhDebts({ debts, setDebts, sbI, sbU, sbD }) {
           const urgent=d.status==='unpaid'&&days!==null&&days<=7;
           return(
             <div key={d.id} style={{display:'flex',alignItems:'center',gap: 12,padding: '12px 16px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.06)':'none',background:urgent?'rgba(242,80,80,0.04)':'transparent'}}>
-              <div style={{width:8,height:8,borderRadius:'50%',background:d.status==='paid'?'#4DDB6B':type?.color||'#F25050',flexShrink:0}}/>
+              <div style={{width:8,height:8,borderRadius:'50%',background:d.status==='paid'?'#34D399':type?.color||'#F25050',flexShrink:0}}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#F5F5F5'}}>{d.name}</div>
+                <div style={{fontSize:13,fontWeight:700,color:'#F4F7FB'}}>{d.name}</div>
                 <div style={{display:'flex',gap: 8,marginTop: 4,flexWrap:'wrap'}}>
                   <span style={{fontSize: 12,color:type?.color,background:`${type?.color||'#F25050'}15`,padding: '2px 8px',borderRadius:18}}>{type?.label}</span>
                   {d.due_date&&<span style={{fontSize: 12,color:urgent?'#F25050':'#8FA0B5'}}>📅 {d.due_date}{days!==null?` (${days>0?`${days} يوم`:'اليوم'})`:''}</span>}
-                  {d.status==='paid'&&<span style={{fontSize: 12,color:'#4DDB6B'}}>✓ مسدد</span>}
+                  {d.status==='paid'&&<span style={{fontSize: 12,color:'#34D399'}}>✓ مسدد</span>}
                 </div>
               </div>
               <div style={{fontSize:14,fontWeight:800,color:d.status==='paid'?'#8FA0B5':'#F25050'}}>{whFmt(d.amount_iqd)}</div>
               <div style={{display:'flex',gap: 4}}>
-                {d.status==='unpaid'&&<button onClick={()=>markPaid(d.id)} title="تسديد" style={{padding: 8,background:'rgba(77,219,107,0.1)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:7,color:'#4DDB6B',cursor:'pointer'}}><CheckCircle2 size={12}/></button>}
-                <button onClick={()=>openEdit(d)} style={{padding: 8,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
+                {d.status==='unpaid'&&<button onClick={()=>markPaid(d.id)} title="تسديد" style={{padding: 8,background:'rgba(52,211,153,0.1)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:7,color:'#34D399',cursor:'pointer'}}><CheckCircle2 size={12}/></button>}
+                <button onClick={()=>openEdit(d)} style={{padding: 8,background:'rgba(76,141,255,0.1)',border:'1px solid rgba(76,141,255,0.2)',borderRadius:7,color:'#4C8DFF',cursor:'pointer'}}><Edit3 size={12}/></button>
                 <button onClick={()=>del(d.id)} style={{padding: 8,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
               </div>
             </div>
@@ -9241,19 +9241,19 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: 16}}>
-        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F5F5F5'}}>الموظفون والرواتب</h3>
+        <h3 style={{margin:0,fontSize:17,fontWeight:800,color:'#F4F7FB'}}>الموظفون والرواتب</h3>
         <button onClick={openNew} style={{display:'flex',alignItems:'center',gap: 4,padding: '8px 12px',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',border:'none',borderRadius:9,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}><Plus size={13}/> موظف جديد</button>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap: 12}}>
         {employees.map(e=>(
-          <div key={e.id} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding: 16}}>
+          <div key={e.id} style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:14,padding: 16}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom: 12}}>
               <div style={{display:'flex',gap: 8,alignItems:'center'}}>
                 <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#A78BFA,#7C3AED)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#fff'}}>{e.name?.[0]}</div>
-                <div><div style={{fontSize:13.5,fontWeight:800,color:'#F5F5F5'}}>{e.name}</div><div style={{fontSize:11.5,color:'#8FA0B5'}}>{e.role||'موظف'}</div></div>
+                <div><div style={{fontSize:13.5,fontWeight:800,color:'#F4F7FB'}}>{e.name}</div><div style={{fontSize:11.5,color:'#8FA0B5'}}>{e.role||'موظف'}</div></div>
               </div>
               <div style={{display:'flex',gap: 4}}>
-                <button onClick={()=>openEdit(e)} style={{padding: 8,background:'rgba(42,171,238,0.1)',border:'1px solid rgba(42,171,238,0.2)',borderRadius:7,color:'#2AABEE',cursor:'pointer'}}><Edit3 size={12}/></button>
+                <button onClick={()=>openEdit(e)} style={{padding: 8,background:'rgba(76,141,255,0.1)',border:'1px solid rgba(76,141,255,0.2)',borderRadius:7,color:'#4C8DFF',cursor:'pointer'}}><Edit3 size={12}/></button>
                 <button onClick={()=>del(e.id)} style={{padding: 8,background:'rgba(242,80,80,0.08)',border:'1px solid rgba(242,80,80,0.18)',borderRadius:7,color:'#F25050',cursor:'pointer'}}><Trash2 size={12}/></button>
               </div>
             </div>
@@ -9261,14 +9261,14 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
               <div style={{fontSize: 12,color:'#A78BFA',marginBottom:2}}>الراتب الشهري</div>
               <div style={{fontSize:17,fontWeight:800,color:'#A78BFA'}}>{whFmt(e.salary)}</div>
             </div>
-            {e.phone&&<div style={{fontSize:12,color:'#2AABEE',marginBottom:8}}>📞 {e.phone}</div>}
+            {e.phone&&<div style={{fontSize:12,color:'#4C8DFF',marginBottom:8}}>📞 {e.phone}</div>}
             <button onClick={()=>{setPayModal(e);setPayForm({amount:e.salary,date:whToday(),notes:''}); }}
-              style={{width:'100%',padding: '8px',background:'rgba(77,219,107,0.08)',border:'1px solid rgba(77,219,107,0.2)',borderRadius:9,color:'#4DDB6B',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap: 8}}>
+              style={{width:'100%',padding: '8px',background:'rgba(52,211,153,0.08)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:9,color:'#34D399',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap: 8}}>
               <DollarSign size={13}/> صرف راتب
             </button>
           </div>
         ))}
-        {!employees.length&&<div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#8FA0B5'}}>لا يوجد موظفون</div>}
+        {!employees.length&&<div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding:40,textAlign:'center',color:'#8FA0B5'}}>لا يوجد موظفون</div>}
       </div>
       {modal&&(
         <WhModal title={editing?'تعديل موظف':'إضافة موظف'} onClose={()=>setModal(false)}>
@@ -9291,7 +9291,7 @@ function WhEmployees({ employees, setEmployees, sbI, sbU, sbD }) {
           <WhField label="ملاحظات"><input aria-label="راتب شهر" value={payForm.notes} onChange={e=>setPayForm(f=>({...f,notes:e.target.value}))} placeholder="راتب شهر..." style={whInp}/></WhField>
           <div style={{display:'flex',gap: 8,marginTop:8}}>
             <button onClick={()=>setPayModal(null)} style={{flex:1,padding: '8px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:9,color:'#8B9AB3',cursor:'pointer',fontWeight:700}}>إلغاء</button>
-            <button onClick={payEmployee} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#4DDB6B,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'صرف الراتب'}</button>
+            <button onClick={payEmployee} disabled={saving} style={{flex:2,padding: '8px',background:'linear-gradient(135deg,#34D399,#22C55E)',border:'none',borderRadius:9,color:'#fff',fontWeight:800,cursor:'pointer'}}>{saving?'جارٍ الحفظ...':'صرف الراتب'}</button>
           </div>
         </WhModal>
       )}
@@ -9325,21 +9325,21 @@ function WhReports({ sales, products, debts }) {
   const top=Object.entries(counted).sort((a,b)=>b[1]-a[1]).slice(0,5);
   return(
     <div>
-      <h3 style={{margin: '0 0 16px',fontSize:17,fontWeight:800,color:'#F5F5F5'}}>التقارير المالية</h3>
+      <h3 style={{margin: '0 0 16px',fontSize:17,fontWeight:800,color:'#F4F7FB'}}>التقارير المالية</h3>
       <div style={{display:'flex',gap: 8,marginBottom:16,flexWrap:'wrap'}}>
         {[['today','اليوم'],['week','الأسبوع'],['month','الشهر'],['year','السنة'],['all','الكل']].map(([v,l])=>(
-          <button key={v} onClick={()=>setPeriod(v)} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${period===v?'#2AABEE':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(42,171,238,0.14)':'transparent',color:period===v?'#2AABEE':'#8FA0B5',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
+          <button key={v} onClick={()=>setPeriod(v)} style={{padding: '8px 12px',borderRadius:18,border:`1px solid ${period===v?'#4C8DFF':'rgba(255,255,255,0.07)'}`,background:period===v?'rgba(76,141,255,0.14)':'transparent',color:period===v?'#4C8DFF':'#8FA0B5',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
         ))}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))',gap: 12,marginBottom:16}}>
         {[
-          {l:'الإيرادات',v:whFmt(rev),c:'#4DDB6B',I:TrendingUp},
+          {l:'الإيرادات',v:whFmt(rev),c:'#34D399',I:TrendingUp},
           {l:'إجمالي الديون',v:whFmt(totalDebt),c:'#F25050',I:CreditCard},
           {l:'تكلفة المخزن',v:whFmt(stockCost),c:'#F0A868',I:Package},
           {l:'قيمة البيع المتوقعة',v:whFmt(stockSale),c:'#A78BFA',I:BarChart3},
-          {l:'الربح المتوقع',v:whFmt(stockSale-stockCost),c:stockSale>stockCost?'#4DDB6B':'#F25050',I:Percent},
+          {l:'الربح المتوقع',v:whFmt(stockSale-stockCost),c:stockSale>stockCost?'#34D399':'#F25050',I:Percent},
         ].map(s=>(
-          <div key={s.l} style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding: '12px 16px'}}>
+          <div key={s.l} style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding: '12px 16px'}}>
             <s.I size={16} color={s.c} style={{marginBottom: 8}}/>
             <div style={{fontSize:16,fontWeight:800,color:s.c}}>{s.v}</div>
             <div style={{fontSize: 12,color:'#8FA0B5',marginTop: 4}}>{s.l}</div>
@@ -9347,24 +9347,24 @@ function WhReports({ sales, products, debts }) {
         ))}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap: 12}}>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: 16}}>
-          <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom: 12}}>مبيعات حسب النوع</div>
+        <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: 16}}>
+          <div style={{fontSize:13,fontWeight:800,color:'#F4F7FB',marginBottom: 12}}>مبيعات حسب النوع</div>
           {byType.map(t=>(
             <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding: '8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
               <div style={{display:'flex',alignItems:'center',gap: 8}}>
                 <span style={{fontSize:16}}>{t.icon}</span>
-                <div><div style={{fontSize:12.5,fontWeight:700,color:'#F5F5F5'}}>{t.label}</div><div style={{fontSize: 12,color:'#8FA0B5'}}>{t.count} صفقة</div></div>
+                <div><div style={{fontSize:12.5,fontWeight:700,color:'#F4F7FB'}}>{t.label}</div><div style={{fontSize: 12,color:'#8FA0B5'}}>{t.count} صفقة</div></div>
               </div>
               <div style={{fontSize:13,fontWeight:800,color:t.color}}>{whFmt(t.total)}</div>
             </div>
           ))}
         </div>
-        <div style={{background:'linear-gradient(145deg,#17212B,#1A2736)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: 16}}>
-          <div style={{fontSize:13,fontWeight:800,color:'#F5F5F5',marginBottom: 12}}>الأكثر مبيعاً</div>
+        <div style={{background:'linear-gradient(145deg,#141A22,#181F29)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:13,padding: 16}}>
+          <div style={{fontSize:13,fontWeight:800,color:'#F4F7FB',marginBottom: 12}}>الأكثر مبيعاً</div>
           {top.map(([name,qty])=>(
             <div key={name} style={{display:'flex',justifyContent:'space-between',padding: '8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-              <span style={{fontSize:12.5,color:'#F5F5F5'}}>{name}</span>
-              <span style={{fontSize:12.5,fontWeight:700,color:'#4DDB6B'}}>{qty} قطعة</span>
+              <span style={{fontSize:12.5,color:'#F4F7FB'}}>{name}</span>
+              <span style={{fontSize:12.5,fontWeight:700,color:'#34D399'}}>{qty} قطعة</span>
             </div>
           ))}
           {!top.length&&<div style={{color:'#8FA0B5',fontSize:13,textAlign:'center',padding:20}}>لا توجد بيانات</div>}
@@ -9447,13 +9447,13 @@ function WarehouseView() {
 
       {/* ── على الموبايل: تابات أفقية في الأعلى ── */}
       {isMobile ? (
-        <div style={{display:'flex',overflowX:'auto',background:'#17212B',borderBottom:'1px solid rgba(255,255,255,0.07)',padding: '8px 8px',gap: 8,flexShrink:0,WebkitOverflowScrolling:'touch'}}>
+        <div style={{display:'flex',overflowX:'auto',background:'#141A22',borderBottom:'1px solid rgba(255,255,255,0.07)',padding: '8px 8px',gap: 8,flexShrink:0,WebkitOverflowScrolling:'touch'}}>
           {WH_NAV.map(item=>{
             const Icon=item.icon;
             const active=whView===item.id;
             return(
               <button key={item.id} onClick={()=>setWhView(item.id)}
-                style={{display:'flex',flexDirection:'column',alignItems:'center',gap: 4,padding: '8px 12px',borderRadius:10,background:active?'rgba(42,171,238,0.18)':'rgba(255,255,255,0.04)',border:`1px solid ${active?'rgba(42,171,238,0.35)':'transparent'}`,color:active?'#2AABEE':'#8B9AB3',fontSize: 12,fontWeight:active?800:600,cursor:'pointer',flexShrink:0,transition:'all 0.15s',minWidth:56}}>
+                style={{display:'flex',flexDirection:'column',alignItems:'center',gap: 4,padding: '8px 12px',borderRadius:10,background:active?'rgba(76,141,255,0.18)':'rgba(255,255,255,0.04)',border:`1px solid ${active?'rgba(76,141,255,0.35)':'transparent'}`,color:active?'#4C8DFF':'#8B9AB3',fontSize: 12,fontWeight:active?800:600,cursor:'pointer',flexShrink:0,transition:'all 0.15s',minWidth:56}}>
                 <Icon size={18} strokeWidth={active?2.5:1.8}/>
                 {item.label}
               </button>
@@ -9462,7 +9462,7 @@ function WarehouseView() {
         </div>
       ) : (
         /* ── على اللابتوب: قائمة جانبية ── */
-        <div style={{width:200,flexShrink:0,background:'linear-gradient(180deg,#17212B,#141F2B)',borderLeft:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',padding: '16px 8px',gap:4,overflowY:'auto'}}>
+        <div style={{width:200,flexShrink:0,background:'linear-gradient(180deg,#141A22,#12181F)',borderLeft:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',padding: '16px 8px',gap:4,overflowY:'auto'}}>
           <div style={{fontSize:13,fontWeight:800,color:'#8B9AB3',padding: '0 8px 8px',borderBottom:'1px solid rgba(255,255,255,0.07)',marginBottom: 8}}>
             🏪 إدارة المخزن
           </div>
@@ -9477,7 +9477,7 @@ function WarehouseView() {
             const active=whView===item.id;
             return(
               <button key={item.id} onClick={()=>setWhView(item.id)}
-                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding: '8px 8px',borderRadius:9,background:active?'rgba(42,171,238,0.15)':'transparent',border:active?'1px solid rgba(42,171,238,0.25)':'1px solid transparent',color:active?'#2AABEE':'#8B9AB3',fontSize:12.5,fontWeight:active?800:600,cursor:'pointer',transition:'all 0.15s'}}>
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding: '8px 8px',borderRadius:9,background:active?'rgba(76,141,255,0.15)':'transparent',border:active?'1px solid rgba(76,141,255,0.25)':'1px solid transparent',color:active?'#4C8DFF':'#8B9AB3',fontSize:12.5,fontWeight:active?800:600,cursor:'pointer',transition:'all 0.15s'}}>
                 <Icon size={16} strokeWidth={active?2.5:1.8}/>
                 {item.label}
               </button>
@@ -9531,19 +9531,42 @@ function GlobalStyles() {
       }
 
       :root {
-        --tg-bg:      #0E1621;
-        --tg-panel:   #17212B;
-        --tg-input:   #242F3D;
-        --tg-border:  rgba(255,255,255,0.07);
-        --tg-blue:    #2AABEE;
-        --tg-blue2:   #229ED9;
-        --tg-green:   #4DDB6B;
+        --tg-bg:      #0A0E14;
+        --tg-panel:   #141A22;
+        --tg-input:   #1E2630;
+        --tg-border:  rgba(255,255,255,0.08);
+        --tg-blue:    #4C8DFF;
+        --tg-blue2:   #3A78E8;
+        --tg-green:   #34D399;
         --tg-red:     #F25050;
-        --tg-text:    #F5F5F5;
-        --tg-sub:     #8B9AB3;
-        --tg-dim:     #8FA0B5;
+        --tg-text:    #F4F7FB;
+        --tg-sub:     #93A3BA;
+        --tg-dim:     #93A3BA;
         --tg-hover:   rgba(255,255,255,0.05);
-        --tg-active:  rgba(42,171,238,0.15);
+        --tg-active:  rgba(76,141,255,0.15);
+
+        /* ── premium design tokens (visual layer only) ── */
+        --pr-surface-1: #10161F;   /* elevated surface */
+        --pr-surface-2: #161D28;   /* card surface */
+        --pr-line:      rgba(255,255,255,0.08);
+        --pr-line-soft: rgba(255,255,255,0.055);
+        --pr-accent:    #4C8DFF;
+        --pr-accent-soft: rgba(76,141,255,0.14);
+        --pr-accent-ring: rgba(76,141,255,0.55);
+        /* consistent radius scale */
+        --r-xs: 8px;
+        --r-sm: 10px;
+        --r-md: 14px;
+        --r-lg: 18px;
+        --r-xl: 22px;
+        --r-pill: 999px;
+        /* elevation scale — soft, layered, restrained */
+        --sh-1: 0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25);
+        --sh-2: 0 4px 14px -4px rgba(0,0,0,0.55), 0 2px 6px -2px rgba(0,0,0,0.4);
+        --sh-3: 0 12px 30px -8px rgba(0,0,0,0.6), 0 4px 12px -4px rgba(0,0,0,0.45);
+        --sh-4: 0 24px 60px -12px rgba(0,0,0,0.72), 0 8px 24px -8px rgba(0,0,0,0.5);
+        --sh-accent: 0 8px 26px -8px rgba(76,141,255,0.5);
+
         /* Telegram easing curves */
         --ease-tg:       cubic-bezier(0.4, 0.0, 0.2, 1);
         --ease-tg-out:   cubic-bezier(0.0, 0.0, 0.2, 1);
@@ -9551,6 +9574,15 @@ function GlobalStyles() {
         --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
         --ease-bounce:   cubic-bezier(0.22, 1, 0.36, 1);
         --ease-game:     cubic-bezier(0.34, 1.4, 0.4, 1);
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+      }
+
+      /* subtle depth on the app canvas — restrained, not a loud gradient */
+      body {
+        background:
+          radial-gradient(1200px 800px at 100% -10%, rgba(76,141,255,0.06), transparent 60%),
+          var(--tg-bg);
+        background-attachment: fixed;
       }
 
       /* ══════════ طبقة التفاعلات الفاخرة ══════════ */
@@ -9571,7 +9603,7 @@ function GlobalStyles() {
       }
       .alfhd-order-card:hover {
         transform: translateY(-3px) scale(1.006);
-        box-shadow: 0 12px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(42,171,238,0.15);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(76,141,255,0.15);
       }
       .alfhd-order-card:active { transform: translateY(-1px) scale(0.997); }
 
@@ -9585,13 +9617,13 @@ function GlobalStyles() {
       select:focus-visible,
       textarea:focus-visible,
       [tabindex]:focus-visible {
-        outline: 2px solid #2AABEE !important;
+        outline: 2px solid #4C8DFF !important;
         outline-offset: 2px !important;
         border-radius: inherit;
       }
       /* الحقول: إطار واضح عند التركيز */
       input:focus, textarea:focus, select:focus {
-        border-color: #2AABEE !important;
+        border-color: #4C8DFF !important;
       }
 
       @keyframes alfhdSlideIn {
@@ -9619,8 +9651,8 @@ function GlobalStyles() {
 
       /* توهّج نبضي للعناصر المهمة */
       @keyframes softGlow {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(42,171,238,0.0); }
-        50%      { box-shadow: 0 0 18px 2px rgba(42,171,238,0.25); }
+        0%, 100% { box-shadow: 0 0 0 0 rgba(76,141,255,0.0); }
+        50%      { box-shadow: 0 0 18px 2px rgba(76,141,255,0.25); }
       }
 
       /* تأثير موجة (ripple) عند الضغط على العناصر التفاعلية */
@@ -9697,21 +9729,29 @@ function GlobalStyles() {
         *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.05ms !important; }
       }
 
-      input::placeholder, textarea::placeholder { color: var(--tg-dim); }
+      input::placeholder, textarea::placeholder { color: var(--tg-dim); opacity: 0.85; }
       input:focus, select:focus, textarea:focus { outline: none; }
       input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-        outline: 2px solid rgba(42,171,238,0.5); outline-offset: 1px;
+        outline: 2px solid var(--pr-accent-ring); outline-offset: 2px;
+      }
+      /* premium field focus: soft accent ring instead of a hard border jump */
+      input:focus, textarea:focus, select:focus {
+        box-shadow: 0 0 0 3px var(--pr-accent-soft) !important;
+        border-color: var(--tg-blue) !important;
       }
 
       /* سكرولبار ناعم */
-      ::-webkit-scrollbar { width: 3px; height: 3px; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb {
-        background: rgba(42,171,238,0.18);
-        border-radius: 10px;
+        background: rgba(147,163,186,0.28);
+        border-radius: var(--r-pill);
+        border: 2px solid transparent;
+        background-clip: padding-box;
         transition: background 0.2s ease;
       }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.4); }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(147,163,186,0.5); background-clip: padding-box; }
+      * { scrollbar-width: thin; scrollbar-color: rgba(147,163,186,0.28) transparent; }
       select, input, textarea { color-scheme: dark; }
 
       /* ── أزرار — نفس Telegram ── */
@@ -9743,25 +9783,39 @@ function GlobalStyles() {
       .alfhd-app-wrap { background: var(--tg-bg) !important; }
       .alfhd-app-wrap > aside {
         width: 260px !important;
-        background: linear-gradient(180deg, var(--tg-panel) 0%, #141F2B 100%) !important;
-        border-left: 1px solid rgba(255,255,255,0.07) !important;
+        background: linear-gradient(180deg, var(--pr-surface-1) 0%, #0D121A 100%) !important;
+        border-left: 1px solid var(--pr-line-soft) !important;
         backdrop-filter: none !important;
-        box-shadow: 2px 0 16px rgba(0,0,0,0.4) !important;
+        box-shadow: 1px 0 0 rgba(255,255,255,0.03), 8px 0 32px -12px rgba(0,0,0,0.6) !important;
       }
       .alfhd-main-area { padding: 0 !important; background: var(--tg-bg) !important; }
       .alfhd-nav-item {
-        border-radius: 10px !important;
+        border-radius: var(--r-sm) !important;
         font-weight: 700 !important;
-        transition: background 0.16s var(--ease-tg), color 0.16s var(--ease-tg) !important;
+        position: relative !important;
+        transition: background 0.18s var(--ease-tg), color 0.18s var(--ease-tg), transform 0.14s var(--ease-spring) !important;
       }
       .alfhd-nav-item:hover { background: var(--tg-hover) !important; }
+      .alfhd-nav-item:active { transform: scale(0.97) !important; }
       .alfhd-bottom-nav-item-active,
       .alfhd-nav-item.alfhd-bottom-nav-item-active {
-        color: #2AABEE !important;
-        background: var(--tg-active) !important;
         color: var(--tg-blue) !important;
-        border-color: rgba(42,171,238,0.22) !important;
-        box-shadow: none !important;
+        background: var(--pr-accent-soft) !important;
+        border-color: rgba(76,141,255,0.24) !important;
+        box-shadow: inset 0 0 0 1px rgba(76,141,255,0.12) !important;
+      }
+      /* accent rail on active sidebar item */
+      .alfhd-nav-item.alfhd-bottom-nav-item-active::before {
+        content: '' !important;
+        position: absolute !important;
+        right: 0 !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 3px !important;
+        height: 60% !important;
+        border-radius: var(--r-pill) !important;
+        background: var(--tg-blue) !important;
+        box-shadow: 0 0 12px rgba(76,141,255,0.6) !important;
       }
 
       /* ── قائمة المحادثات ── */
@@ -9799,7 +9853,7 @@ function GlobalStyles() {
         content: '';
         position: absolute;
         inset: 0;
-        background: rgba(42,171,238,0.07);
+        background: rgba(76,141,255,0.07);
         opacity: 0;
         transition: opacity 0.15s var(--ease-tg);
         pointer-events: none;
@@ -9855,58 +9909,63 @@ function GlobalStyles() {
 
       /* ── كروت الطلبات ── */
       .alfhd-order-card {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(255,255,255,0.09) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3) !important;
+        background:
+          linear-gradient(160deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) ,
+          linear-gradient(145deg, var(--pr-surface-2), #12181F) !important;
+        border: 1px solid var(--pr-line) !important;
+        border-radius: var(--r-md) !important;
+        box-shadow: var(--sh-2) !important;
         transition:
-          transform 0.22s var(--ease-spring),
-          box-shadow 0.22s var(--ease-tg),
-          border-color 0.22s var(--ease-tg),
-          background 0.18s var(--ease-tg) !important;
+          transform 0.24s var(--ease-out-quart),
+          box-shadow 0.24s var(--ease-tg),
+          border-color 0.24s var(--ease-tg),
+          background 0.2s var(--ease-tg) !important;
         will-change: transform !important;
       }
-      .alfhd-order-card:hover {
-        background: linear-gradient(145deg, #1e2d3d, #1F3347) !important;
-        border-color: rgba(42,171,238,0.25) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(42,171,238,0.12) !important;
+      @media (hover:hover) {
+        .alfhd-order-card:hover {
+          border-color: rgba(76,141,255,0.28) !important;
+          transform: translateY(-3px) !important;
+          box-shadow: var(--sh-3), 0 6px 20px -8px rgba(76,141,255,0.28) !important;
+        }
       }
       .alfhd-order-card:active {
-        transform: translateY(0px) scale(0.99) !important;
+        transform: translateY(0px) scale(0.988) !important;
         transition-duration: 0.1s !important;
       }
 
       /* ── موديلات ── */
       .alfhd-modal {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4) !important;
-        animation: modalSlideUp 0.28s var(--ease-bounce) both !important;
+        background: linear-gradient(150deg, var(--pr-surface-2), #10151D) !important;
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        border-radius: var(--r-xl) !important;
+        box-shadow: var(--sh-4), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+        animation: modalSlideUp 0.3s var(--ease-out-quart) both !important;
         will-change: transform, opacity !important;
       }
 
       /* ── كروت المستخدمين والصفحات ── */
       .alfhd-users-grid > *, .alfhd-pages-grid > * {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(255,255,255,0.09) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+        background: linear-gradient(145deg, var(--pr-surface-2), #12181F) !important;
+        border: 1px solid var(--pr-line) !important;
+        border-radius: var(--r-md) !important;
+        box-shadow: var(--sh-2) !important;
         backdrop-filter: none !important;
         transition:
-          transform 0.22s var(--ease-spring),
-          box-shadow 0.22s var(--ease-tg),
-          border-color 0.22s var(--ease-tg) !important;
+          transform 0.24s var(--ease-out-quart),
+          box-shadow 0.24s var(--ease-tg),
+          border-color 0.24s var(--ease-tg) !important;
         will-change: transform !important;
       }
-      .alfhd-stats-row > *:hover,
-      .alfhd-stats-grid-2 > *:hover,
-      .alfhd-pages-grid > *:hover,
-      .alfhd-users-grid > *:hover {
-        transform: translateY(-3px) !important;
-        border-color: rgba(42,171,238,0.25) !important;
-        box-shadow: 0 10px 28px rgba(0,0,0,0.6), 0 3px 10px rgba(42,171,238,0.13) !important;
+      @media (hover:hover) {
+        .alfhd-stats-row > *:hover,
+        .alfhd-stats-grid-2 > *:hover,
+        .alfhd-pages-grid > *:hover,
+        .alfhd-users-grid > *:hover {
+          transform: translateY(-3px) !important;
+          border-color: rgba(76,141,255,0.26) !important;
+          box-shadow: var(--sh-3), 0 4px 14px -6px rgba(76,141,255,0.22) !important;
+        }
       }
 
       /* ── تبويبات ── */
@@ -9931,10 +9990,10 @@ function GlobalStyles() {
 
       /* ── Login card ── */
       .alfhd-login-card {
-        background: linear-gradient(145deg, var(--tg-panel), #1A2736) !important;
-        border: 1px solid rgba(42,171,238,0.15) !important;
-        border-radius: 20px !important;
-        box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(42,171,238,0.05), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+        background: linear-gradient(150deg, var(--pr-surface-2), #0F141C) !important;
+        border: 1px solid rgba(255,255,255,0.09) !important;
+        border-radius: var(--r-xl) !important;
+        box-shadow: var(--sh-4), 0 0 0 1px rgba(76,141,255,0.06), inset 0 1px 0 rgba(255,255,255,0.06) !important;
       }
 
       /* ══════════ KEYFRAMES ══════════ */
@@ -10121,7 +10180,7 @@ function GlobalStyles() {
           height: 100dvh !important;
           display: flex !important;
           flex-direction: column !important;
-          background: #0E1621 !important;
+          background: #0A0E14 !important;
           border-radius: 0 !important;
           border: none !important;
           padding: 0 !important;
@@ -10151,7 +10210,7 @@ function GlobalStyles() {
           border-left: none !important;
           border-right: none !important;
           border-bottom: none !important;
-          background: #17212B !important;
+          background: #141A22 !important;
           padding: 10px 12px !important;
           padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
           flex: 0 0 auto !important;
@@ -10216,26 +10275,25 @@ function GlobalStyles() {
         font-weight: 900 !important;
       }
 
-      /* زجاجية فاخرة للنوافذ المنبثقة */
+      /* نوافذ منبثقة — عمق راقٍ بلا زجاجية مبالغ فيها */
       .alfhd-modal {
-        backdrop-filter: blur(20px) saturate(1.2) !important;
-        -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
-        background: linear-gradient(145deg, rgba(28,40,54,0.92), rgba(20,30,42,0.92)) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        background: linear-gradient(150deg, var(--pr-surface-2), #10151D) !important;
       }
 
-      /* خلفية التطبيق بعمق متدرّج خفيف */
+      /* خلفية التطبيق بعمق متدرّج خفيف جداً */
       .alfhd-app-wrap {
         background:
-          radial-gradient(1200px 600px at 70% -10%, rgba(42,171,238,0.06), transparent 60%),
-          radial-gradient(900px 500px at 10% 110%, rgba(240,168,104,0.04), transparent 55%),
-          var(--tg-bg, #0E1621) !important;
+          radial-gradient(1100px 560px at 85% -12%, rgba(76,141,255,0.055), transparent 62%),
+          var(--tg-bg, #0A0E14) !important;
       }
 
       /* نقطة حالة نابضة (متصل) */
       @keyframes alfhdPulse {
-        0%   { box-shadow: 0 0 0 0 rgba(77,219,107,0.5); }
-        70%  { box-shadow: 0 0 0 7px rgba(77,219,107,0); }
-        100% { box-shadow: 0 0 0 0 rgba(77,219,107,0); }
+        0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0.5); }
+        70%  { box-shadow: 0 0 0 7px rgba(52,211,153,0); }
+        100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
       }
       .alfhd-pulse { animation: alfhdPulse 2s var(--ease-tg) infinite; }
 
@@ -10262,15 +10320,89 @@ function GlobalStyles() {
       /* تمرير ناعم في كل الحاويات */
       * { scroll-behavior: smooth; }
 
-      /* شريط تمرير أنيق */
-      ::-webkit-scrollbar { width: 7px; height: 7px; }
+      /* شريط تمرير أنيق موحّد */
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.25); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(42,171,238,0.45); }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(147,163,186,0.28);
+        border-radius: var(--r-pill);
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(147,163,186,0.5); background-clip: padding-box; }
+
+      /* ═══════════ PREMIUM POLISH LAYER (visual only) ═══════════ */
+
+      /* Typography rhythm — tighter, more confident headings */
+      h1, h2, h3, h4 { letter-spacing: -0.02em; }
+      h1 { font-weight: 900; }
+      h2, h3 { font-weight: 800; }
+
+      /* Inputs, selects, textareas — cohesive premium field */
+      input, select, textarea {
+        border-radius: var(--r-sm) !important;
+        transition:
+          border-color 0.18s var(--ease-tg),
+          box-shadow 0.18s var(--ease-tg),
+          background 0.18s var(--ease-tg) !important;
+      }
+
+      /* Status / stage pills — crisper premium badge */
+      .alfhd-order-status-pill, [class*="StatusPill"] {
+        border-radius: var(--r-pill) !important;
+      }
+
+      /* Primary action buttons feel tactile and lifted */
+      .alfhd-ripple { border-radius: var(--r-sm); }
+
+      /* Tabs — pill hover surface */
+      .alfhd-tab { border-radius: var(--r-sm) !important; }
+
+      /* Chips / filter buttons rounded to pills for a modern look */
+      .alfhd-filter-chip { border-radius: var(--r-pill) !important; }
+
+      /* Modal backdrop — soft, premium dim (targets common overlay wrappers) */
+      .alfhd-modal-overlay, .alfhd-overlay {
+        backdrop-filter: blur(6px) !important;
+        -webkit-backdrop-filter: blur(6px) !important;
+        animation: alfhdOverlayIn 0.22s var(--ease-out-quart) both !important;
+      }
+      @keyframes alfhdOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+      /* Skeleton shimmer for premium loading states */
+      @keyframes alfhdShimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      .alfhd-skeleton {
+        background: linear-gradient(100deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 70%);
+        background-size: 200% 100%;
+        animation: alfhdShimmer 1.4s ease-in-out infinite;
+        border-radius: var(--r-sm);
+      }
+
+      /* Toast entrance/exit polish (if app renders toasts) */
+      @keyframes alfhdToastIn {
+        from { opacity: 0; transform: translateY(14px) scale(0.96); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      [class*="toast"], .alfhd-toast {
+        animation: alfhdToastIn 0.32s var(--ease-out-quart) both;
+        border-radius: var(--r-md) !important;
+        box-shadow: var(--sh-3) !important;
+      }
+
+      /* Selection color on-brand */
+      ::selection { background: rgba(76,141,255,0.32); color: #fff; }
 
       /* تقليل الحركة لمن يفضّل ذلك (وصول) */
       @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
       }
     `}</style>
   );
@@ -10279,46 +10411,46 @@ function GlobalStyles() {
 // ──────────────────────────────────────────────
 // كائن الأنماط — Telegram Style
 // ──────────────────────────────────────────────
-const TG = '#0E1621';
-const TP = '#17212B';
-const TI = '#242F3D';
+const TG = '#0A0E14';
+const TP = '#141A22';
+const TI = '#1E2630';
 const TB = 'rgba(255,255,255,0.07)';
-const TBL = '#2AABEE';
-const TBL2 = '#229ED9';
-const TGR = '#4DDB6B';
+const TBL = '#4C8DFF';
+const TBL2 = '#3A78E8';
+const TGR = '#34D399';
 const TRD = '#F25050';
-const TTX = '#F5F5F5';
+const TTX = '#F4F7FB';
 const TSB = '#8B9AB3';
 const TDM = '#8FA0B5';
-const TAC = 'rgba(42,171,238,0.15)';
-const TSH = '0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)';
-const TBTN = `linear-gradient(135deg,${TBL},${TBL2})`;
-const TGBTN = 'linear-gradient(135deg,#4DDB6B,#22C55E)';
+const TAC = 'rgba(76,141,255,0.15)';
+const TSH = '0 4px 14px -4px rgba(0,0,0,0.55), 0 2px 6px -2px rgba(0,0,0,0.4)';
+const TBTN = `linear-gradient(135deg,#5A97FF,${TBL2})`;
+const TGBTN = 'linear-gradient(135deg,#3DDCA3,#22C55E)';
 const TRDS = 'rgba(242,80,80,0.12)';
 
 const styles = {
   // ── Login ──
   loginWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: TG, position: 'relative', overflow: 'hidden', direction: 'rtl', padding: 20 },
-  loginSpaceBg: { position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(42,171,238,0.08), transparent 60%)', pointerEvents: 'none' },
+  loginSpaceBg: { position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(76,141,255,0.08), transparent 60%)', pointerEvents: 'none' },
   loginStarsLayer: { position: 'absolute', inset: '-20%', opacity: 0.20, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.7) 0 1px, transparent 1.3px)', backgroundSize: '90px 90px' },
   loginStarsLayer2: { position: 'absolute', inset: '-18%', opacity: 0.10, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.6) 0 1px, transparent 1.5px)', backgroundSize: '60px 60px' },
-  loginNebulaOne: { position: 'absolute', width: 380, height: 380, borderRadius: '50%', top: '-90px', right: '-110px', background: 'radial-gradient(circle, rgba(42,171,238,0.10), transparent 70%)', filter: 'blur(28px)' },
+  loginNebulaOne: { position: 'absolute', width: 380, height: 380, borderRadius: '50%', top: '-90px', right: '-110px', background: 'radial-gradient(circle, rgba(76,141,255,0.10), transparent 70%)', filter: 'blur(28px)' },
   loginNebulaTwo: { position: 'absolute', width: 340, height: 340, borderRadius: '50%', bottom: '-110px', left: '-90px', background: 'radial-gradient(circle, rgba(34,158,217,0.08), transparent 72%)', filter: 'blur(26px)' },
-  loginOrbit: { position: 'absolute', width: 500, height: 500, borderRadius: '50%', border: '1px solid rgba(42,171,238,0.07)', borderTopColor: 'rgba(42,171,238,0.18)', pointerEvents: 'none' },
+  loginOrbit: { position: 'absolute', width: 500, height: 500, borderRadius: '50%', border: '1px solid rgba(76,141,255,0.07)', borderTopColor: 'rgba(76,141,255,0.18)', pointerEvents: 'none' },
   loginBrandTop: { position: 'absolute', top: 20, zIndex: 2, display: 'flex', alignItems: 'center', gap: 8, color: TSB, fontSize: 12, fontWeight: 700, letterSpacing: '0.18em', background: 'rgba(23,33,43,0.80)', border: `1px solid ${TB}`, borderRadius: 999, padding: '8px 12px' },
   loginCard: { position: 'relative', zIndex: 1, background: TP, border: `1px solid ${TB}`, borderRadius: 16, padding: '36px 32px 24px', width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', animation: 'loginFloat 5s ease-in-out infinite' },
   loginGlassShine: { display: 'none' },
   loginCardAccent: { position: 'absolute', top: 0, right: 0, left: 0, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, borderRadius: '16px 16px 0 0', opacity: 0.7 },
   loginLogoArea: { position: 'relative', marginBottom: 4 },
-  logoGlow: { position: 'absolute', inset: -22, borderRadius: '50%', background: 'radial-gradient(circle, rgba(42,171,238,0.18) 0%, transparent 70%)', filter: 'blur(10px)' },
+  logoGlow: { position: 'absolute', inset: -22, borderRadius: '50%', background: 'radial-gradient(circle, rgba(76,141,255,0.18) 0%, transparent 70%)', filter: 'blur(10px)' },
   loginTitle: { fontSize: 28, fontWeight: 800, color: TTX, margin: '12px 0 2px', letterSpacing: '0.03em' },
   loginSubtitle: { fontSize: 12, color: TSB, margin: 0, fontWeight: 500 },
-  loginMicroCopy: { marginTop: 8, color: TBL, fontSize: 12, fontWeight: 700, background: 'rgba(42,171,238,0.10)', border: '1px solid rgba(42,171,238,0.18)', borderRadius: 999, padding: '4px 12px' },
+  loginMicroCopy: { marginTop: 8, color: TBL, fontSize: 12, fontWeight: 700, background: 'rgba(76,141,255,0.10)', border: '1px solid rgba(76,141,255,0.18)', borderRadius: 999, padding: '4px 12px' },
   inputLabel: { display: 'block', fontSize: 12, color: TSB, marginBottom: 12, fontWeight: 700, textAlign: 'center', letterSpacing: '0.05em' },
   pinBoxesWrap: { position: 'relative', display: 'flex', gap: 8, justifyContent: 'center', cursor: 'text' },
   pinBox: { width: 50, height: 56, borderRadius: 10, background: TI, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: TBL, fontWeight: 900, transition: 'border-color 0.13s, transform 0.12s' },
   pinBoxActive: { borderColor: TBL, transform: 'translateY(-2px)' },
-  pinBoxFilled: { borderColor: 'rgba(42,171,238,0.45)', background: 'rgba(42,171,238,0.07)' },
+  pinBoxFilled: { borderColor: 'rgba(76,141,255,0.45)', background: 'rgba(76,141,255,0.07)' },
   pinBoxError: { borderColor: TRD },
   pinHiddenInput: { position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', border: 'none', padding: 0, margin: 0, cursor: 'text' },
   errorText: { color: TRD, fontSize: 12, marginTop: 8, textAlign: 'center', fontWeight: 600 },
@@ -10337,7 +10469,7 @@ const styles = {
   sidebarBrandSub: { fontSize: 12, color: TDM, letterSpacing: '0.05em', textTransform: 'uppercase' },
   sidebarNav: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1 },
   navItem: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, border: '1px solid transparent', background: 'transparent', color: TSB, fontSize: 13.5, fontWeight: 600, textAlign: 'right', position: 'relative', transition: 'all 0.12s ease' },
-  navItemActive: { background: TAC, borderColor: 'rgba(42,171,238,0.20)', color: TBL, fontWeight: 700 },
+  navItemActive: { background: TAC, borderColor: 'rgba(76,141,255,0.20)', color: TBL, fontWeight: 700 },
   navActiveDot: { position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)', width: 3, height: 15, borderRadius: 4, background: TBL },
   sidebarFooter: { paddingTop: 12, borderTop: `1px solid ${TB}` },
   userBadge: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px', marginBottom: 8 },
@@ -10369,9 +10501,9 @@ const styles = {
   convTab: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'transparent', border: 'none', borderRadius: 20, color: TDM, fontSize: 12, fontWeight: 600, transition: 'all 0.12s ease' },
   convTabActive: { background: TAC, color: TBL },
   convTabCount: { background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '2px 8px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', minWidth: 18, textAlign: 'center', flexShrink: 0 },
-  convTabCountActive: { background: 'rgba(42,171,238,0.28)', color: TBL },
+  convTabCountActive: { background: 'rgba(76,141,255,0.28)', color: TBL },
   unreadPulse: { position: 'absolute', top: -5, left: -5, minWidth: 15, height: 15, padding: '0 4px', borderRadius: 20, background: '#EF4444', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${TP}` },
-  markAllReadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '8px', marginBottom: 4, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 0, color: TBL, fontSize: 12, fontWeight: 600 },
+  markAllReadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '8px', marginBottom: 4, background: 'rgba(76,141,255,0.07)', border: 'none', borderRadius: 0, color: TBL, fontSize: 12, fontWeight: 600 },
   markAllReadBtnDisabled: { opacity: 0.38, color: TDM, background: 'transparent', cursor: 'not-allowed' },
 
   convLayout: { display: 'grid', gridTemplateColumns: '320px 1fr', gap: 0, minHeight: '100vh', alignItems: 'stretch' },
@@ -10387,7 +10519,7 @@ const styles = {
   convItemBottom: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' },
   convLastMsg: { fontSize: 12, color: TSB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
   convMiniMetaRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4, minHeight: 14 },
-  convMiniMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: 'rgba(42,171,238,0.08)', color: TBL, fontSize: 12, fontWeight: 700 },
+  convMiniMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: 'rgba(76,141,255,0.08)', color: TBL, fontSize: 12, fontWeight: 700 },
   unreadBadge: { background: TBL, color: '#fff', borderRadius: 20, fontSize: 12, fontWeight: 800, padding: '2px 8px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0 },
 
   convDetail: { background: TG, border: 'none', borderRadius: 0, padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0, overflow: 'hidden', boxShadow: 'none' },
@@ -10398,9 +10530,9 @@ const styles = {
   detailPage: { fontSize: 12, color: TDM, fontWeight: 500 },
   chatHeaderMetaRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 },
   chatHeaderMetaPill: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: TI, color: TSB, fontSize: 9.5, fontWeight: 600 },
-  pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(42,171,238,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700, flexShrink: 0 },
+  pinOrderBtn: { display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'rgba(76,141,255,0.10)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700, flexShrink: 0 },
   chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
-  msgBubbleIn: { background: '#1C2A38', border: 'none', borderRadius: '18px 18px 18px 5px', padding: '8px 12px', fontSize: 14, color: '#F5F5F5', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.18)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
+  msgBubbleIn: { background: '#1C2A38', border: 'none', borderRadius: '18px 18px 18px 5px', padding: '8px 12px', fontSize: 14, color: '#F4F7FB', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.18)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
   msgBubbleOut: { background: 'linear-gradient(135deg,#2E6199,#2B5278)', border: 'none', borderRadius: '18px 18px 5px 18px', padding: '8px 12px', fontSize: 14, color: '#fff', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(43,82,120,0.35)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
   chatDateDivider: { alignSelf: 'center', margin: '4px 0 8px', padding: '4px 8px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 12, fontWeight: 600 },
   msgImage: { width: '100%', maxWidth: 260, maxHeight: 320, objectFit: 'cover', borderRadius: 12, display: 'block', background: 'rgba(255,255,255,0.04)' },
@@ -10414,24 +10546,24 @@ const styles = {
   recordingTime: { fontSize: 14, fontWeight: 800, color: TTX, fontFamily: 'monospace', minWidth: 42 },
   recordingLabel: { fontSize: 12, color: TDM },
   recordingCancelBtn: { width: 44, height: 44, borderRadius: 11, background: 'rgba(242,80,80,0.09)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  recordingSendBtn: { width: 38, height: 38, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  recordingSendBtn: { width: 38, height: 38, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(76,141,255,0.38)' },
   composerInput: { flex: 1, background: 'transparent', border: 'none', color: TTX, fontSize: 13.5, padding: '4px 4px', fontFamily: "'Cairo', sans-serif" },
-  composerSendBtn: { width: 36, height: 36, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  composerSendBtn: { width: 36, height: 36, borderRadius: '50%', background: TBTN, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(76,141,255,0.38)' },
   linkedOrderCard: { background: TI, border: `1px solid ${TB}`, borderRadius: 10, padding: 12, marginBottom: 8 },
   linkedOrderHeader: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: TBL, marginBottom: 8 },
   linkedOrderBody: { display: 'flex', flexDirection: 'column', gap: 8 },
   linkedOrderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   linkedOrderLabel: { fontSize: 12, color: TDM },
   linkedOrderValue: { fontSize: 12.5, color: TTX, fontWeight: 600 },
-  linkedOrderDetailBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 8, padding: '8px', background: 'rgba(42,171,238,0.09)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700 },
+  linkedOrderDetailBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 8, padding: '8px', background: 'rgba(76,141,255,0.09)', border: 'none', borderRadius: 9, color: TBL, fontSize: 12, fontWeight: 700 },
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '52px 20px', color: TDM, fontSize: 13.5, fontWeight: 500, animation: 'alfhdFadeUp 0.5s var(--ease-bounce) both' },
   emptyStateLg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1, color: TDM, fontSize: 13.5, fontWeight: 500, animation: 'alfhdFadeUp 0.5s var(--ease-bounce) both' },
 
   // ── Orders ──
-  printBtn: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  printBtn: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(76,141,255,0.32)' },
   secondaryBtn: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 600 },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 16 },
-  statCard: { display: 'flex', alignItems: 'center', gap: 12, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: '16px 16px', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden' },
+  statCard: { display: 'flex', alignItems: 'center', gap: 12, background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: '16px 16px', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden' },
   statIconWrap: { width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   statValue: { fontSize: 20, fontWeight: 800, color: TTX, lineHeight: 1.15, letterSpacing: '-0.02em' },
   statLabel: { fontSize: 12, color: TDM, marginTop: 2 },
@@ -10442,7 +10574,7 @@ const styles = {
   chip: { padding: '8px 12px', background: TI, border: 'none', borderRadius: 20, color: TDM, fontSize: 12, fontWeight: 600 },
   chipActive: { background: TAC, color: TBL },
   ordersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(272px,1fr))', gap: 12 },
-  orderCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative' },
+  orderCard: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: TSH, transition: 'all 0.2s ease', position: 'relative' },
   orderTicketHead: { display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px' },
   orderTicketAvatar: { width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: TI, color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15 },
   orderCardCustomer: { fontSize: 13.5, fontWeight: 700, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
@@ -10456,8 +10588,8 @@ const styles = {
   orderCardTotal: { fontSize: 17, fontWeight: 800, color: TTX, letterSpacing: '-0.02em' },
   orderCurrency: { fontSize: 12, fontWeight: 500, color: TDM },
   orderTicketMeta: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 12, color: TDM, marginTop: 2 },
-  printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(77,219,107,0.11)', color: TGR, borderRadius: 20, padding: '2px 8px', fontSize: 9.5, fontWeight: 700 },
-  batchBlock: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH },
+  printedBadge: { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(52,211,153,0.11)', color: TGR, borderRadius: 20, padding: '2px 8px', fontSize: 9.5, fontWeight: 700 },
+  batchBlock: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH },
   batchHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
   batchHeaderInfo: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: TTX },
   batchHeaderTime: { fontSize: 12, color: TDM, fontWeight: 500 },
@@ -10466,7 +10598,7 @@ const styles = {
   statusSelect: { border: '1px solid', borderRadius: 8, padding: '4px 8px', fontSize: 12, fontWeight: 700, appearance: 'none', cursor: 'pointer', fontFamily: "'Cairo', sans-serif" },
 
   // ── Stats ──
-  chartCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: TSH },
+  chartCard: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: TSH },
   timeFilterBar: { display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' },
   customDateRow: { display: 'flex', gap: 8, marginBottom: 16 },
   customDateSelect: { background: TI, border: 'none', borderRadius: 9, padding: '8px 12px', color: TTX, fontSize: 12.5, fontFamily: "'Cairo', sans-serif", flex: 1 },
@@ -10488,40 +10620,40 @@ const styles = {
   pageStatBadge: { background: TI, padding: '4px 8px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: TSB },
 
   // ── Pages ──
-  addBtn: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  addBtn: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(76,141,255,0.32)' },
   confirmBtn: { background: TBL, border: 'none', borderRadius: 8, padding: '0 16px', color: '#fff', fontWeight: 700, fontSize: 13 },
   fbErrorBox: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, background: 'rgba(242,80,80,0.07)', border: `1px solid rgba(242,80,80,0.18)`, borderRadius: 10, padding: '8px 12px', color: TRD, fontSize: 12.5, lineHeight: 1.6 },
-  fbExchangingBox: { marginBottom: 12, background: 'rgba(42,171,238,0.07)', border: 'none', borderRadius: 10, padding: '8px 12px', color: TBL, fontSize: 12.5 },
+  fbExchangingBox: { marginBottom: 12, background: 'rgba(76,141,255,0.07)', border: 'none', borderRadius: 10, padding: '8px 12px', color: TBL, fontSize: 12.5 },
   fbCandidatesWrap: { marginBottom: 16, background: TI, border: 'none', borderRadius: 11, padding: 12 },
   fbCandidatesTitle: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 8 },
   fbCandidateRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${TB}` },
   fbCandidateAvatarImg: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' },
   fbCandidateId: { fontSize: 12, color: TDM, marginTop: 2 },
   pagesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(295px,1fr))', gap: 12 },
-  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH, overflow: 'hidden', transition: 'all 0.2s ease' },
+  pageCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH, overflow: 'hidden', transition: 'all 0.2s ease' },
   pageCardTopLine: { position: 'absolute', top: 0, right: 16, left: 16, height: 2, background: `linear-gradient(90deg, transparent, ${TBL}, transparent)`, opacity: 0.55 },
   pageCardHeader: { display: 'flex', alignItems: 'center', gap: 12, width: '100%' },
-  subscribeBtn: { width: '100%', background: 'rgba(77,219,107,0.09)', border: `1px solid rgba(77,219,107,0.22)`, borderRadius: 10, padding: '8px 0', color: TGR, fontSize: 12, fontWeight: 700 },
+  subscribeBtn: { width: '100%', background: 'rgba(52,211,153,0.09)', border: `1px solid rgba(52,211,153,0.22)`, borderRadius: 10, padding: '8px 0', color: TGR, fontSize: 12, fontWeight: 700 },
   pageCardAvatar: { width: 46, height: 46, borderRadius: '50%', background: TI, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0 },
   pageCardName: { fontSize: 14, fontWeight: 800, color: TTX, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   pageCardMeta: { fontSize: 12, color: TDM, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   pageCardStatus: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, marginTop: 4, fontWeight: 600 },
   pageStatusPill: { display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', borderRadius: 20, padding: '8px 12px', fontSize: 12, fontWeight: 700, border: 'none' },
-  pageStatusPillOk: { color: TGR, background: 'rgba(77,219,107,0.09)' },
-  pageStatusPillWait: { color: TBL, background: 'rgba(42,171,238,0.09)' },
+  pageStatusPillOk: { color: TGR, background: 'rgba(52,211,153,0.09)' },
+  pageStatusPillWait: { color: TBL, background: 'rgba(76,141,255,0.09)' },
   liveDot: { width: 7, height: 7, borderRadius: '50%', boxShadow: '0 0 8px currentColor' },
   iconBtnDanger: { width: 30, height: 30, borderRadius: 8, background: 'rgba(242,80,80,0.08)', border: 'none', color: TRD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
   // ── Users ──
   usersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(285px,1fr))', gap: 12 },
-  userCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH, transition: 'all 0.2s ease' },
+  userCard: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH, transition: 'all 0.2s ease' },
   userCardTop: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
   userCardAvatar: { width: 38, height: 38, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0 },
   userCardName: { fontSize: 13, fontWeight: 700, color: TTX },
   userCardRole: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: TDM, marginTop: 2 },
   activeDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
   userPermsList: { display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${TB}` },
-  permTag: { background: 'rgba(42,171,238,0.09)', color: TBL, fontSize: 9.5, fontWeight: 600, padding: '4px 8px', borderRadius: 6 },
+  permTag: { background: 'rgba(76,141,255,0.09)', color: TBL, fontSize: 9.5, fontWeight: 600, padding: '4px 8px', borderRadius: 6 },
   userCardActions: { display: 'flex', gap: 8 },
   userActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px', background: TI, border: 'none', borderRadius: 8, color: TSB, fontSize: 12, fontWeight: 600 },
   userCardMetaRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
@@ -10545,7 +10677,7 @@ const styles = {
   warehouseWrap: { flex: 1, overflow: 'auto', padding: '20px 16px', maxWidth: 700, margin: '0 auto', width: '100%' },
   warehouseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12, paddingTop: 'env(safe-area-inset-top,0px)' },
   warehouseGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
-  warehouseCard: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH, transition: 'all 0.2s ease' },
+  warehouseCard: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.09)`, borderRadius: 14, padding: 16, boxShadow: TSH, transition: 'all 0.2s ease' },
   warehouseCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   warehouseCardNo: { fontSize: 12, fontWeight: 800, color: TBL, fontFamily: 'monospace' },
   warehouseCardDate: { fontSize: 12, color: TDM },
@@ -10561,14 +10693,14 @@ const styles = {
   warehouseItemsBox: { marginTop: 8, background: 'rgba(255,202,40,0.05)', border: `1px solid rgba(255,202,40,0.13)`, borderRadius: 9, padding: '8px 12px' },
   warehouseItemsLabel: { fontSize: 12, fontWeight: 700, color: '#FFCA28', marginBottom: 4 },
   warehouseItemsText: { fontSize: 13.5, color: TTX, lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
-  warehouseBadge: { width: 38, height: 38, borderRadius: '50%', background: TBTN, color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(42,171,238,0.38)' },
+  warehouseBadge: { width: 38, height: 38, borderRadius: '50%', background: TBTN, color: '#fff', fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 8px rgba(76,141,255,0.38)' },
   warehouseActions: { display: 'flex', gap: 8, marginTop: 12 },
-  warehouseDoneBtn: { flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', background: TGBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(77,219,107,0.32)' },
+  warehouseDoneBtn: { flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', background: TGBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(52,211,153,0.32)' },
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
-  modal: { background: `linear-gradient(145deg, ${TP}, #1A2736)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginTop: 0 },
+  modal: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginTop: 0 },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px', borderBottom: `1px solid ${TB}` },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
   modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
@@ -10583,21 +10715,21 @@ const styles = {
   permCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: TSB, padding: '4px 0', cursor: 'pointer' },
   modalFooter: { display: 'flex', gap: 8, padding: '12px 16px', borderTop: `1px solid ${TB}` },
   modalCancelBtn: { flex: 1, padding: '8px', background: 'transparent', border: `1px solid ${TB}`, borderRadius: 9, color: TDM, fontSize: 12.5, fontWeight: 600 },
-  modalSaveBtn: { flex: 1, padding: '8px', background: TBTN, border: 'none', borderRadius: 9, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(42,171,238,0.28)' },
+  modalSaveBtn: { flex: 1, padding: '8px', background: TBTN, border: 'none', borderRadius: 9, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(76,141,255,0.28)' },
   detailGridRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingBottom: 8, borderBottom: `1px solid ${TB}` },
   detailGridLabel: { fontSize: 12, color: TDM, flexShrink: 0 },
   detailGridValue: { fontSize: 12.5, color: TTX, fontWeight: 600, textAlign: 'left', overflowWrap: 'anywhere' },
   detailActionBtn: { flex: 1, minWidth: 84, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px', background: TI, border: 'none', borderRadius: 9, color: TSB, fontSize: 12, fontWeight: 700 },
   statsBottomBtns: { display: 'flex', gap: 8, marginTop: 12 },
   statsSmallBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1, padding: '8px', background: TI, border: 'none', borderRadius: 10, color: TSB, fontSize: 12.5, fontWeight: 700 },
-  statsSummaryBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1.4, padding: '8px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, boxShadow: '0 2px 8px rgba(42,171,238,0.32)' },
+  statsSummaryBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flex: 1.4, padding: '8px', background: TBTN, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 800, boxShadow: '0 2px 8px rgba(76,141,255,0.32)' },
   summaryRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 10, background: TI, border: 'none', marginBottom: 8 },
   summaryRowSub: { background: 'transparent', border: 'none', padding: '4px 16px', marginBottom: 2 },
   summaryRowLabel: { fontSize: 12.5, fontWeight: 600 },
   summaryRowValue: { fontSize: 16, fontWeight: 800 },
   summaryHint: { fontSize: 12, color: TDM, textAlign: 'center', marginTop: 8 },
   bestSellerRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
-  bestSellerRank: { width: 24, height: 24, borderRadius: 8, background: 'rgba(42,171,238,0.11)', color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 },
+  bestSellerRank: { width: 24, height: 24, borderRadius: 8, background: 'rgba(76,141,255,0.11)', color: TBL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 },
   bestSellerType: { fontSize: 12.5, fontWeight: 700, color: TTX, marginBottom: 4, overflowWrap: 'anywhere' },
   bestSellerTrack: { height: 5, background: TI, borderRadius: 4, overflow: 'hidden' },
   bestSellerFill: { height: '100%', background: `linear-gradient(90deg,${TBL2},${TBL})`, borderRadius: 4 },
@@ -10608,7 +10740,7 @@ const styles = {
   convertedMeta: { fontSize: 12, color: TDM, marginTop: 2 },
   convertedTotal: { fontSize: 13, fontWeight: 800, color: TBL, flexShrink: 0 },
   neglectedRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px', marginBottom: 4, borderRadius: 10, background: TI, border: 'none', cursor: 'pointer' },
-  neglectedRowSel: { background: TAC, border: '1px solid rgba(42,171,238,0.28)' },
+  neglectedRowSel: { background: TAC, border: '1px solid rgba(76,141,255,0.28)' },
   neglectedCheck: { width: 21, height: 21, borderRadius: 6, border: `1.5px solid ${TB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff' },
   neglectedCheckOn: { background: TBL, borderColor: TBL },
 };
