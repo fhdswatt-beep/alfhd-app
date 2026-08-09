@@ -117,7 +117,7 @@ function playSuccessSound() { try { const Ctx = window.AudioContext || window.we
    osc.connect(gain);
    gain.connect(ctx.destination);
    osc.start(now + start);
-   osc.stop(now + start + dur); }); } catch (_e) { } }
+   osc.stop(now + start + dur); }); } catch (_e) { /* ignore error */ } }
 function playNotificationSound() { try { const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return;
   if (!_audioCtx) _audioCtx = new Ctx();
@@ -135,7 +135,7 @@ function playNotificationSound() { try { const Ctx = window.AudioContext || wind
    osc.connect(gain);
    gain.connect(ctx.destination);
    osc.start(now + start);
-   osc.stop(now + start + dur); }); } catch (_e) { } }
+   osc.stop(now + start + dur); }); } catch (_e) { /* ignore error */ } }
 function playAlarmSound() { try { const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return;
   if (!_audioCtx) _audioCtx = new Ctx();
@@ -154,7 +154,7 @@ function playAlarmSound() { try { const Ctx = window.AudioContext || window.webk
    osc.connect(gain);
    gain.connect(ctx.destination);
    osc.start(now + start);
-   osc.stop(now + start + 0.18); }); } catch (_e) { } }
+   osc.stop(now + start + 0.18); }); } catch (_e) { /* ignore error */ } }
 function mapPageFromDb(row) { return { id: row.id, name: row.name, avatar: row.avatar || '📄', source: row.source, connected: row.connected, fbPageId: row.fb_page_id,
   waPhoneNumberId: row.wa_phone_number_id || null, waToken: row.wa_token || null, waPhone: row.wa_phone || null, waConnected: !!row.wa_connected || !!(row.wa_phone_number_id && row.wa_token), }; }
 function mapOrderFromDb(row) { return { id: row.id, orderNo: row.order_no, sourceMessageId: row.source_message_id || null, pageId: row.page_id, customer: row.customer_name,
@@ -1742,7 +1742,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         .replace(govFound.name.replace(/^ال/, ''), '')
         .replace(/^[\s\-،,]+/, '')
         .trim();
-      const parts = rest.split(/[\-،,\s]+/).map((p) => p.trim()).filter(Boolean);
+      const parts = rest.split(/[-،,\s]+/).map((p) => p.trim()).filter(Boolean);
       autoArea = parts[0] || '';
       autoAddress = parts.slice(1).join(' ') || '';
     } else {
@@ -2199,7 +2199,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         // إذا كانت المحافظة داخل العنوان، أزلها وخلّ الباقي هو العنوان
         ocrAddress = rawAddress.replace(govFound.name, '').replace(/^[\s\-،,]+/, '').trim();
         if (!ocrArea && ocrAddress) {
-          const parts = ocrAddress.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+          const parts = ocrAddress.split(/[-،,]+/).map((p) => p.trim()).filter(Boolean);
           ocrArea = parts[0] || '';
           ocrAddress = parts.slice(1).join(' - ') || '';
         }
@@ -3749,7 +3749,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                       type="button"
                       onClick={() => {
                         const rest = cleanAddr.replace(found.name, '').replace(/^[\s\-،,]+/, '').trim();
-                        const parts = rest.split(/[\-،,]+/).map((p) => p.trim()).filter(Boolean);
+                        const parts = rest.split(/[-،,]+/).map((p) => p.trim()).filter(Boolean);
                         setEditingOrder({
                           ...editingOrder,
                           governorateCode: found.code,
@@ -5176,7 +5176,7 @@ function PagesView({ pages, setPages }) {
         body: JSON.stringify({ pageId }),
       });
     } catch (_e) { /* تجاهل */ }
-    try { await sbUpdate('alfhd_pages', pageId, { wa_phone: null, wa_connected: false }); } catch (_e) {}
+    try { await sbUpdate('alfhd_pages', pageId, { wa_phone: null, wa_connected: false }); } catch (_e) { /* ignore error */ }
     setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, waPhone: null, waConnected: false } : p));
   }
 
@@ -5431,7 +5431,6 @@ function PagesView({ pages, setPages }) {
                   onClick={() => {
                     setWaSettingsPage(p);
                     setWaPhoneInput(p.waPhoneNumberId || '');
-                    setWaTokenInput(p.waToken || '');
                   }}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -6399,7 +6398,7 @@ export default function AlFhdApp() {
     try {
       const saved = JSON.parse(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session') || 'null');
       if (saved?.userId && saved?.userData) return saved.userData;
-    } catch (_) {}
+    } catch (_) { /* ignore error */ }
     return null;
   });
   const [appLoading, setAppLoading] = useState(!(localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session')));
@@ -6740,7 +6739,7 @@ export default function AlFhdApp() {
         // فشل تحميل التحديث الفوري — لا مشكلة، الفحص الدوري (polling) يستمر يشتغل عادي
       }
     })();
-    return () => { cancelled = true; try { channel?.unsubscribe?.(); } catch (_e) {} };
+    return () => { cancelled = true; try { channel?.unsubscribe?.(); } catch (_e) { /* ignore error */ } };
   }, [storageReady]);
 
   // ══════════════════════════════════════════════════════════════
@@ -6757,74 +6756,6 @@ export default function AlFhdApp() {
     // معطّل عمداً: صار عندنا نظامين بالسيرفر (webhook فوري + فحص دوري كل ثانية)
     // أسرع وأثبت من هذا النظام (كان يعتمد على فتح المتصفح، ويسبب تكرار
     // محاولات مع الأنظمة الثانية ويزيد الحمل بلا داعي).
-    return undefined;
-    // eslint-disable-next-line no-unreachable
-    if (!storageReady) return undefined;
-    let busy = false;
-
-    const tick = async () => {
-      if (busy || document.hidden) return;
-      busy = true;
-      try {
-        const active = (convRef.current || [])
-          .filter((c) => c.ai_mode === 'active')
-          .map((c) => c.id)
-          .slice(0, 60);
-        if (!active.length) { busy = false; return; }
-
-        // آخر الرسائل بالمحادثات المفعّلة (آخر 5 دقائق)
-        const since = new Date(Date.now() - 5 * 60000).toISOString();
-        const rows = await sbSelect('alfhd_messages',
-          `&conversation_id=in.(${active.join(',')})&created_at=gte.${since}` +
-          '&select=id,conversation_id,direction,created_at&order=created_at.desc&limit=120');
-
-        // نأخذ آخر رسالة لكل محادثة
-        const latest = {};
-        for (const r of rows || []) {
-          if (!latest[r.conversation_id]) latest[r.conversation_id] = r;
-        }
-
-        // ── دفعات صغيرة بدل الكل دفعة وحدة ──
-        // السبب: تفعيل عدد كبير من المحادثات مرة وحدة كان يطلق عشرات الطلبات
-        // المتزامنة لدالة الذكاء، وهذا يضرب حد الطلبات (Rate Limit) عند OpenAI
-        // ويفشل كل شي بخطأ 500. الحين نعالج 5 بس بكل دورة (كل 3 ثواني)
-        // حتى لو فيه تراكم كبير، ينحل تدريجياً وبأمان.
-        const candidates = [];
-        for (const cid of Object.keys(latest)) {
-          const m = latest[cid];
-          if (m.direction !== 'incoming') continue;      // آخر رسالة صادرة → ما نرد
-          if (m.created_at < AI_REPLY_CUTOFF) continue;   // رسالة قديمة (قبل التفعيل) → تجاهل نهائياً
-          if (aiFiredRef.current.has(m.id)) continue;    // ناديناه قبل
-          candidates.push({ cid, m });
-        }
-        const BATCH = 5;
-        const batch = candidates.slice(0, BATCH);
-        for (const { cid, m } of batch) {
-          aiFiredRef.current.add(m.id);
-          if (aiFiredRef.current.size > 400) {
-            aiFiredRef.current = new Set([...aiFiredRef.current].slice(-200));
-          }
-          // نداء بلا انتظار — حتى ما نعطّل الدورة
-          fetch(AI_REPLY_FUNCTION_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${SUPABASE_KEY}`,
-              apikey: SUPABASE_KEY,
-            },
-            body: JSON.stringify({ conversation_id: cid, message_id: m.id }),
-          }).catch(() => { /* تجاهل */ });
-        }
-      } catch (_e) { /* تجاهل */ }
-      busy = false;
-    };
-
-    const t = setInterval(tick, 3000);
-    tick();
-    const onVis = () => { if (!document.hidden) tick(); };
-    document.addEventListener('visibilitychange', onVis);
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageReady]);
 
   // بعد تحميل Supabase: حدّث بيانات المستخدم المسجّل (صلاحيات جديدة إلخ) وأوقف شاشة التحميل
@@ -8897,7 +8828,7 @@ function WhProducts({ products, setProducts, cars, setCars, sbI, sbU, sbD }) {
                   if(res.length===0)return <div style={{textAlign:'center',color:'#8FA0B5',fontSize:12,padding: '20px 0'}}>لا توجد نتائج</div>;
                   return res.map(p=>{
                     const loc=p.location||'';
-                    const bm=loc.match(/فرع\s*([^\-]*)/);const sm=loc.match(/رف\s*(.*)/);
+                    const bm=loc.match(/فرع\s*([^-]*)/);const sm=loc.match(/رف\s*(.*)/);
                     const branch=bm?bm[1].trim():'—';const shelf=sm?sm[1].trim():'—';
                     return(
                       <div key={p.id} style={{padding: '12px 12px',background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:11}}>
