@@ -863,12 +863,15 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
   markConversationRead(convId);
   const isWA = selectedConv.isWhatsApp;
   const refreshOpenChat = async () => { if (cancelled) return;
-   if (!isWA) { try { await fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } }); } catch (_e) { /* تجاهل */ } }
+   // الرسائل توصل لحظياً عبر الويب هوك — نقرأ من قاعدة البيانات مباشرة بدون انتظار أي سحب بطيء
    if (!cancelled) await loadNewMessages(convId, () => cancelled); };
-  const interval = setInterval(refreshOpenChat, isWA ? 1200 : 1200);
+  const interval = setInterval(refreshOpenChat, 1200);
+  // شبكة أمان: سحب احتياطي كل 30 ثانية بالخلفية (بدون انتظار) لو الويب هوك تعطّل
+  const safetyPoll = isWA ? null : setInterval(() => { if (cancelled) return;
+   fetch(FB_POLL_FUNCTION_URL, { method: 'GET', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY } }).catch(() => {}); }, 30000);
   // فوري: لو وصلت رسالة حقيقية (Realtime)، نحدّث حالاً بدل ما ننتظر الدورة
   window.addEventListener('fhd-realtime-msg', refreshOpenChat);
-  return () => { cancelled = true; clearInterval(interval); window.removeEventListener('fhd-realtime-msg', refreshOpenChat); }; }, [selectedConv?.id]);
+  return () => { cancelled = true; clearInterval(interval); if (safetyPoll) clearInterval(safetyPoll); window.removeEventListener('fhd-realtime-msg', refreshOpenChat); }; }, [selectedConv?.id]);
  useEffect(() => { const el = scrollRef.current;
   if (!el) return;
   const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
@@ -6704,8 +6707,9 @@ export default function AlFhdApp() {
     };
 
     const start = () => {
-      if (!convTimer) convTimer = setInterval(tickConv, 1000);   // القائمة: كل ثانية (كانت ثانيتين)
-      if (!fbTimer) fbTimer = setInterval(tickFb, 1500);          // جلب فيسبوك: كل 1.5 ثانية (كانت 4)
+      if (!convTimer) convTimer = setInterval(tickConv, 1000);   // القائمة: كل ثانية
+      // الرسائل توصل لحظياً عبر الويب هوك — هذا السحب صار شبكة أمان فقط (كان كل 1.5 ثانية ويستهلك ميتا بلا داعي)
+      if (!fbTimer) fbTimer = setInterval(tickFb, 30000);
     };
     const stop = () => {
       if (convTimer) { clearInterval(convTimer); convTimer = null; }
