@@ -248,7 +248,7 @@ function mapConversationFromDb(row) { let customerName = row.customer_name || ''
   lastMsgTimeRaw: row.last_message_time || row.created_at || '', time: row.last_message_time ? new Date(row.last_message_time).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })
    : '', unread: row.unread_count || 0, tab: row.tab || 'normal', orderId: row.order_id, ai_mode: row.ai_mode || 'paused', }; }
 function mapMessageFromDb(row) { return { id: row.id, conversationId: row.conversation_id, direction: row.direction || 'incoming', content: row.content || null,
-  type: row.type || row.message_type || 'text', mediaUrl: row.media_url || null, fileName: row.file_name || null, source: row.source || 'facebook', createdAt: row.created_at || null, time: row.created_at
+  type: row.type || row.message_type || 'text', mediaUrl: row.media_url || null, fileName: row.file_name || null, source: row.source || 'facebook', sender: row.sender || null, createdAt: row.created_at || null, time: row.created_at
    ? new Date(row.created_at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }) : '', }; }
 const STATUS_CONFIG = { pending:   { label: 'قيد التوصيل', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: Truck },
  returned:  { label: 'راجع',        color: '#F45B69', bg: 'rgba(244,91,105,0.12)', icon: XCircle },
@@ -1296,7 +1296,8 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
            className="alfhd-chat-bubble-row alfhd-msg-row"
            style={{ display: 'flex', justifyContent: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', marginBottom: grouped ? 2 : 6, width: '100%', minWidth: 0 }}
           >
-           <div style={m.direction === 'outgoing' ? styles.msgBubbleOut : styles.msgBubbleIn}>
+           <div style={{ display: 'flex', flexDirection: 'column', alignItems: m.direction === 'outgoing' ? 'flex-end' : 'flex-start', maxWidth: '76%', minWidth: 0 }}>
+           <div style={m.direction !== 'outgoing' ? styles.msgBubbleIn : (m.sender === 'soft_bt' ? styles.msgBubbleSoft : (m.sender === 'ai' ? styles.msgBubbleApi : styles.msgBubbleOut))}>
             {m.type === 'image' && m.mediaUrl && <img src={m.mediaUrl} alt="" style={styles.msgImage} onClick={() => window.open(m.mediaUrl, '_blank')} onError={(e)=>{e.target.style.display='none';}} />}
             {m.type === 'video' && m.mediaUrl && <video controls src={m.mediaUrl} style={styles.msgImage} />}
             {m.type === 'audio' && m.mediaUrl && <audio controls src={m.mediaUrl} style={styles.msgAudio} />}
@@ -1312,6 +1313,12 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
             )}
             {m.content && m.type !== 'file' && m.type !== 'document' && <div style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
             <div style={styles.msgTime}>{m.time}{m.direction === 'outgoing' ? ' ✓✓' : ''}</div>
+           </div>
+           {m.direction === 'outgoing' && (m.sender === 'soft_bt' || m.sender === 'ai') && (
+            <div style={{ ...styles.msgSenderTag, color: m.sender === 'soft_bt' ? '#4ADE80' : '#E08E9B' }}>
+             {m.sender === 'soft_bt' ? 'SOFT' : 'API'}
+            </div>
+           )}
            </div>
           </div>
          </React.Fragment> ); }) )}
@@ -10534,6 +10541,12 @@ const styles = {
   chatScroll: { flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px 16px', minHeight: 260, maxHeight: 'calc(100vh - 136px)', background: TG, border: 'none', borderRadius: 0 },
   msgBubbleIn: { background: '#1C2A38', border: 'none', borderRadius: '18px 18px 18px 5px', padding: '8px 12px', fontSize: 14, color: '#F4F7FB', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.18)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
   msgBubbleOut: { background: 'linear-gradient(135deg,#2E6199,#2B5278)', border: 'none', borderRadius: '18px 18px 5px 18px', padding: '8px 12px', fontSize: 14, color: '#fff', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(43,82,120,0.35)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
+  // ردود Soft BT — أخضر
+  msgBubbleSoft: { background: 'linear-gradient(135deg,#2E7D4F,#256B43)', border: 'none', borderRadius: '18px 18px 5px 18px', padding: '8px 12px', fontSize: 14, color: '#fff', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(37,107,67,0.35)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
+  // ردود الذكاء (API) — ماروني
+  msgBubbleApi: { background: 'linear-gradient(135deg,#7A2E3C,#5F2430)', border: 'none', borderRadius: '18px 18px 5px 18px', padding: '8px 12px', fontSize: 14, color: '#fff', maxWidth: '76%', lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(95,36,48,0.35)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0, willChange: 'transform, opacity' },
+  // وسم صغير تحت الفقاعة (خارج الرسالة نفسها)
+  msgSenderTag: { fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, marginTop: 3, opacity: 0.85, textAlign: 'right', userSelect: 'none' },
   chatDateDivider: { alignSelf: 'center', margin: '4px 0 8px', padding: '4px 8px', borderRadius: 999, background: 'rgba(23,33,43,0.88)', color: TSB, fontSize: 12, fontWeight: 600 },
   msgImage: { width: '100%', maxWidth: 260, maxHeight: 320, objectFit: 'cover', borderRadius: 12, display: 'block', background: 'rgba(255,255,255,0.04)' },
   msgAudio: { width: 220, maxWidth: '100%', height: 38 },
