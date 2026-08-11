@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageSquare, Package, Users, LogOut, Search, Plus, BarChart3, CheckCircle2, XCircle, Truck, Printer, ChevronDown, X, Menu, Shield, ShieldCheck,
  Eye, EyeOff, Trash2, Edit3, UserPlus, Facebook, ArrowUpRight, Sparkles, Bot, Pin, Phone, MapPin, Calendar, RefreshCw, Mic, Send, Image, ArrowRight, AlertCircle,
- Warehouse, ShoppingCart, CreditCard, DollarSign, TrendingUp, Percent, Home, Bell, Download, Upload, Clock, AlertTriangle, Copy, MessageCircle, FileText, Key, } from 'lucide-react';
+ Warehouse, ShoppingCart, CreditCard, DollarSign, TrendingUp, Percent, Home, Bell, Download, Upload, Clock, AlertTriangle, Copy, MessageCircle, FileText, Key, Zap, } from 'lucide-react';
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 const WA_BRIDGE_URL = 'https://alfhd-wa-bridge-production.up.railway.app';
@@ -415,7 +415,7 @@ function Sidebar({ activeView, setActiveView, onLogout, currentUser, pages }) { 
   { id: 'stats', label: 'الإحصائيات', icon: BarChart3 }, { id: 'warehouse', label: 'المخزن', icon: Warehouse, adminOnly: true } ];
  // الأقسام الإدارية — داخل قائمة الخطوط الثلاثة
  const menuItems = [
-  { id: 'ai_assistant', label: 'الذكاء الصناعي', icon: Bot, desc: 'الرد التلقائي والتدريب', adminOnly: true, permId: 'ai_manage' },
+  { id: 'ai_assistant', label: 'الرد على المحادثات', icon: Bot, desc: 'الذكاء الصناعي و Soft BT', adminOnly: true, permId: 'ai_manage' },
   { id: 'pages', label: 'الصفحات المرتبطة', icon: Facebook, desc: 'فيسبوك وواتساب' },
   { id: 'users', label: 'إدارة الموظفين', icon: Shield, desc: 'المستخدمين والصلاحيات', adminOnly: true },
  ];
@@ -7002,6 +7002,164 @@ export default function AlFhdApp() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// SoftBtPanel — قسم Soft BT: الصحة، القواعد الفورية، سجل التعليم
+// ══════════════════════════════════════════════════════════════════
+function SoftBtPanel({ box, inp }) {
+  const [health, setHealth] = React.useState(null);
+  const [rules, setRules] = React.useState([]);
+  const [learned, setLearned] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [newQ, setNewQ] = React.useState('');
+  const [newA, setNewA] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      const [logs, r, l] = await Promise.all([
+        sbSelect('ai_reply_log', `&created_at=gte.${since}&select=answered_by,escalated,soft_bt_tier,reply_text&limit=3000`),
+        sbSelect('soft_bt_static_rules', '&order=priority.desc.nullslast&limit=200'),
+        sbSelect('soft_bt_learned_cache', '&order=created_at.desc&limit=200'),
+      ]);
+      const arr = logs || [];
+      const answered = arr.filter((x) => x.reply_text);
+      const bySoft = answered.filter((x) => x.answered_by === 'soft_bt').length;
+      const byAi = answered.filter((x) => x.answered_by !== 'soft_bt').length;
+      const esc = arr.filter((x) => x.escalated).length;
+      setHealth({
+        total: answered.length, bySoft, byAi, esc,
+        pct: answered.length ? Math.round((bySoft / answered.length) * 100) : 0,
+        t0: answered.filter((x) => x.soft_bt_tier === '0_static').length,
+        t1: answered.filter((x) => x.soft_bt_tier === '1_cache').length,
+        t2: answered.filter((x) => x.soft_bt_tier === '2_product').length,
+      });
+      setRules(r || []); setLearned(l || []);
+    } catch (e) { console.error('soft bt panel load failed', e); }
+    setLoading(false);
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const addManual = async () => {
+    if (!newQ.trim() || !newA.trim()) return;
+    setBusy(true);
+    try {
+      await sbInsert('soft_bt_static_rules', {
+        category: 'manual', trigger_patterns: [newQ.trim()], match_mode: 'contains',
+        reply_text: newA.trim(), priority: 90, active: true,
+      });
+      setNewQ(''); setNewA(''); await load();
+    } catch (e) { alert('فشل الحفظ: ' + e.message); }
+    setBusy(false);
+  };
+  const delRule = async (id) => {
+    if (!confirm('تريد تحذف هذي القاعدة؟')) return;
+    try { await sbDelete('soft_bt_static_rules', id); await load(); }
+    catch (e) { alert('فشل الحذف: ' + e.message); }
+  };
+  const delLearned = async (id) => {
+    if (!confirm('تريد تحذف هذا الجواب المتعلَّم؟')) return;
+    try { await sbDelete('soft_bt_learned_cache', id); await load(); }
+    catch (e) { alert('فشل الحذف: ' + e.message); }
+  };
+
+  const stat = (label, val, color) => (
+    <div style={{ ...box, padding: 12, flex: '1 1 120px', minWidth: 110, textAlign: 'center' }}>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color || '#F4F7FB' }}>{val}</div>
+      <div style={{ fontSize: 11.5, color: '#8B98A9', marginTop: 3 }}>{label}</div>
+    </div>
+  );
+
+  if (loading) return <div style={{ ...box, padding: 20, textAlign: 'center', color: '#8B98A9' }}>يحمّل...</div>;
+
+  return (
+    <>
+      <div style={{ ...box, padding: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <Zap size={16} color="#22C55E" />
+          <b style={{ color: '#F4F7FB', fontSize: 13.5 }}>صحة النظام — آخر 7 أيام</b>
+          <button onClick={load} style={{ marginRight: 'auto', padding: '6px 10px', borderRadius: 8, border: '1px solid #1B222D', background: 'transparent', color: '#8B98A9', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>تحديث</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {stat('ردود Soft BT', health?.bySoft ?? 0, '#22C55E')}
+          {stat('ردود الذكاء (API)', health?.byAi ?? 0, '#E08E9B')}
+          {stat('نسبة التوفير', (health?.pct ?? 0) + '%', '#4C8DFF')}
+          {stat('محوّلة لموظف', health?.esc ?? 0, '#F2A950')}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          {stat('قواعد فورية', health?.t0 ?? 0)}
+          {stat('من المخزن', health?.t2 ?? 0)}
+          {stat('ذاكرة متعلَّمة', health?.t1 ?? 0)}
+        </div>
+        <div style={{ fontSize: 11.5, color: '#8B98A9', marginTop: 10, lineHeight: 1.7 }}>
+          كل رد من Soft BT = صفر تكلفة API. كل ما زادت النسبة، قلّت فاتورتك وزادت سرعة الرد.
+        </div>
+      </div>
+
+      <div style={{ ...box, padding: 12, marginBottom: 12 }}>
+        <b style={{ color: '#F4F7FB', fontSize: 13.5 }}>إضافة سؤال وجواب يدوي</b>
+        <div style={{ fontSize: 11.5, color: '#8B98A9', margin: '6px 0 10px' }}>
+          أي رسالة تحتوي النص اللي تكتبه بالأعلى، Soft BT يرد عليها فوراً بالجواب اللي تحدده.
+        </div>
+        <input style={{ ...inp, marginBottom: 8 }} placeholder="نص يكتبه الزبون — مثلاً: اكو توصيل للبصرة" value={newQ} onChange={(e) => setNewQ(e.target.value)} />
+        <textarea style={{ ...inp, minHeight: 70, marginBottom: 8, resize: 'vertical' }} placeholder="الرد اللي تريده" value={newA} onChange={(e) => setNewA(e.target.value)} />
+        <button onClick={addManual} disabled={busy || !newQ.trim() || !newA.trim()}
+          style={{ padding: '9px 16px', borderRadius: 9, border: 'none', background: (busy || !newQ.trim() || !newA.trim()) ? '#1B222D' : '#22C55E', color: '#fff', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {busy ? 'يحفظ...' : 'إضافة'}
+        </button>
+      </div>
+
+      <div style={{ ...box, padding: 12, marginBottom: 12 }}>
+        <b style={{ color: '#F4F7FB', fontSize: 13.5 }}>القواعد الفورية ({rules.length})</b>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {rules.map((r) => (
+            <div key={r.id} style={{ background: '#0A0E14', borderRadius: 10, padding: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: '#8B98A9', wordBreak: 'break-word' }}>{(r.trigger_patterns || []).join('، ')}</div>
+                  <div style={{ fontSize: 13, color: '#F4F7FB', marginTop: 4, fontWeight: 600 }}>{r.reply_text}</div>
+                  <div style={{ fontSize: 11, color: '#5C6675', marginTop: 4 }}>
+                    {r.match_mode === 'exact' ? 'تطابق تام' : 'يحتوي'} · استُخدمت {r.usage_count || 0} مرة
+                  </div>
+                </div>
+                <button onClick={() => delRule(r.id)} style={{ background: 'transparent', border: 'none', color: '#F25050', cursor: 'pointer', padding: 4 }}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {rules.length === 0 && <div style={{ color: '#5C6675', fontSize: 12 }}>ما أكو قواعد</div>}
+        </div>
+      </div>
+
+      <div style={{ ...box, padding: 12 }}>
+        <b style={{ color: '#F4F7FB', fontSize: 13.5 }}>سجل التعليم ({learned.length})</b>
+        <div style={{ fontSize: 11.5, color: '#8B98A9', margin: '6px 0 10px' }}>
+          أجوبة تعلّمها Soft BT من ردود الذكاء. احذف أي جواب مو عاجبك وما راح يستخدمه مرة ثانية.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {learned.map((c) => (
+            <div key={c.id} style={{ background: '#0A0E14', borderRadius: 10, padding: 10, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: '#8B98A9', wordBreak: 'break-word' }}>سؤال الزبون: {c.question_text}</div>
+                <div style={{ fontSize: 13, color: '#F4F7FB', marginTop: 4, fontWeight: 600, wordBreak: 'break-word' }}>{c.answer_text}</div>
+                <div style={{ fontSize: 11, color: '#5C6675', marginTop: 4 }}>
+                  {c.source === 'manual' ? 'يدوي' : 'تعلّم تلقائي'} · استُخدم {c.usage_count || 0} مرة
+                </div>
+              </div>
+              <button onClick={() => delLearned(c.id)} style={{ background: 'transparent', border: 'none', color: '#F25050', cursor: 'pointer', padding: 4 }}>
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          {learned.length === 0 && <div style={{ color: '#5C6675', fontSize: 12 }}>لسه ما تعلّم شي — يتعلم تلقائياً من ردود الذكاء الناجحة</div>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // AIAssistantView — لوحة تحكم الرد التلقائي بالذكاء الصناعي (فهد فقط)
 // ══════════════════════════════════════════════════════════════════
 function AIAssistantView({ currentUser }) {
@@ -7485,7 +7643,7 @@ function AIAssistantView({ currentUser }) {
     <div style={{ padding: 16, maxWidth: 960, margin: '0 auto', direction: 'rtl' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <Bot size={21} color="#4C8DFF" />
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#F4F7FB', margin: 0 }}>الذكاء الصناعي</h2>
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#F4F7FB', margin: 0 }}>قسم الرد على المحادثات</h2>
         <span style={{
           marginRight: 'auto', fontSize: 12, fontWeight: 700, padding: '4px 8px', borderRadius: 20,
           background: settings.enabled_globally ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.12)',
@@ -7498,6 +7656,7 @@ function AIAssistantView({ currentUser }) {
         {[
           { id: 'dash',     label: 'نظرة عامة', icon: BarChart3, badge: null },
           { id: 'log',      label: 'سجل الردود', icon: FileText, badge: total },
+          { id: 'softbt',   label: 'Soft BT',    icon: Zap, badge: null },
           { id: 'products', label: 'المنتجات',  icon: Package, badge: null },
           { id: 'training', label: 'التدريب',   icon: Sparkles, badge: null },
           { id: 'settings', label: 'الإعدادات', icon: Shield, badge: null },
@@ -7841,6 +8000,10 @@ function AIAssistantView({ currentUser }) {
       </>)}
 
       {/* ═══════ سجل الردود ═══════ */}
+      {tab === 'softbt' && (<>
+        <SoftBtPanel box={box} inp={inp} />
+      </>)}
+
       {tab === 'log' && (<>
         <div style={{ ...box, padding: 12 }}>
           <input aria-label="ابحث بالسجل — نص الزبون، الرد، سبب التصعيد، اسم منتج" style={{ ...inp, marginBottom: 8 }} placeholder="ابحث بالسجل — نص الزبون، الرد، سبب التصعيد، اسم منتج..." value={logSearch} onChange={(e) => setLogSearch(e.target.value)} />
