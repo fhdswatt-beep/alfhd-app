@@ -325,8 +325,8 @@ function LoginScreen({ users, onLogin }) { const [code, setCode] = useState('');
  const activeUsers = useMemo(() => users.filter((u) => u.active), [users]);
  const attemptLogin = (value) => { const entered = value.trim();
   if (entered.length !== 4) return;
-  const match = entered === '4444' ? (activeUsers.find((u) => u.role === 'admin') || activeUsers[0]) : activeUsers.find((u) => String(u.code || '') === entered);
-  if (match) { onLogin({ ...match, code: '4444' }, rememberMe); } else { setError(true);
+  const match = activeUsers.find((u) => String(u.code || '') === entered);
+  if (match) { onLogin(match, rememberMe); } else { setError(true);
    setShake(true);
    setCode('');
    setTimeout(() => setShake(false), 520); } };
@@ -585,7 +585,6 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
   if (fresh && ( fresh.lastMessage !== selectedConv.lastMessage || fresh.unread !== selectedConv.unread || fresh.lastMessageTime !== selectedConv.lastMessageTime ||
    fresh.orderId !== selectedConv.orderId )) { setSelectedConv(fresh); } }, [conversations]);
  const [composerText, setComposerText] = useState('');
- const processedBookingsRef = React.useRef(new Set());
  const [sendingMsg, setSendingMsg] = useState(false);
  const [recording, setRecording] = useState(false);
  const [recSeconds, setRecSeconds] = useState(0);
@@ -722,115 +721,18 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
   return () => { cancelled = true; };
  }, [selectedConv?.id, selectedConv?.tab]);
  const [globalAiBusy, setGlobalAiBusy] = useState(false);
- const HANDOFF_TRIGGERS = [ 'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك', 'transferred this chat', 'transfer this chat', 'Your AI agent transferred',
-  'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا', 'نحولك للموظف', 'تحويل المحادثة', 'handoff', 'hand off', ];
- function isHandoffMessage(text) { if (!text) return false;
-  const lower = text.toLowerCase();
-  return HANDOFF_TRIGGERS.some((t) => lower.includes(t.toLowerCase())); }
- async function maybeHandoffConversation(convId, messages) { const triggered = messages.some((m) => isHandoffMessage(m.content));
-  if (!triggered) return;
-  const conv = conversations.find((c) => c.id === convId);
-  if (!conv || conv.tab === 'handoff') return;
-  setConversations?.((prev) => prev.map((c) => ( c.id === convId ? { ...c, tab: 'handoff' } : c )));
-  try { await sbUpdate('alfhd_conversations', convId, { tab: 'handoff' }); } catch (e) { console.error('handoff tab update error:', e); } }
-
- // ── التقاط رسالة "تم تثبيت طلبك" ��ن الذكاء وإنشاء الطلب بنفس منطق الموقع ──
- // نفس البنية المستخدمة بالتثبيت اليدوي — ما نستخدم منطق جديد
- async function maybeCreateOrderFromAI(convId, messages) {
-  const conv = conversations.find((c) => c.id === convId);
-  if (!conv) return;
-  // نلقط آخر رسالة صادرة فيها صيغة التثبيت الكاملة
-  const bookingMsg = [...messages].reverse().find((m) =>
-   m.direction === 'outgoing' && m.content && m.content.includes('تم تثبيت طلبك') && m.content.includes('رقم التلفون'));
-  if (!bookingMsg) return;
-
-  // الزبون ممكن يطلب أكثر من سيارة بنفس المحادثة — نسمح بطلب جديد
-  // بس ما نكرر نفس رسالة التثبيت مرتين (نتذكر آخر رسالة عالجناها)
-  if (processedBookingsRef.current.has(bookingMsg.id)) return;
-  processedBookingsRef.current.add(bookingMsg.id);
-
-  // تحويل الأرقام العربية للاتينية (الزبون يكتب ٠٧٧٠...)
-  const t = (bookingMsg.content || '')
-    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
-  // مهم: [ \t]* مو \s* — لأن \s تبتلع السطر الجديد وتاخذ قيمة الحقل اللي بعده
-  const grab = (label) => { const m = t.match(new RegExp(label + '[ \\t]*:?[ \\t]*([^\\n]*)')); return m ? m[1].trim() : ''; };
-  const carType = grab('نوع السيارة');
-  const model = grab('موديل');
-  const address = grab('العنوان');
-  const phoneRaw = grab('رقم التلفون').replace(/\D/g, '');
-  const recipient = grab('اسم المستلم');
-  const priceRaw = grab('السعر الكلي').replace(/[^\d]/g, '');
-
-  if (!/^07\d{9}$/.test(phoneRaw) || !carType || !priceRaw) return; // بيانات ناقصة — لا ننشئ
-
-  // استنتاج المحافظة والمنطقة من العنوان
-  let gov = '', area = '';
-  if (address.includes('-')) {
-    [gov, area] = address.split('-').map((s) => s.trim());
-  } else {
-    const parts = address.trim().split(/\s+/);
-    gov = address.trim();
-  }
-  // خريطة المدن المعروفة → محافظاتها (لو الزبون كتب المدينة بس)
-  const CITY_TO_GOV = {
-    'الرمادي': 'الأنبار', 'رمادي': 'الأنبار', 'الفلوجة': 'الأنبار', 'فلوجة': 'الأنبار',
-    'تكريت': 'صلاح الدين', 'سامراء': 'صلاح الدين',
-    'الكرادة': 'بغداد', 'الاعظمية': 'بغداد', 'الكاظمية': 'بغداد', 'زيونة': 'بغداد', 'المنصور': 'بغداد', 'الدورة': 'بغداد', 'الشعلة': 'بغداد', 'الصدر': 'بغداد', 'الغزالية': 'بغداد',
-    'المعقل': 'البصرة', 'الزبير': 'البصرة', 'ابو الخصيب': 'البصرة',
-  };
-  // لو اللي انكتب كمحافظة هو فعلاً مدينة معروفة، استنتج محافظتها واجعل الأصل منطقة
-  if (CITY_TO_GOV[gov] && !area) {
-    area = gov;
-    gov = CITY_TO_GOV[gov];
-  }
-
-  try {
-   // ── قرار: هل نستبدل طلب سابق أو ننشئ مستقل؟ ──
-   // نفس الرقم + نفس العنوان → توصيل واحد: نمسح القديم وننشئ طلب مدمج/معدّل
-   // رقم أو عنوان مختلف → طلب مستقل جديد
-   const sameAddr = (a, b) => (a || '').replace(/\s+/g, '') === (b || '').replace(/\s+/g, '');
-   const prevOrders = (orders || []).filter((o) =>
-     o.conversationId === convId &&
-     String(o.phone || '').replace(/\D/g, '') === phoneRaw &&
-     sameAddr(o.address, address ? (area ? `${gov} - ${area}` : gov) : ''));
-
-   // نمسح الطلبات المطابقة (نفس الرقم والعنوان) — الطلب الجديد يشملها
-   for (const po of prevOrders) {
-     try { await sbDelete('alfhd_orders', po.id); } catch (_e) { /* تابع */ }
-   }
-   if (prevOrders.length) {
-     setOrders?.((prev) => prev.filter((o) => !prevOrders.some((p) => p.id === o.id)));
-   }
-
-   const payload = {
-    order_no: String(Date.now()).slice(-6),
-    page_id: conv.pageId || null,
-    customer_name: recipient || conv.customer || 'ارضيات سيارات',
-    phone: phoneRaw,
-    address: area ? `${gov} - ${area}` : gov,
-    governorate_name: gov || null,
-    area: area || null,
-    items: `${carType}${model ? ' - موديل ' + model : ''}`,
-    order_type: carType,
-    total: Number(priceRaw),
-    status: 'pending',
-    stage: 'ready',
-    order_date: new Date().toISOString().slice(0, 10),
-    fahd_ref: `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
-    conversation_id: convId,
-    source: 'ai',
-    platform: (conv.customerPsid || '').startsWith('wa_') ? 'whatsapp' : 'facebook',
-   };
-   const created = await sbInsert('alfhd_orders', payload);
-   const orderId = created?.[0]?.id;
-   if (orderId) {
-    // نربط آخر طلب بالمحادثة (الطلبات السابقة تبقى محفوظة بقسم الطلبات)
-    await sbUpdate('alfhd_conversations', convId, { order_id: orderId, tab: 'pinned' });
-    setConversations?.((prev) => prev.map((c) => (c.id === convId ? { ...c, orderId, tab: 'pinned' } : c)));
-   }
-  } catch (e) { console.error('AI order creation error:', e); }
- }
+ const [globalAiEnabled, setGlobalAiEnabled] = useState(null);
+ useEffect(() => {
+  let cancelled = false;
+  (async () => {
+   try {
+    const [row] = await sbSelectColumns('ai_settings', 'enabled_globally,outbound_enabled,booking_commit_enabled', '&id=eq.1');
+    if (!cancelled) setGlobalAiEnabled(row?.enabled_globally !== false);
+   } catch (_e) { if (!cancelled) setGlobalAiEnabled(null); }
+  })();
+  return () => { cancelled = true; };
+ }, []);
+ // Handoff والحجز يقررهما الـBackend المركزي؛ الواجهة تعرض النتيجة فقط ولا تنشئ طلباً من نص الرد.
  const lastMsgTimeRef = React.useRef(null); // آخر وقت رسالة (للجلب التزايدي)
  const loadMessages = useCallback(async (convId, isCancelled) => { if (!convId) return;
   try { const dbMsgs = await sbSelect('alfhd_messages', `&conversation_id=eq.${convId}&order=created_at.desc&limit=60`);
@@ -838,8 +740,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
    const mapped = (dbMsgs || []).map(mapMessageFromDb).reverse(); // نعيد الترتيب للأقدم أولاً
    lastMsgTimeRef.current = mapped.length ? mapped[mapped.length - 1].createdAt : null;
    setMessages(mapped);
-   await maybeHandoffConversation(convId, mapped);
-   await maybeCreateOrderFromAI(convId, mapped); } catch (e) { console.error('load messages error:', e); } }, [conversations]);
+   } catch (e) { console.error('load messages error:', e); } }, [conversations]);
  const loadNewMessages = useCallback(async (convId, isCancelled) => { if (!convId) return;
   try { const since = lastMsgTimeRef.current;
    if (!since) return loadMessages(convId, isCancelled);
@@ -852,8 +753,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
    setMessages((prev) => { const seen = new Set(prev.map((m) => m.id));
     const add = fresh.filter((m) => !seen.has(m.id));
     return add.length ? [...prev, ...add] : prev; });
-   await maybeHandoffConversation(convId, fresh);
-   await maybeCreateOrderFromAI(convId, fresh); } catch (e) { console.error('load new messages error:', e); } }, [loadMessages]);
+   } catch (e) { console.error('load new messages error:', e); } }, [loadMessages]);
  useEffect(() => { if (!selectedConv) { setMessages([]); return undefined; }
   let cancelled = false;
   const convId = selectedConv.id;
@@ -910,7 +810,6 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
   const nowLabel = new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
   setMessages((prev) => [...prev, { id: `temp-${Date.now()}`, direction: 'outgoing', content: text, type: 'text', mediaUrl: null, time: nowLabel }]);
   touchConvLocally(selectedConv.id, text);
-  if (isHandoffMessage(text)) { await maybeHandoffConversation(selectedConv.id, [{ content: text }]); }
   try { if (selectedConv.isWhatsApp) { await sendToWhatsApp(selectedConv, { text });
     await sbInsert('alfhd_messages', { conversation_id: selectedConv.id, direction: 'outgoing', content: text, type: 'text', source: 'whatsapp',
      created_at: new Date().toISOString(), }); } else { await sendToFacebook({ pageId: selectedConv.pageId, conversationId: selectedConv.id, recipientPsid: selectedConv.customerPsid, text, }); }
@@ -1006,50 +905,47 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
       </div>
      </div>
      {/* ── زر الرد الآلي العام (مربّع) — بصف البحث ── */}
-     {(currentUser?.role === 'admin' || (currentUser?.permissions || []).includes('ai_manage')) && (() => {
-       const activeN = conversations.filter((c) => c.ai_mode === 'active').length;
-       const allOn = activeN > 0 && activeN === conversations.length;
-       return (
-        <button
-         onClick={async () => {
-           const next = allOn ? 'paused' : 'active';
-           // ملاحظة: الواجهة تعرض أحدث 500 محادثة، بس التحديث يطبّق على
-           // كل المحادثات بقاعدة البيانات مهما كان عددها.
-           const msg = allOn
-             ? '⚠️ إيقاف الرد الآلي بكل المحادثات (كل النظام)؟\nهذا يوقف الذكاء عن الكل دفعة وحدة.'
-             : `⚠️ تشغيل الرد الآلي بكل المحادثات (كل النظام)؟\nهذا يشغّل الذكاء للكل دفعة وحدة — مفعّل حالياً بـ${activeN}.`;
-           if (!confirm(msg)) return;
-           setConversations?.((prev) => prev.map((c) => ({ ...c, ai_mode: next })));
-           setGlobalAiBusy(true);
-           try {
-             await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?id=not.is.null`, {
-               method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify({ ai_mode: next }),
-             });
-             setAiToast(next === 'active' ? `✓ تشغيل الكل (${conversations.length})` : '✓ إيقاف الكل');
-             setTimeout(() => setAiToast(null), 2000);
-           } catch (e) { alert('فشل التغيير العام: ' + e.message); }
-           setGlobalAiBusy(false);
-         }}
-         disabled={globalAiBusy}
-         title={`زر "الكل" — يشغّل/يوقف الذكاء بجميع المحادثات دفعة وحدة (مو محادثة وحدة). مفعّل حالياً بـ${activeN} محادثة.`}
-         style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4, height: 44, padding: '0 10px', borderRadius: 12, flexShrink: 0,
-          background: activeN > 0 ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.10)',
-          border: `1px solid ${activeN > 0 ? 'rgba(34,197,94,0.35)' : 'rgba(242,80,80,0.28)'}`,
-          color: activeN > 0 ? '#22C55E' : '#F25050',
-          cursor: 'pointer' }}
-        >
-         <Bot size={17} />
-         {/* نص "الكل" ثابت وظاهر دايماً — حتى ما ينلخبط مع زر المحادثة المفردة */}
-         <span style={{ fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>الكل</span>
-         <span style={{ position: 'relative', minWidth: 20, height: 17, padding: '0 4px',
-           borderRadius: 20, background: activeN > 0 ? '#22C55E' : '#F25050', color: '#fff',
-           fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center',
-           lineHeight: 1 }}>
-          {globalAiBusy ? '…' : activeN}
-         </span>
-        </button>
-       );
-     })()}
+     {(currentUser?.role === 'admin' || (currentUser?.permissions || []).includes('ai_manage')) && (
+      <button
+       onClick={async () => {
+        if (globalAiBusy || globalAiEnabled == null) return;
+        const next = !globalAiEnabled;
+        const msg = next
+         ? 'تشغيل الرد الآلي العام؟\nالمحادثات المتوقفة فردياً وHandoff تبقى محمية.'
+         : 'إيقاف الرد الآلي العام؟\nهذا يوقف الذكاء عن الجميع بدون تغيير إعداد كل محادثة.';
+        if (!confirm(msg)) return;
+        setGlobalAiBusy(true);
+        try {
+         // المفتاح العام يمثل تشغيل النظام الفعلي: معالجة + إرسال + تثبيت طلبات.
+         // إعداد كل محادثة (ai_mode) يبقى مستقلاً، والـHandoff يبقى حاجزاً إلزامياً.
+         await sbUpdate('ai_settings', 1, {
+          enabled_globally: next,
+          outbound_enabled: next,
+          booking_commit_enabled: next,
+          updated_at: new Date().toISOString(),
+         });
+         const [row] = await sbSelectColumns('ai_settings', 'enabled_globally,outbound_enabled,booking_commit_enabled', '&id=eq.1');
+         if (!row || row.enabled_globally !== next || row.outbound_enabled !== next || row.booking_commit_enabled !== next) {
+          throw new Error('تعذّر تأكيد حالة تشغيل النظام بالكامل');
+         }
+         setGlobalAiEnabled(next);
+         setAiToast(next ? '✓ الذكاء العام يعمل' : '✓ الذكاء العام متوقف');
+         setTimeout(() => setAiToast(null), 2200);
+        } catch (e) { alert('فشل التغيير العام: ' + (e.message || 'خطأ غير معروف')); }
+        finally { setGlobalAiBusy(false); }
+       }}
+       disabled={globalAiBusy || globalAiEnabled == null}
+       title="تشغيل/إيقاف الذكاء العام بدون تغيير أزرار المحادثات الفردية"
+       style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 5, height: 44, padding: '0 10px', borderRadius: 12, flexShrink: 0,
+        background: globalAiEnabled ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.10)',
+        border: `1px solid ${globalAiEnabled ? 'rgba(34,197,94,0.35)' : 'rgba(242,80,80,0.28)'}`,
+        color: globalAiEnabled ? '#22C55E' : '#F25050', cursor: globalAiBusy ? 'wait' : 'pointer' }}
+      >
+       <Bot size={17} />
+       <span style={{ fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>{globalAiEnabled ? 'AI ON' : 'AI OFF'}</span>
+       <span style={{ width: 8, height: 8, borderRadius: '50%', background: globalAiEnabled ? '#22C55E' : '#F25050' }} />
+      </button>
+     )}
      {/* أيقونة البحث */}
      <button
       aria-label="بحث"
@@ -1180,6 +1076,11 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
        {(currentUser?.role === 'admin' || (currentUser?.permissions || []).includes('ai_manage')) && (
         <button
          onClick={() => {
+           if (selectedConv.tab === 'handoff') {
+             setAiToast('المحادثة بيد موظف — استخدم زر «رجّع للذكاء» أولاً');
+             setTimeout(() => setAiToast(null), 2600);
+             return;
+           }
            const cur = selectedConv.ai_mode || 'paused';
            const next = cur === 'active' ? 'paused' : 'active';
            // تحديث فوري بالواجهة — بدون انتظار السيرفر
@@ -1207,14 +1108,14 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
              }
            })();
          }}
-         title="تشغيل / إيقاف الرد الآلي بهذي المحادثة"
-         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 8px', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'pointer', transition: 'all .15s',
-          background: selectedConv.ai_mode === 'active' ? 'rgba(34,197,94,0.14)' : 'rgba(242,80,80,0.12)',
-          color: selectedConv.ai_mode === 'active' ? '#22C55E' : '#F25050' }}
+         title={selectedConv.tab === 'handoff' ? 'المحادثة بيد موظف — رجّعها للذكاء من شريط التحويل أولاً' : (!globalAiEnabled ? 'الذكاء العام متوقف؛ هذا الزر يحفظ إعداد المحادثة فقط' : 'تشغيل / إيقاف الرد الآلي بهذي المحادثة')}
+         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 8px', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: selectedConv.tab === 'handoff' ? 'not-allowed' : 'pointer', transition: 'all .15s',
+          background: selectedConv.tab === 'handoff' ? 'rgba(245,158,11,0.12)' : (!globalAiEnabled ? 'rgba(148,163,184,0.10)' : (selectedConv.ai_mode === 'active' ? 'rgba(34,197,94,0.14)' : 'rgba(242,80,80,0.12)')),
+          color: selectedConv.tab === 'handoff' ? '#F59E0B' : (!globalAiEnabled ? '#94A3B8' : (selectedConv.ai_mode === 'active' ? '#22C55E' : '#F25050')) }}
         >
          <Bot size={14} />
          <span className="alfhd-ai-btn-label">
-          {selectedConv.ai_mode === 'active' ? 'الذكاء فعّال' : 'الذكاء متوقف'}
+          {selectedConv.tab === 'handoff' ? 'بيد موظف' : (!globalAiEnabled ? 'متوقف عاماً' : (selectedConv.ai_mode === 'active' ? 'الذكاء فعّال' : 'الذكاء متوقف'))}
          </span>
         </button>
        )}
@@ -1682,8 +1583,17 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
   const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [editingOrder, setEditingOrder] = useState(null);
+  const editOrderModalRef = React.useRef(null);
+  useEffect(() => {
+    if (!editingOrder) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const raf = requestAnimationFrame(() => { if (editOrderModalRef.current) editOrderModalRef.current.scrollTop = 0; });
+    return () => { cancelAnimationFrame(raf); document.body.style.overflow = prevOverflow; };
+  }, [editingOrder?.id, !!editingOrder]);
   const [detailOrder, setDetailOrder] = useState(null);
   const [saving, setSaving] = useState(false);
+  const orderSaveLockRef = React.useRef(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const ocrInputRef = React.useRef(null);
   const [section, setSection] = useState('ready');
@@ -1921,27 +1831,49 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
   function startNewOrder() {
     if (!pages.length) { alert('لا توجد صفحات مضافة. أضف/اربط صفحة أولاً قبل إنشاء طلب.'); return; }
+    window.scrollTo({ top: 0, behavior: 'auto' });
     setEditingOrder({
       id: null, pageId: pages[0]?.id || '', customer: '', phone: '', address: '',
       items: '', orderType: '', total: '', status: 'pending', conversationId: '',
       platform: 'whatsapp', // المصدر الافتراضي — يمكن تغييره من النموذج
+      clientRef: `UI-${crypto.randomUUID?.() || (Date.now() + '-' + Math.random().toString(36).slice(2))}`,
     });
   }
 
   function startEditOrder(o) {
-    setEditingOrder({ ...o, total: String(o.total), conversationId: o.conversationId || '' });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     setDetailOrder(null);
+    setEditingOrder({ ...o, total: String(o.total), conversationId: o.conversationId || '' });
   }
 
   async function handleDelete(o) {
-    if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع، ولن يُحتسب ضمن الإحصائيات.`)) return;
-    setOrders((prev) => prev.filter((x) => x.id !== o.id));
-    setDetailOrder(null);
+    const shippedWarning = (o.jenniSent || o.jenniShipmentId)
+      ? '\n\n⚠️ هذا الطلب مُرسل لشركة التوصيل. حذفه من الموقع لا يلغي الشحنة الخارجية تلقائياً.'
+      : '';
+    if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع، ولن يُحتسب ضمن الإحصائيات.${shippedWarning}`)) return;
     try {
       await sbDelete('alfhd_orders', o.id);
+      const stillThere = await sbSelectColumns('alfhd_orders', 'id', `&id=eq.${o.id}&limit=1`);
+      if (stillThere?.length) throw new Error('قاعدة البيانات لم تحذف الطلب (تحقق من صلاحية الحذف)');
+
+      if (o.conversationId) {
+        let nextOrder = null;
+        try {
+          const others = await sbSelectColumns('alfhd_orders', 'id,created_at', `&conversation_id=eq.${o.conversationId}&order=created_at.desc&limit=1`);
+          nextOrder = others?.[0] || null;
+        } catch (_e) { /* الحذف نجح؛ نكمل */ }
+        try {
+          await sbUpdate('alfhd_conversations', o.conversationId, { order_id: nextOrder?.id || null, tab: nextOrder ? 'pinned' : 'normal' });
+          setConversations?.((prev) => prev.map((c) => c.id === o.conversationId
+            ? { ...c, orderId: nextOrder?.id || null, tab: nextOrder ? 'pinned' : 'normal' } : c));
+        } catch (e) { console.warn('order deleted but conversation unlink failed:', e); }
+      }
+
+      setOrders((prev) => prev.filter((x) => x.id !== o.id));
+      setDetailOrder(null);
     } catch (e) {
       console.error('delete order error:', e);
-      alert('تعذّر حذف الطلب، تحقق من اتصالك');
+      alert('تعذّر حذف الطلب فعلياً: ' + (e.message || 'تحقق من الصلاحيات والاتصال'));
     }
   }
 
@@ -2077,6 +2009,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   }
 
   async function handleSaveOrder() {
+    if (orderSaveLockRef.current) return;
     if (!editingOrder.pageId) { alert('اختر الصفحة أولاً'); return; }
     if (!String(editingOrder.customer || '').trim()) { alert('اسم العميل مطلوب على الأقل'); return; }
 
@@ -2089,9 +2022,12 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       if (!proceed) { return; }
     }
 
+    orderSaveLockRef.current = true;
     setSaving(true);
     try {
       if (editingOrder.id) {
+        const prevOrder = orders.find((o) => o.id === editingOrder.id);
+        const previousConversationId = prevOrder?.conversationId || null;
         const payload = {
           page_id: editingOrder.pageId,
           customer_name: editingOrder.customer,
@@ -2122,9 +2058,23 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           platform: editingOrder.platform || null,
         };
         setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updatedOrder : o)));
+
+        // إذا تغيّر ربط الطلب من محادثة إلى محادثة ثانية (أو انشال الربط)،
+        // نفك الربط القديم فقط إذا كان ما زال يشير لنفس الطلب حتى ما نخرب طلباً أحدث.
+        if (previousConversationId && previousConversationId !== (editingOrder.conversationId || null)) {
+          try {
+            const [oldConv] = await sbSelectColumns('alfhd_conversations', 'id,order_id,tab', `&id=eq.${previousConversationId}&limit=1`);
+            if (oldConv?.order_id === editingOrder.id) {
+              await sbUpdate('alfhd_conversations', previousConversationId, { order_id: null, tab: oldConv.tab === 'pinned' ? 'normal' : oldConv.tab });
+              setConversations?.((prev) => prev.map((c) => c.id === previousConversationId
+                ? { ...c, orderId: null, tab: c.tab === 'pinned' ? 'normal' : c.tab }
+                : c));
+            }
+          } catch (e) { console.warn('unlink old conversation error:', e); }
+        }
         if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, editingOrder.id);
+
         // ── إعادة إرسال لجيني فقط إذا اكتملت الحقول ولم يُرسَل بعد ──
-        const prevOrder = orders.find((o) => o.id === editingOrder.id);
         if (!prevOrder?.jenniSent && !hasJenniGaps) {
           sendOrderToJenni(updatedOrder, { silent: true });
         }
@@ -2144,7 +2094,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           status: editingOrder.status || 'pending',
           stage: 'ready',
           order_date: new Date().toISOString().slice(0, 10),
-          fahd_ref: `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
+          fahd_ref: editingOrder.clientRef || `FHD-${Math.floor(10000 + Math.random() * 89999)}`,
           conversation_id: editingOrder.conversationId || null,
           source: editingOrder.conversationId ? 'chat' : 'manual',
           platform: editingOrder.platform || null,
@@ -2166,6 +2116,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       console.error('save order error:', e);
       alert('تعذّر حفظ الطلب، تحقق من اتصالك');
     } finally {
+      orderSaveLockRef.current = false;
       setSaving(false);
     }
   }
@@ -2950,11 +2901,26 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   async function deleteNeglected(ids) {
     if (!ids.length) return;
     if (!window.confirm(`حذف ${ids.length} طلب نهائياً؟ لا يمكن التراجع.`)) return;
-    setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
+    const deleted = [];
+    const failed = [];
     for (const id of ids) {
-      try { await sbDelete('alfhd_orders', id); } catch (_e) { /* تجاهل */ }
+      const order = orders.find((o) => o.id === id);
+      try {
+        await sbDelete('alfhd_orders', id);
+        const check = await sbSelectColumns('alfhd_orders', 'id', `&id=eq.${id}&limit=1`);
+        if (check?.length) throw new Error('لم يُحذف من قاعدة البيانات');
+        deleted.push(id);
+        if (order?.conversationId) {
+          try {
+            const [conv] = await sbSelectColumns('alfhd_conversations', 'id,order_id', `&id=eq.${order.conversationId}&limit=1`);
+            if (conv?.order_id === id) await sbUpdate('alfhd_conversations', order.conversationId, { order_id: null, tab: 'normal' });
+          } catch (_e) { /* الحذف نفسه تم */ }
+        }
+      } catch (e) { failed.push({ id, error: e.message || String(e) }); }
     }
-    setNeglectedSelected([]);
+    if (deleted.length) setOrders((prev) => prev.filter((o) => !deleted.includes(o.id)));
+    setNeglectedSelected((prev) => prev.filter((id) => !deleted.includes(id)));
+    if (failed.length) alert(`تم حذف ${deleted.length}، وتعذّر حذف ${failed.length}. لم تُخفَ الطلبات الفاشلة من الشاشة.`);
   }
 
   function toggleNeglectedSelect(id) {
@@ -3628,11 +3594,19 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
 
       {editingOrder && (
         <div style={styles.modalOverlay} onClick={() => !saving && setEditingOrder(null)}>
-          <div style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
+          <div ref={editOrderModalRef} style={styles.modal} className="alfhd-modal" onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>{editingOrder.id ? 'تعديل الطلب' : 'إضافة طلب جديد'}</h3>
               <button onClick={() => setEditingOrder(null)} style={styles.modalClose}><X size={18} /></button>
             </div>
+
+            {editingOrder.id && (editingOrder.jenniSent || editingOrder.jenniShipmentId) && (
+              <div style={{ margin: '10px 16px 2px', padding: '10px 12px', borderRadius: 9,
+                background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.28)',
+                color: '#F59E0B', fontSize: 12, lineHeight: 1.7, fontWeight: 700 }}>
+                ⚠ هذا الطلب مُرسل لشركة التوصيل. تعديل البيانات هنا يحدّث موقع AlFhd فقط؛ لا تفترض أن بيانات الشحنة الخارجية تغيّرت إلا بعد مزامنتها من نظام التوصيل.
+              </div>
+            )}
 
             {/* ── بانر تنبيه Jenni ── */}
             <div style={{
@@ -6415,16 +6389,6 @@ export default function AlFhdApp() {
 
   // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
   const convSignatureRef = React.useRef('');
-  // عبارات التحويل — تُستخدم هنا وفي ConversationsView
-  const HANDOFF_TRIGGERS_GLOBAL = [
-    'رح نحولك', 'سنحولك', 'سأحولك', 'سأقوم بتحويلك',
-    'transferred this chat', 'transfer this chat',
-    'Your AI agent transferred',
-    'تحويل للموظف', 'تحويل إلى موظف', 'تحويل لأحد موظفينا',
-    'نحولك للموظف', 'تحويل المحادثة',
-    'handoff', 'hand off',
-  ];
-
   const refreshConversations = useCallback(async () => {
     try {
       const dbConversations = await sbSelect(
@@ -7321,6 +7285,28 @@ function AIAssistantView({ currentUser }) {
     setSaving(false);
   }
 
+
+  async function toggleGlobalAI() {
+    if (saving) return;
+    const next = !settings.enabled_globally;
+    if (!confirm(next ? 'تشغيل الذكاء العام؟ المحادثات المتوقفة فردياً وHandoff تبقى محمية.' : 'إيقاف الذكاء العام؟ هذا يوقف الرد الآلي عن الجميع بدون تغيير إعداد كل محادثة.')) return;
+    setSaving(true);
+    try {
+      await sbUpdate('ai_settings', 1, {
+        enabled_globally: next,
+        outbound_enabled: next,
+        booking_commit_enabled: next,
+        updated_at: new Date().toISOString(),
+      });
+      const [row] = await sbSelectColumns('ai_settings', 'enabled_globally,outbound_enabled,booking_commit_enabled', '&id=eq.1');
+      if (!row || row.enabled_globally !== next || row.outbound_enabled !== next || row.booking_commit_enabled !== next) {
+        throw new Error('تعذّر تأكيد حالة تشغيل النظام بالكامل');
+      }
+      setSettings((prev) => ({ ...prev, ...row }));
+    } catch (e) { alert('فشل التغيير: ' + (e.message || 'خطأ غير معروف')); }
+    setSaving(false);
+  }
+
   // ── تشخيص الرد التلقائي: يفحص كل حلقة بالسلسلة ──
   const [diag, setDiag] = React.useState(null);
   const [diagBusy, setDiagBusy] = React.useState(false);
@@ -7643,12 +7629,12 @@ function AIAssistantView({ currentUser }) {
     <div style={{ padding: 16, maxWidth: 960, margin: '0 auto', direction: 'rtl' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <Bot size={21} color="#4C8DFF" />
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#F4F7FB', margin: 0 }}>قسم الرد على المحادثات</h2>
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#F4F7FB', margin: 0 }}>مركز التحكم بالذكاء</h2>
         <span style={{
           marginRight: 'auto', fontSize: 12, fontWeight: 700, padding: '4px 8px', borderRadius: 20,
-          background: settings.enabled_globally ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.12)',
-          color: settings.enabled_globally ? '#22C55E' : '#F25050',
-        }}>{settings.enabled_globally ? '● يعمل الآن' : '● متوقف كلياً'}</span>
+          background: (settings.enabled_globally && settings.outbound_enabled !== false) ? 'rgba(34,197,94,0.12)' : 'rgba(242,80,80,0.12)',
+          color: (settings.enabled_globally && settings.outbound_enabled !== false) ? '#22C55E' : '#F25050',
+        }}>{settings.enabled_globally ? (settings.outbound_enabled === false ? '● المعالجة تعمل — الإرسال متوقف' : '● النظام يعمل الآن') : '● الذكاء متوقف'}</span>
       </div>
 
       {/* ═══ شريط التبويبات — مرتّب بمجموعات وأيقونات ═══ */}
@@ -7656,7 +7642,7 @@ function AIAssistantView({ currentUser }) {
         {[
           { id: 'dash',     label: 'نظرة عامة', icon: BarChart3, badge: null },
           { id: 'log',      label: 'سجل الردود', icon: FileText, badge: total },
-          { id: 'softbt',   label: 'Soft BT',    icon: Zap, badge: null },
+          { id: 'softbt',   label: 'القواعد المجانية', icon: Zap, badge: null },
           { id: 'products', label: 'المنتجات',  icon: Package, badge: null },
           { id: 'training', label: 'التدريب',   icon: Sparkles, badge: null },
           { id: 'settings', label: 'الإعدادات', icon: Shield, badge: null },
@@ -7765,18 +7751,29 @@ function AIAssistantView({ currentUser }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={label}>المفتاح العام للذكاء الصناعي</div>
-              <div style={{ fontSize: 12, color: '#8B98A9', lineHeight: 1.6 }}>إيقافه هنا يوقف الرد التلقائي بكل المحادثات فوراً، بغض النظر عن إعداد كل محادثة</div>
+              <div style={{ fontSize: 12, color: '#8B98A9', lineHeight: 1.6 }}>هذا هو مفتاح التشغيل الحقيقي: يشغّل/يوقف المعالجة والإرسال وتثبيت الطلبات، بدون تغيير إعداد كل محادثة</div>
             </div>
             <button
-              onClick={() => setSettings({ ...settings, enabled_globally: !settings.enabled_globally })}
-              style={{ width: 54, height: 31, borderRadius: 20, border: 'none', background: settings.enabled_globally ? '#22C55E' : '#3A4658', position: 'relative', flexShrink: 0, cursor: 'pointer' }}
+              onClick={toggleGlobalAI}
+              disabled={saving}
+              style={{ width: 58, height: 32, borderRadius: 20, border: 'none', background: settings.enabled_globally ? '#22C55E' : '#3A4658', position: 'relative', flexShrink: 0, cursor: saving ? 'wait' : 'pointer', opacity: saving ? .65 : 1 }}
             >
-              <span style={{ position: 'absolute', top: 3, [settings.enabled_globally ? 'right' : 'left']: 3, width: 25, height: 25, borderRadius: '50%', background: '#fff', transition: 'all .2s' }} />
+              <span style={{ position: 'absolute', top: 3.5, [settings.enabled_globally ? 'right' : 'left']: 3.5, width: 25, height: 25, borderRadius: '50%', background: '#fff', transition: 'all .2s' }} />
             </button>
           </div>
-          <button onClick={save} disabled={saving} style={{ marginTop: 12, padding: '8px 20px', borderRadius: 10, border: 'none', background: '#4C8DFF', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {saving ? 'جاري الحفظ...' : 'حفظ'}
-          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 8, marginTop: 12 }}>
+            <div style={{ padding: 10, borderRadius: 10, background: settings.outbound_enabled === false ? 'rgba(242,80,80,.08)' : 'rgba(34,197,94,.08)', border: `1px solid ${settings.outbound_enabled === false ? 'rgba(242,80,80,.22)' : 'rgba(34,197,94,.22)'}` }}>
+              <div style={{ fontSize: 12, color: '#8B98A9' }}>الإرسال للزبائن</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: settings.outbound_enabled === false ? '#F25050' : '#22C55E', marginTop: 3 }}>{settings.outbound_enabled === false ? 'متوقف' : 'مسموح'}</div>
+            </div>
+            <div style={{ padding: 10, borderRadius: 10, background: settings.booking_commit_enabled === false ? 'rgba(245,158,11,.08)' : 'rgba(34,197,94,.08)', border: `1px solid ${settings.booking_commit_enabled === false ? 'rgba(245,158,11,.22)' : 'rgba(34,197,94,.22)'}` }}>
+              <div style={{ fontSize: 12, color: '#8B98A9' }}>تثبيت الطلبات</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: settings.booking_commit_enabled === false ? '#F59E0B' : '#22C55E', marginTop: 3 }}>{settings.booking_commit_enabled === false ? 'متوقف' : 'مفعّل'}</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: '#8FA0B5', marginTop: 10, lineHeight: 1.7 }}>
+            المفتاح العام يوقف/يشغّل عقل النظام فقط. زر كل محادثة يبقى مستقل، وHandoff يبقى حاجزاً إلزامياً.
+          </div>
         </div>
 
         {/* ═══ محادثة اختبار كاملة — بدون إرسال للزبون ═══ */}
@@ -10879,9 +10876,9 @@ const styles = {
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
-  modal: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, marginTop: 0 },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px', borderBottom: `1px solid ${TB}` },
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '12px', overflow: 'hidden' },
+  modal: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, margin: 0 },
+  modalHeader: { position: 'sticky', top: 0, zIndex: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${TB}`, background: '#141A22', boxShadow: '0 4px 16px rgba(0,0,0,.22)' },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
   modalClose: { background: 'transparent', border: 'none', color: TDM, display: 'flex' },
   modalBody: { padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
@@ -10893,7 +10890,7 @@ const styles = {
   roleBtnActive: { background: TAC, color: TBL },
   permsGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
   permCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: TSB, padding: '4px 0', cursor: 'pointer' },
-  modalFooter: { display: 'flex', gap: 8, padding: '12px 16px', borderTop: `1px solid ${TB}` },
+  modalFooter: { position: 'sticky', bottom: 0, zIndex: 4, display: 'flex', gap: 8, padding: '12px 16px', borderTop: `1px solid ${TB}`, background: '#141A22', boxShadow: '0 -4px 16px rgba(0,0,0,.22)' },
   modalCancelBtn: { flex: 1, padding: '8px', background: 'transparent', border: `1px solid ${TB}`, borderRadius: 9, color: TDM, fontSize: 12.5, fontWeight: 600 },
   modalSaveBtn: { flex: 1, padding: '8px', background: TBTN, border: 'none', borderRadius: 9, color: '#fff', fontSize: 12.5, fontWeight: 700, boxShadow: '0 2px 8px rgba(76,141,255,0.28)' },
   detailGridRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingBottom: 8, borderBottom: `1px solid ${TB}` },
