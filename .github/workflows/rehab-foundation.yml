@@ -1,0 +1,48 @@
+name: Rehab foundation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/rehab_foundation.py'
+      - '.github/workflows/rehab-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rehab-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Apply guarded fixes
+        run: python3 scripts/rehab_foundation.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit verified application changes
+        run: |
+          if git diff --quiet -- src/App.jsx; then
+            echo 'No application changes to commit.'
+            exit 0
+          fi
+          git config user.name 'alfhd-quality-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/App.jsx
+          git commit -m 'fix: rehabilitate orders UX and statistics foundation'
+          git push origin HEAD:main
