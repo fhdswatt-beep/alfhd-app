@@ -1,0 +1,55 @@
+/* Structural Luxury V3 — generated classes are attached by luxury-v3.js */
+.lux-v3-live body{font-family:'Cairo',system-ui,sans-serif!important}
+.lux-app-root{position:relative;isolation:isolate;background:transparent!important}
+
+/* Actual surfaces discovered from the running app */
+.lux-auto-card{
+  border-color:rgba(151,124,255,.22)!important;
+  box-shadow:0 16px 42px rgba(0,0,0,.26),inset 0 1px rgba(255,255,255,.035)!important;
+  backdrop-filter:blur(18px) saturate(138%);-webkit-backdrop-filter:blur(18px) saturate(138%);
+  transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .28s ease,border-color .28s ease!important;
+}
+.lux-3d-surface{--lux-rx:0deg;--lux-ry:0deg;--lux-mx:50%;--lux-my:50%;transform:perspective(1000px) rotateX(var(--lux-rx)) rotateY(var(--lux-ry)) translateZ(0)!important;transform-style:preserve-3d;will-change:transform}
+.lux-3d-surface::after{content:'';position:absolute!important;inset:0!important;pointer-events:none!important;border-radius:inherit!important;background:radial-gradient(280px circle at var(--lux-mx) var(--lux-my),rgba(255,255,255,.10),transparent 48%)!important;opacity:.72!important;z-index:0!important}
+.lux-3d-surface>*{position:relative;z-index:1}
+
+/* Sidebar becomes a premium command rail */
+.lux-sidebar{background:linear-gradient(180deg,rgba(6,9,20,.97),rgba(11,14,30,.91))!important;border-left:1px solid rgba(143,111,255,.32)!important;box-shadow:-30px 0 90px rgba(0,0,0,.34),inset -1px 0 rgba(255,255,255,.025)!important}
+.lux-sidebar::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(360px 260px at 50% 0%,rgba(120,65,255,.16),transparent 70%)}
+.lux-sidebar button{border-radius:17px!important}
+
+/* Top bar */
+.lux-topbar{background:linear-gradient(90deg,rgba(7,10,22,.90),rgba(13,17,34,.82))!important;border-bottom:1px solid rgba(143,111,255,.22)!important;box-shadow:0 12px 40px rgba(0,0,0,.24)!important;backdrop-filter:blur(26px) saturate(150%)!important}
+
+/* Buttons: tactile luminous controls */
+.lux-button{position:relative;overflow:hidden;isolation:isolate}
+.lux-button::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.12) 48%,transparent 70%);transform:translateX(130%);transition:transform .55s cubic-bezier(.22,1,.36,1)}
+.lux-button:hover::after{transform:translateX(-130%)}
+
+/* Inputs */
+.lux-input{background:linear-gradient(145deg,rgba(18,25,43,.92),rgba(8,12,24,.88))!important;border:1px solid rgba(143,111,255,.20)!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important}
+
+/* Make generic app panels visibly different from the old flat design */
+#root [style*="borderRadius: 12"],#root [style*="border-radius: 12"],
+#root [style*="borderRadius: 14"],#root [style*="border-radius: 14"],
+#root [style*="borderRadius: 16"],#root [style*="border-radius: 16"]{
+  border-color:rgba(143,111,255,.20)!important;
+}
+
+/* premium title treatment */
+h1,h2,h3{letter-spacing:-.035em}
+h1{background:linear-gradient(95deg,#fff 5%,#d8ceff 48%,#9bdcff 95%);-webkit-background-clip:text;background-clip:text;color:transparent!important;text-shadow:0 0 30px rgba(111,67,255,.12)}
+
+/* Mobile: app-like spatial depth */
+@media(max-width:860px){
+ .lux-topbar{margin:8px 10px 0!important;border:1px solid rgba(143,111,255,.24)!important;border-radius:20px!important;min-height:58px!important}
+ .lux-nav{margin:0!important}
+ .lux-auto-card{border-radius:20px!important}
+ .lux-3d-surface{transform:none!important}
+ body::after{opacity:.23!important;width:85vw!important;top:-35vw!important;right:-15vw!important}
+}
+
+/* desktop: stronger depth */
+@media(min-width:861px) and (hover:hover){
+ .lux-auto-card:hover{border-color:rgba(143,111,255,.38)!important;box-shadow:0 24px 66px rgba(0,0,0,.36),0 0 38px rgba(105,59,255,.14)!important}
+}
