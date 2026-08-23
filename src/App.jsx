@@ -1613,11 +1613,14 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   function restoreOrdersScroll() {
     let pos = ordersScrollPosRef.current || 0;
     try { pos = Number(sessionStorage.getItem(ORDERS_SCROLL_KEY) || pos) || 0; } catch (_e) {}
-    requestAnimationFrame(() => {
+    const apply = () => {
       const mainEl = document.querySelector('.alfhd-main-area');
       if (mainEl) mainEl.scrollTop = pos;
       else window.scrollTo(0, pos);
-    });
+    };
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    setTimeout(apply, 60);
+    setTimeout(apply, 180);
   }
   function closeOrderDetail() { setDetailOrder(null); restoreOrdersScroll(); }
   function closeOrderEditor() { setEditingOrder(null); restoreOrdersScroll(); }
@@ -3313,8 +3316,11 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           </div>
         )}
         <div style={styles.orderCardActions} className="alfhd-no-print">
-          <button onClick={() => { rememberOrdersScroll(); setDetailOrder(o); }} style={{ ...styles.orderActionBtn, flex: 1.6 }} title="عرض التفاصيل">
+          <button onClick={() => { rememberOrdersScroll(); setDetailOrder(o); }} style={{ ...styles.orderActionBtn, flex: 1.4 }} title="عرض التفاصيل">
             <Eye size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>التفاصيل</span>
+          </button>
+          <button onClick={() => startEditOrder(o)} style={{ ...styles.orderActionBtn, flex: 1.2, color: '#4C8DFF', borderColor: 'rgba(76,141,255,0.25)' }} title="تعديل الطلب مباشرة">
+            <Edit3 size={14} /> <span style={{ fontSize: 12, fontWeight: 700 }}>تعديل</span>
           </button>
           {/* زر طباعة فردي — في قسم الطباعة فقط (المطبوع له زره الخاص بالأعلى) */}
           {section === 'ready' && (
@@ -4396,7 +4402,8 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   const breakdown = useMemo(() => {
     const converted = scopedOrders.filter((o) => o.converted);
     const fromChat = scopedOrders.filter((o) => !o.converted && o.source === 'chat');
-    const manual = scopedOrders.filter((o) => !o.converted && o.source !== 'chat');
+    const manual = scopedOrders.filter((o) => !o.converted && o.source === 'manual');
+    const automated = scopedOrders.filter((o) => !o.converted && o.source === 'ai');
 
     // منصة الطلب: من الحقل المحفوظ، وإن غاب (طلبات قديمة) نستنتجها من المحادثة المرتبطة
     const platformOf = (o) => {
@@ -4416,6 +4423,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
       converted: converted.length,
       fromChat: fromChat.length,
       manual: manual.length,
+      automated: automated.length,
       external: scopedExtCount,
       whatsapp,
       facebook,
@@ -4423,12 +4431,14 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   }, [scopedOrders, scopedExtCount, conversations]);
 
   const overall = useMemo(() => {
-    const delivered = scopedOrders.filter((o) => o.status === 'delivered');
-    const pending = scopedOrders.filter((o) => o.status === 'pending');
-    const returned = scopedOrders.filter((o) => o.status === 'returned');
-    const revenue = delivered.reduce((s, o) => s + o.total, 0);
-    const deliveryRate = scopedOrders.length ? Math.round((delivered.length / scopedOrders.length) * 100) : 0;
-    const returnRate = scopedOrders.length ? Math.round((returned.length / scopedOrders.length) * 100) : 0;
+    const operational = scopedOrders.filter((o) => !o.converted);
+    const delivered = operational.filter((o) => o.status === 'delivered');
+    const pending = operational.filter((o) => o.status === 'pending' && o.stage === 'delivery');
+    const returned = operational.filter((o) => o.status === 'returned');
+    const revenue = delivered.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const completed = delivered.length + returned.length;
+    const deliveryRate = completed ? Math.round((delivered.length / completed) * 100) : 0;
+    const returnRate = completed ? Math.round((returned.length / completed) * 100) : 0;
     return { delivered: delivered.length, pending: pending.length, returned: returned.length, revenue, deliveryRate, returnRate };
   }, [scopedOrders]);
 
@@ -4440,7 +4450,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
       return {
         ...p,
         orderCount: pOrders.length,
-        revenue: pOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.total, 0),
+        revenue: pOrders.filter((o) => o.status === 'delivered').reduce((s, o) => s + (Number(o.total) || 0), 0),
         convCount: pConvs.length,
       };
     });
@@ -4452,11 +4462,18 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   const summary = useMemo(() => {
     const booked = scopedOrders;
     const converted = scopedOrders.filter((o) => o.converted);
-    const sentToCompany = scopedOrders.filter((o) => o.stage === 'delivery');
-    const sortingC = sentToCompany.filter((o) => o.deliveryStatus === 'sorting' || (!o.deliveryStatus && o.status === 'pending'));
+    const operational = scopedOrders.filter((o) => !o.converted);
+    const sentToCompany = operational.filter((o) => o.jenniSent || o.jenniShipmentId || o.stage === 'delivery');
+    const sortingC = sentToCompany.filter((o) => o.status === 'pending' && o.stage === 'delivery');
     const deliveredC = sentToCompany.filter((o) => o.status === 'delivered');
     const returnedC = sentToCompany.filter((o) => o.status === 'returned');
-    const neglected = scopedOrders.filter((o) => o.printed && !o.converted && o.stage !== 'delivery');
+    const THREE_DAYS = 3 * 86400000;
+    const neglected = operational.filter((o) => {
+      if (o.stage !== 'prep' && o.stage !== 'delivery') return false;
+      if (o.deliveryStep || o.deliveryStatus) return false;
+      const ref = o.deliveryUpdatedAt || o.printedAt || o.createdAt || o.date;
+      return ref && (Date.now() - new Date(ref).getTime()) > THREE_DAYS;
+    });
     return {
       booked: booked.length,
       converted: converted.length,
@@ -4471,7 +4488,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
   // ── الأكثر مبيعاً (حسب نوع السيارة/الطلب) ──
   const bestSellers = useMemo(() => {
     const counts = {};
-    scopedOrders.forEach((o) => {
+    scopedOrders.filter((o) => !o.converted && o.status === 'delivered').forEach((o) => {
       const key = (o.orderType || '').trim();
       if (!key) return;
       counts[key] = (counts[key] || 0) + 1;
@@ -4546,6 +4563,7 @@ function StatsView({ orders, pages, conversations, setOrders }) {
         <StatCard icon={Package} label="إجمالي الطلبات" value={breakdown.total} color="#3B82F6" />
         <StatCard icon={MessageSquare} label="من المحادثات" value={breakdown.fromChat} color="#5B8DEF" />
         <StatCard icon={Edit3} label="مضافة يدوياً" value={breakdown.manual} color="#4ADE80" />
+        <StatCard icon={Bot} label="من الذكاء" value={breakdown.automated} color="#60A5FA" />
         <StatCard icon={Send} label="طلبات محوّلة" value={breakdown.converted} color="#A78BFA" />
       </div>
 
@@ -9899,20 +9917,13 @@ function GlobalStyles() {
       }
       .alfhd-ripple:active::after { opacity: 1; transform: scale(2.2); transition: 0s; }
 
-      /* انتقال ناعم بين الأقسام */
-      @keyframes sectionFade {
-        0%   { opacity: 0; transform: translateX(12px); }
-        100% { opacity: 1; transform: translateX(0); }
-      }
-      .alfhd-section-enter { animation: sectionFade 0.35s var(--ease-tg-out) both; }
-      /* مهم: الـ transform (حتى الصفري) يكسر position:fixed للعناصر الداخلية.
-         على الموبايل نستخدم تلاشي بلا حركة حتى تشتغل شاشة المحادثة الكاملة صح. */
+      /* انتقال آمن بين الأقسام: opacity فقط حتى لا ينكسر position:fixed للمودالات. */
+      @keyframes sectionFade { from { opacity: 0; } to { opacity: 1; } }
       @keyframes alfhdFadeOnly { from { opacity: 0; } to { opacity: 1; } }
-      @media (max-width: 860px) {
-        .alfhd-section-enter {
-          animation: alfhdFadeOnly 0.25s ease both !important;
-          transform: none !important;
-        }
+      .alfhd-section-enter {
+        animation: sectionFade 0.22s ease both;
+        transform: none !important;
+        will-change: opacity;
       }
       /* مهم جداً: غلاف الأقسام لازم يمرّر الفلكس لأولاده،
          وإلا ينكسر التمرير الداخلي (المحتوى يفيض بلا شريط تمرير). */
@@ -10723,7 +10734,7 @@ const styles = {
   bottomNavLabel: { fontSize: 12, fontWeight: 600, letterSpacing: '-0.1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
 
   mainArea: { flex: 1, overflow: 'auto', padding: '0', position: 'relative', background: TG },
-  viewWrap: { animation: 'fadeUp 0.24s var(--ease-bounce) both', maxWidth: 1480, margin: '0 auto', padding: '16px 20px', willChange: 'opacity, transform' },
+  viewWrap: { maxWidth: 1480, margin: '0 auto', padding: '16px 20px', animation: 'none', transform: 'none', willChange: 'auto' },
   viewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16, flexWrap: 'wrap', gap: 12 },
   viewTitle: { fontSize: 19, fontWeight: 800, color: TTX, margin: 0, letterSpacing: '-0.02em' },
   viewSubtitle: { fontSize: 12, color: TDM, margin: '4px 0 0', fontWeight: 500 },
@@ -10939,7 +10950,7 @@ const styles = {
   warehouseRejectBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '12px', background: TRDS, border: `1px solid rgba(242,80,80,0.22)`, borderRadius: 10, color: TRD, fontSize: 13, fontWeight: 700 },
 
   // ── Modal ──
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '12px', overflow: 'hidden' },
+  modalOverlay: { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '12px', overflow: 'hidden', isolation: 'isolate' },
   modal: { background: `linear-gradient(145deg, ${TP}, #181F29)`, border: `1px solid rgba(255,255,255,0.10)`, borderRadius: 16, width: '100%', maxWidth: 445, maxHeight: 'calc(100dvh - 24px)', overflow: 'hidden', overscrollBehavior: 'contain', boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.4)', position: 'relative', zIndex: 1, margin: 0, display: 'flex', flexDirection: 'column', minHeight: 0 },
   modalHeader: { zIndex: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${TB}`, background: '#141A22', boxShadow: '0 4px 16px rgba(0,0,0,.22)', flexShrink: 0 },
   modalTitle: { fontSize: 15, fontWeight: 700, color: TTX, margin: 0 },
