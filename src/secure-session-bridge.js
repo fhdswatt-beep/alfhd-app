@@ -13,42 +13,32 @@ function normalizeDigits(value=''){
 function getLegacy(){
   try{return JSON.parse(localStorage.getItem(LEGACY_KEY)||sessionStorage.getItem(LEGACY_KEY)||'null')}catch(_e){return null}
 }
+function savePin(value){
+  const pin=normalizeDigits(value).replace(/\D/g,'').slice(0,4);
+  if(/^\d{4}$/.test(pin)) sessionStorage.setItem(PIN_KEY,pin);
+}
 
 async function createSecureSession(code,remember=true){
   const normalized=normalizeDigits(code).replace(/\D/g,'').slice(0,4);
-  if(!/^\d{4}$/.test(normalized)) throw new Error('invalid_pin_capture');
-
+  if(!/^\d{4}$/.test(normalized)) throw new Error('missing_verified_pin');
   const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_alfhd_user`,{
     method:'POST',
-    headers:{
-      apikey:SUPABASE_KEY,
-      Authorization:`Bearer ${SUPABASE_KEY}`,
-      'Content-Type':'application/json',
-      Accept:'application/json'
-    },
+    headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json',Accept:'application/json'},
     body:JSON.stringify({p_code:normalized,p_remember:remember})
   });
   const raw=await r.text();
-  let x=null;
-  try{x=raw?JSON.parse(raw):null}catch(_e){}
-  if(!r.ok) throw new Error(`secure_login_http_${r.status}:${raw.slice(0,180)}`);
-  if(x?.status==='rate_limited') throw new Error('rate_limited');
-  if(x?.status==='invalid_credentials') throw new Error('invalid_credentials');
-  if(x?.status!=='ok'||!x?.token) throw new Error(`secure_login_bad_response:${raw.slice(0,180)}`);
-
+  let x=null; try{x=raw?JSON.parse(raw):null}catch(_e){}
+  if(!r.ok) throw new Error(`secure_login_http_${r.status}`);
+  if(x?.status!=='ok'||!x?.token) throw new Error(x?.status||'secure_login_bad_response');
   const store=remember?localStorage:sessionStorage;
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY);
   store.setItem(TOKEN_KEY,x.token);
   sessionStorage.removeItem(PIN_KEY);
   return true;
 }
-
 function forceCleanLogin(message){
-  localStorage.removeItem(LEGACY_KEY);
-  sessionStorage.removeItem(LEGACY_KEY);
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LEGACY_KEY); sessionStorage.removeItem(LEGACY_KEY);
+  localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(PIN_KEY);
   if(message) sessionStorage.setItem('alfhd_login_bridge_error',message);
 }
@@ -57,6 +47,18 @@ export function installSecureSessionBridge(){
   const originalFetch=window.fetch.bind(window);
   window.fetch=async(input,init={})=>{
     const url=typeof input==='string'?input:input?.url||'';
+
+    // The legacy login already verifies the 4-digit code by querying alfhd_users.
+    // Capture that exact submitted code from the verified request instead of
+    // guessing it from DOM event timing.
+    if(url.startsWith(`${SUPABASE_URL}/rest/v1/alfhd_users?`) && url.includes('code=eq.')){
+      try{
+        const u=new URL(url);
+        const raw=u.searchParams.get('code')||'';
+        savePin(raw.replace(/^eq\./,''));
+      }catch(_e){}
+    }
+
     if(url.startsWith(SUPABASE_URL)){
       const token=getToken();
       if(token){
@@ -68,27 +70,6 @@ export function installSecureSessionBridge(){
     }
     return originalFetch(input,init);
   };
-
-  document.addEventListener('input',(e)=>{
-    const el=e.target;
-    if(!(el instanceof HTMLInputElement))return;
-    const label=(el.getAttribute('aria-label')||'').toLowerCase();
-    if(label.includes('رمز الدخول')||el.inputMode==='numeric'){
-      const pin=normalizeDigits(el.value).replace(/\D/g,'').slice(0,4);
-      if(pin)sessionStorage.setItem(PIN_KEY,pin);
-    }
-  },true);
-
-  document.addEventListener('click',(e)=>{
-    const t=e.target?.closest?.('button');
-    if(!t)return;
-    const txt=(t.textContent||'').trim();
-    if(/^\d$/.test(txt)){
-      const cur=sessionStorage.getItem(PIN_KEY)||'';
-      sessionStorage.setItem(PIN_KEY,(cur+txt).slice(0,4));
-    }else if(txt==='مسح') sessionStorage.removeItem(PIN_KEY);
-    else if(txt==='⌫') sessionStorage.setItem(PIN_KEY,(sessionStorage.getItem(PIN_KEY)||'').slice(0,-1));
-  },true);
 
   const proto=Storage.prototype;
   const originalSet=proto.setItem;
@@ -104,7 +85,7 @@ export function installSecureSessionBridge(){
         }catch(e){
           console.error('secure session bootstrap failed',e);
           forceCleanLogin(e?.message||'secure_login_failed');
-          alert('تعذر إكمال تسجيل الدخول الآمن. أعد المحاولة مرة واحدة.');
+          alert('تعذر إكمال تسجيل الدخول. حاول مرة ثانية.');
           location.reload();
         }
       });
@@ -112,7 +93,5 @@ export function installSecureSessionBridge(){
   };
 
   const legacy=getLegacy();
-  if(legacy&&!getToken()){
-    forceCleanLogin('missing_secure_session');
-  }
+  if(legacy&&!getToken()) forceCleanLogin('missing_secure_session');
 }
