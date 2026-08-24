@@ -1,8 +1,8 @@
 import React from 'react';
-import { Home, MessageSquare, Package, Warehouse, MoreHorizontal, Bell, Plus, BarChart3, ClipboardList, Box, ChevronLeft, CarFront } from 'lucide-react';
+import { Home, MessageSquare, Package, MoreHorizontal, Bell, Plus, BarChart3, ClipboardList, Box, ChevronLeft, CarFront } from 'lucide-react';
 
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 const HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
 
 function getSession() {
@@ -72,9 +72,13 @@ export default function ApprovedMobileShell() {
       params.set('limit', '80');
       if (workspaceId) params.set('workspace_id', `eq.${workspaceId}`);
       const r = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_orders?${params.toString()}`, { headers: HEADERS });
+      if (!r.ok) throw new Error(`orders ${r.status}`);
       const rows = await r.json();
       setOrders(Array.isArray(rows) ? rows : []);
-    } catch { setOrders([]); }
+    } catch (e) {
+      console.error('approved home orders load:', e);
+      setOrders([]);
+    }
     setLoading(false);
   }, [session, workspaceId]);
 
