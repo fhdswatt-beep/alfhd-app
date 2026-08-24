@@ -1,14 +1,34 @@
 const SUPABASE_URL='https://wqfuovvebgipiowaarbo.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 const TOKEN_KEY='alfhd_secure_session_token';
 const LEGACY_KEY='alfhd_session';
+const PIN_KEY='alfhd_pending_login_pin';
 
-function storage(){return localStorage.getItem(LEGACY_KEY)?localStorage:sessionStorage}
 function getToken(){return localStorage.getItem(TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||''}
 function normalizeDigits(value=''){
   return String(value)
     .replace(/[\u0660-\u0669]/g,d=>String(d.charCodeAt(0)-0x0660))
     .replace(/[\u06F0-\u06F9]/g,d=>String(d.charCodeAt(0)-0x06F0));
+}
+function getLegacy(){
+  try{return JSON.parse(localStorage.getItem(LEGACY_KEY)||sessionStorage.getItem(LEGACY_KEY)||'null')}catch(_e){return null}
+}
+function chosenStorage(){return localStorage.getItem(LEGACY_KEY)?localStorage:sessionStorage}
+
+async function createSecureSession(code, remember=true){
+  const normalized=normalizeDigits(code).replace(/\D/g,'').slice(0,4);
+  if(!/^\d{4}$/.test(normalized)) return false;
+  const r=await fetch('/api/secure-login',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({code:normalized,remember})
+  });
+  const x=await r.json().catch(()=>null);
+  if(!r.ok||x?.status!=='ok'||!x?.token) return false;
+  const store=remember?localStorage:sessionStorage;
+  localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);
+  store.setItem(TOKEN_KEY,x.token);
+  sessionStorage.removeItem(PIN_KEY);
+  return true;
 }
 
 export function installSecureSessionBridge(){
@@ -19,51 +39,54 @@ export function installSecureSessionBridge(){
       const token=getToken();
       if(token){
         const h=new Headers(init.headers||(typeof input!=='string'?input.headers:undefined)||{});
-        h.set('x-alfhd-session',token);
+        const current=h.get('x-client-info')||'alfhd-web';
+        h.set('x-client-info',`${current};alfhd-session:${token}`);
         init={...init,headers:h};
       }
     }
     return originalFetch(input,init);
   };
 
-  const legacy=localStorage.getItem(LEGACY_KEY)||sessionStorage.getItem(LEGACY_KEY);
-  if(legacy&&!getToken()) queueMicrotask(showSecureRelogin);
-}
+  document.addEventListener('input',(e)=>{
+    const el=e.target;
+    if(!(el instanceof HTMLInputElement))return;
+    const label=(el.getAttribute('aria-label')||'').toLowerCase();
+    if(label.includes('رمز الدخول')||el.inputMode==='numeric'){
+      const pin=normalizeDigits(el.value).replace(/\D/g,'').slice(0,4);
+      if(pin)sessionStorage.setItem(PIN_KEY,pin);
+    }
+  },true);
 
-function showSecureRelogin(){
-  if(document.getElementById('alfhd-secure-relogin'))return;
-  const wrap=document.createElement('div');
-  wrap.id='alfhd-secure-relogin';
-  wrap.dir='rtl';
-  wrap.innerHTML=`<div class="asr-card"><div class="asr-logo">ف</div><h2>تأكيد الدخول</h2><p>صار تحديث أمان على النظام. أدخل رمز الدخول مرة وحدة حتى ترجع المحادثات والبيانات المحمية.</p><input id="asr-code" inputmode="numeric" maxlength="4" placeholder="رمز الدخول"/><button id="asr-go">دخول</button><small id="asr-msg"></small></div>`;
-  const style=document.createElement('style');
-  style.textContent=`#alfhd-secure-relogin{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:rgba(5,5,9,.88);backdrop-filter:blur(18px);font-family:Cairo,sans-serif}.asr-card{width:min(92vw,380px);padding:28px;border:1px solid rgba(255,255,255,.09);border-radius:26px;background:linear-gradient(150deg,#1a1822,#0f0f14);color:#fff;text-align:center;box-shadow:0 30px 90px rgba(0,0,0,.55)}.asr-logo{width:56px;height:56px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;font-size:24px;font-weight:900;background:linear-gradient(145deg,#9b68ff,#5d39d6)}.asr-card h2{margin:6px 0}.asr-card p{color:#aaa5b4;font-size:13px;line-height:1.8}.asr-card input{width:100%;height:52px;margin:14px 0 10px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:#17171e;color:#fff;text-align:center;font-size:22px;letter-spacing:.3em;outline:none}.asr-card button{width:100%;height:48px;border:0;border-radius:14px;background:linear-gradient(135deg,#9868ff,#6840e3);color:#fff;font-weight:900}.asr-card button:disabled{opacity:.6}.asr-card small{display:block;min-height:20px;margin-top:8px;color:#ff8f9b}`;
-  document.head.appendChild(style);document.body.appendChild(wrap);
-  const input=wrap.querySelector('#asr-code'),btn=wrap.querySelector('#asr-go'),msg=wrap.querySelector('#asr-msg');
-  input.focus();
-  input.addEventListener('input',()=>{const n=normalizeDigits(input.value).replace(/\D/g,'').slice(0,4);if(input.value!==n)input.value=n;});
-  const go=async()=>{
-    const code=normalizeDigits(input.value).replace(/\D/g,'').slice(0,4);
-    input.value=code;
-    if(!/^\d{4}$/.test(code)){msg.textContent='اكتب رمز من 4 أرقام';return}
-    btn.disabled=true;msg.textContent='جاري التحقق...';
-    try{
-      const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_alfhd_user`,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({p_code:code,p_remember:true})});
-      const x=await r.json().catch(()=>null);
-      if(!r.ok)throw new Error(`http_${r.status}`);
-      if(x?.status==='rate_limited')throw new Error('rate_limited');
-      if(x?.status!=='ok'||!x?.token)throw new Error(x?.status||'login_failed');
-      const st=storage();st.setItem(TOKEN_KEY,x.token);
-      const u=x.user||{};
-      st.setItem(LEGACY_KEY,JSON.stringify({userId:u.id,userData:{id:u.id,name:u.name,role:u.role,permissions:u.permissions||[],active:u.active,jobTitle:u.job_title||'',whatsapp:u.whatsapp||'',workspaceId:u.workspace_id??null}}));
-      msg.style.color='#8fffb0';msg.textContent='تم الدخول';
-      location.reload();
-    }catch(e){
-      if(e?.message==='rate_limited')msg.textContent='محاولات كثيرة، حاول بعد قليل';
-      else if(e?.message==='invalid_credentials')msg.textContent='رمز الدخول غير صحيح';
-      else msg.textContent='تعذر الاتصال بنظام الدخول، حاول مرة ثانية';
-      btn.disabled=false;
+  document.addEventListener('click',(e)=>{
+    const t=e.target?.closest?.('button');
+    if(!t)return;
+    const txt=(t.textContent||'').trim();
+    if(/^\d$/.test(txt)){
+      const cur=sessionStorage.getItem(PIN_KEY)||'';
+      sessionStorage.setItem(PIN_KEY,(cur+txt).slice(-4));
+    } else if(txt==='مسح') sessionStorage.removeItem(PIN_KEY);
+    else if(txt==='⌫') sessionStorage.setItem(PIN_KEY,(sessionStorage.getItem(PIN_KEY)||'').slice(0,-1));
+  },true);
+
+  const proto=Storage.prototype;
+  const originalSet=proto.setItem;
+  proto.setItem=function(key,value){
+    originalSet.call(this,key,value);
+    if(key===LEGACY_KEY&&!getToken()){
+      const pin=sessionStorage.getItem(PIN_KEY)||'';
+      const remember=this===localStorage;
+      queueMicrotask(async()=>{
+        try{
+          const ok=await createSecureSession(pin,remember);
+          if(ok) location.reload();
+        }catch(e){ console.error('secure session bootstrap failed',e); }
+      });
     }
   };
-  btn.onclick=go;input.addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+
+  const legacy=getLegacy();
+  if(legacy&&!getToken()){
+    localStorage.removeItem(LEGACY_KEY);
+    sessionStorage.removeItem(LEGACY_KEY);
+  }
 }
