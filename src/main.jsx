@@ -1,24 +1,33 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import ApprovedMobileShell from './ApprovedMobileShell.jsx';
 import premiumCss from './reference-exact.css?inline';
+import approvedMobileCss from './approved-mobile.css?inline';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
+    <ApprovedMobileShell />
   </React.StrictMode>
 );
 
 // App.jsx still contains a large legacy inline theme block. Inject the approved
-// premium UI layer after React mounts so this experimental branch always wins
-// the cascade without touching production logic or data behavior.
+// visual layers after React mounts so this experimental branch always wins the
+// cascade without touching production logic or data behavior.
 const mountPremiumLayer = () => {
-  const old = document.getElementById('alfhd-premium-final-layer');
-  if (old) old.remove();
-  const style = document.createElement('style');
-  style.id = 'alfhd-premium-final-layer';
-  style.textContent = premiumCss;
-  document.head.appendChild(style);
+  document.getElementById('alfhd-premium-final-layer')?.remove();
+  document.getElementById('alfhd-approved-mobile-layer')?.remove();
+
+  const premium = document.createElement('style');
+  premium.id = 'alfhd-premium-final-layer';
+  premium.textContent = premiumCss;
+  document.head.appendChild(premium);
+
+  const approved = document.createElement('style');
+  approved.id = 'alfhd-approved-mobile-layer';
+  approved.textContent = approvedMobileCss;
+  document.head.appendChild(approved);
 };
 
 requestAnimationFrame(() => requestAnimationFrame(mountPremiumLayer));
