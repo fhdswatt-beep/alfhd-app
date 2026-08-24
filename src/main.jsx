@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import ApprovedMobileShell from './ApprovedMobileShell.jsx';
+import { startDesignRebuild } from './design-rebuild.js';
 import premiumCss from './reference-exact.css?inline';
 import approvedMobileCss from './approved-mobile.css?inline';
 import approvedMobilePolishCss from './approved-mobile-polish.css?inline';
@@ -58,4 +59,7 @@ const mountPremiumLayer = () => {
   document.head.appendChild(everywhere);
 };
 
-requestAnimationFrame(() => requestAnimationFrame(mountPremiumLayer));
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  mountPremiumLayer();
+  startDesignRebuild();
+}));
