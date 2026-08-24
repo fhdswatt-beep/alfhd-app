@@ -7,6 +7,7 @@ import approvedMobileCss from './approved-mobile.css?inline';
 import approvedMobilePolishCss from './approved-mobile-polish.css?inline';
 import approvedMobileMotionCss from './approved-mobile-motion.css?inline';
 import approvedSystemFinalCss from './approved-system-final.css?inline';
+import approvedEverywhereCss from './approved-everywhere.css?inline';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -15,15 +16,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Keep every approved visual layer after the large legacy inline style block in App.jsx.
-// The system-final layer is mounted last so it remains the final source of visual truth
-// on this experimental branch without changing production data or business logic.
+// App.jsx contains substantial legacy inline styling. Mount all approved visual
+// layers after React, with approved-everywhere last, so every section—including
+// inline-styled warehouse/admin/AI screens—uses the same final design language.
 const mountPremiumLayer = () => {
   document.getElementById('alfhd-premium-final-layer')?.remove();
   document.getElementById('alfhd-approved-mobile-layer')?.remove();
   document.getElementById('alfhd-approved-mobile-polish-layer')?.remove();
   document.getElementById('alfhd-approved-mobile-motion-layer')?.remove();
   document.getElementById('alfhd-approved-system-final-layer')?.remove();
+  document.getElementById('alfhd-approved-everywhere-layer')?.remove();
 
   const premium = document.createElement('style');
   premium.id = 'alfhd-premium-final-layer';
@@ -49,6 +51,11 @@ const mountPremiumLayer = () => {
   systemFinal.id = 'alfhd-approved-system-final-layer';
   systemFinal.textContent = approvedSystemFinalCss;
   document.head.appendChild(systemFinal);
+
+  const everywhere = document.createElement('style');
+  everywhere.id = 'alfhd-approved-everywhere-layer';
+  everywhere.textContent = approvedEverywhereCss;
+  document.head.appendChild(everywhere);
 };
 
 requestAnimationFrame(() => requestAnimationFrame(mountPremiumLayer));
