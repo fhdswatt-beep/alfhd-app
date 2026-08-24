@@ -10,6 +10,35 @@
   .approved-kpis>div{background:radial-gradient(90px 70px at 100% 0%,rgba(119,64,234,.12),transparent 70%),linear-gradient(145deg,#19142c,#13121b)!important}
   .approved-latest>button{transition:transform .16s cubic-bezier(.2,.8,.2,1),background .16s ease!important}.approved-latest>button:active{transform:scale(.985)!important;background:#18181e!important}
 
+  /* Shared premium treatment for every original functional section. */
+  .alfhd-main-area:not(.alfhd-main-conv){padding:14px 13px 108px!important;background:radial-gradient(440px 300px at 100% -4%,rgba(100,57,211,.11),transparent 66%),#09090c!important}
+  .alfhd-main-area:not(.alfhd-main-conv) h1,.alfhd-main-area:not(.alfhd-main-conv) h2,.alfhd-main-area:not(.alfhd-main-conv) h3{letter-spacing:-.025em!important}
+  .alfhd-main-area:not(.alfhd-main-conv) input,.alfhd-main-area:not(.alfhd-main-conv) textarea,.alfhd-main-area:not(.alfhd-main-conv) select{background:#17171d!important;border:1px solid rgba(255,255,255,.07)!important;border-radius:15px!important;color:#f7f5fb!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important}
+  .alfhd-main-area:not(.alfhd-main-conv) table{border-collapse:separate!important;border-spacing:0 8px!important;background:transparent!important}
+  .alfhd-main-area:not(.alfhd-main-conv) thead{color:#817e8d!important;font-size:10px!important}
+  .alfhd-main-area:not(.alfhd-main-conv) tbody tr{background:linear-gradient(160deg,#17171d,#121217)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.055)!important}
+  .alfhd-main-area:not(.alfhd-main-conv) tbody td{border-top:1px solid rgba(255,255,255,.025)!important;border-bottom:1px solid rgba(255,255,255,.025)!important;padding-top:13px!important;padding-bottom:13px!important}
+  .alfhd-main-area:not(.alfhd-main-conv) tbody td:first-child{border-radius:0 15px 15px 0!important}.alfhd-main-area:not(.alfhd-main-conv) tbody td:last-child{border-radius:15px 0 0 15px!important}
+  .alfhd-main-area:not(.alfhd-main-conv) button{transition:transform .14s cubic-bezier(.2,.8,.2,1),filter .16s ease,background .16s ease!important}
+  .alfhd-main-area:not(.alfhd-main-conv) button:active{transform:scale(.97)}
+
+  /* Orders become touch-friendly premium cards even when App.jsx renders a dense table. */
+  .alfhd-main-orders table,.alfhd-main-orders thead,.alfhd-main-orders tbody,.alfhd-main-orders tr,.alfhd-main-orders td{display:block!important;width:100%!important}
+  .alfhd-main-orders thead{display:none!important}.alfhd-main-orders tbody{display:flex!important;flex-direction:column!important;gap:10px!important}
+  .alfhd-main-orders tbody tr{position:relative!important;border-radius:20px!important;padding:14px!important;overflow:hidden!important;background:radial-gradient(150px 100px at 100% 0%,rgba(123,73,236,.09),transparent 70%),linear-gradient(155deg,#19191f,#111116)!important}
+  .alfhd-main-orders tbody tr:after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;border:1px solid rgba(255,255,255,.055)}
+  .alfhd-main-orders tbody td{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;min-height:34px!important;padding:6px 2px!important;border:0!important;border-radius:0!important;background:transparent!important;font-size:12px!important}
+  .alfhd-main-orders tbody td+td{border-top:1px solid rgba(255,255,255,.045)!important}
+  .alfhd-main-orders tbody td:first-child{font-weight:900!important;font-size:13px!important;color:#fff!important}.alfhd-main-orders tbody td:last-child{padding-top:10px!important}
+  .alfhd-main-orders [class*='filter'],.alfhd-main-orders [class*='toolbar']{gap:8px!important}
+
+  /* Warehouse: inventory should feel like a native catalogue, not ERP chrome. */
+  .alfhd-main-warehouse [class*='card'],.alfhd-main-warehouse [class*='item'],.alfhd-main-warehouse [class*='product']{border-radius:19px!important;border-color:rgba(255,255,255,.065)!important;background:linear-gradient(155deg,#18181e,#111116)!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important}
+  .alfhd-main-warehouse img{border-radius:14px!important}.alfhd-main-warehouse [class*='grid']{gap:10px!important}
+
+  /* Stats/reports: calm dark canvas with one restrained purple data accent. */
+  .alfhd-main-stats [class*='card'],.alfhd-main-stats [class*='chart'],.alfhd-main-stats [class*='stat']{border-radius:20px!important;border-color:rgba(255,255,255,.06)!important;background:radial-gradient(130px 90px at 100% 0%,rgba(118,70,232,.09),transparent 72%),linear-gradient(155deg,#18171e,#111116)!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important}
+
   /* Conversation list: closer to the approved native mockup. */
   .alfhd-main-conv .alfhd-conv-fullscreen{padding-top:max(12px,env(safe-area-inset-top))!important}
   .alfhd-main-conv .alfhd-conv-list{position:relative!important;padding:74px 14px 104px!important}
@@ -28,7 +57,5 @@
   .alfhd-main-conv .alfhd-linked-order{border-radius:18px!important;background:linear-gradient(145deg,#18171f,#141419)!important;border-color:rgba(126,77,238,.18)!important}
   @keyframes approvedChatIn{from{opacity:.5;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}
 
-  /* Keep native app content clear of our persistent premium bottom bar. */
-  .alfhd-main-area:not(.alfhd-main-conv){padding-bottom:104px!important}
   .approved-bottom-nav button{transition:transform .15s cubic-bezier(.2,.8,.2,1),color .15s ease!important}.approved-bottom-nav button:active{transform:scale(.91)!important}
 }
