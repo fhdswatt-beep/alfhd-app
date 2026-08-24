@@ -1,0 +1,83 @@
+/* Final approved audit polish: no business logic changes, only final visual consistency. */
+:root{--fa-bg:#050815;--fa-panel:#0b1020;--fa-panel2:#10172a;--fa-line:#1c2847;--fa-text:#f5f7ff;--fa-muted:#7f89a5;--fa-v:#8b5cff;--fa-b:#3f8cff;--fa-g:#37d9b2;--fa-r:#ff685f;--fa-a:#ffad38}
+
+/* App rhythm */
+.alfhd-main-area{min-width:0!important}.alfhd-section-enter{max-width:1680px;margin-inline:auto!important}.alfhd-section-enter>*{min-width:0}
+.alfhd-view-header,.approved-section-chrome,.approved-native-hero{backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+
+/* Native cards and dense panels */
+.alfhd-main-area article,.alfhd-main-area section,.alfhd-main-area [class*="card" i]{min-width:0}
+.alfhd-main-area [class*="card" i]:not(.rx-kpi):not(.rx-panel){transition:transform .16s cubic-bezier(.2,.8,.2,1),border-color .16s ease,box-shadow .16s ease}
+@media(hover:hover){.alfhd-main-area [class*="card" i]:not(.rx-kpi):not(.rx-panel):hover{border-color:#2c3b63!important}}
+
+/* Buttons: consistent visual hierarchy, original handlers remain untouched */
+.alfhd-main-area button,.alfhd-modal button{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.alfhd-main-area button svg,.alfhd-modal button svg{flex:0 0 auto}
+.alfhd-main-area button[style*="transparent"],.alfhd-modal button[style*="transparent"]{border-color:var(--fa-line)!important}
+.alfhd-main-area button[aria-pressed="true"],.alfhd-main-area button[aria-selected="true"]{background:linear-gradient(135deg,rgba(139,92,255,.22),rgba(63,140,255,.12))!important;border-color:rgba(139,92,255,.34)!important;color:#fff!important}
+
+/* Chips / tabs / status pills */
+.alfhd-filter-chip,.alfhd-tab,.alfhd-order-status-pill,[class*="chip" i],[class*="pill" i],[class*="badge" i]{font-weight:800!important;letter-spacing:0!important}
+.alfhd-filter-chip,.alfhd-tab{min-height:32px!important;border-radius:9px!important;padding-inline:11px!important;background:#09101f!important;border:1px solid #1c2948!important;color:#8d97b0!important}
+.alfhd-filter-chip:hover,.alfhd-tab:hover{color:#fff!important;border-color:#314169!important}
+
+/* Search / toolbars */
+.alfhd-main-area [class*="toolbar" i],.alfhd-main-area [class*="actions" i]{align-items:center}
+.alfhd-main-area input[type="search"]{padding-inline-start:36px!important}
+.alfhd-main-area input::placeholder,.alfhd-modal input::placeholder,.alfhd-main-area textarea::placeholder,.alfhd-modal textarea::placeholder{color:#65718d!important}
+
+/* Orders final details */
+.approved-orders-view .orders-v2-hero{overflow:hidden!important;position:relative!important}.approved-orders-view .orders-v2-hero:after{content:'';position:absolute;inset:auto 11% 0;width:50%;height:1px;background:linear-gradient(90deg,transparent,#8b5cff,#39e6ff,transparent);opacity:.35}
+.approved-orders-view .orders-v2-kpi{min-width:0!important}.approved-orders-view .alfhd-order-card{isolation:isolate}.approved-orders-view .alfhd-order-card:after{content:'';position:absolute;inset:0 auto 0 0;width:2px;background:linear-gradient(180deg,transparent,rgba(139,92,255,.55),transparent);opacity:.45;pointer-events:none}
+.approved-orders-view [class*="action" i]{flex-wrap:wrap!important}
+
+/* Conversations final details */
+.approved-conversations-view .alfhd-conv-item{transition:background .14s ease,border-color .14s ease,transform .14s ease!important}.approved-conversations-view .alfhd-conv-item:active{transform:scale(.985)}
+.approved-conversations-view .alfhd-chat-scroll{scroll-behavior:smooth}.approved-conversations-view [class*="bubble" i]{word-break:break-word;overflow-wrap:anywhere}
+.approved-conversations-view [class*="composer" i] button{width:40px;min-width:40px;height:40px;padding:0!important;border-radius:11px!important}
+
+/* Warehouse final details */
+[data-approved-view="warehouse"] [data-wh-view]{padding-bottom:8px}
+[data-wh-view] table{width:100%}[data-wh-view] th,[data-wh-view] td{vertical-align:middle}
+[data-wh-view="products"] img{background:#0a1020!important}.alfhd-product-card,[class*="product-card" i]{overflow:hidden!important}
+[data-wh-view="debts"] [style*="color: rgb(239, 68, 68)"],[data-wh-view="debts"] [style*="#EF4444"]{color:#ff8d86!important}
+[data-wh-view="sales"] [style*="#10B981"],[data-wh-view="sales"] [style*="#22C55E"]{color:#6de6c7!important}
+
+/* Stats / admin */
+.alfhd-view-stats svg text{fill:#7f89a5!important}.alfhd-view-stats svg{overflow:visible}
+.alfhd-view-users .alfhd-users-grid>*,.alfhd-view-pages .alfhd-pages-grid>*{min-height:150px!important;display:flex!important;flex-direction:column!important}
+.alfhd-view-users .alfhd-users-grid button,.alfhd-view-pages .alfhd-pages-grid button{margin-top:auto}
+
+/* Modal hierarchy */
+.alfhd-modal h2,.alfhd-modal h3{margin-top:0!important}.alfhd-modal hr{border:0!important;border-top:1px solid var(--fa-line)!important}.alfhd-modal [role="tablist"]{display:flex;gap:6px;padding:5px;background:#08101e;border:1px solid var(--fa-line);border-radius:11px}
+.alfhd-modal [role="tab"]{min-height:34px!important;border-radius:8px!important}
+
+/* Focus/accessibility */
+.alfhd-main-area button:focus-visible,.alfhd-main-area input:focus-visible,.alfhd-main-area textarea:focus-visible,.alfhd-main-area select:focus-visible,.alfhd-modal button:focus-visible,.alfhd-modal input:focus-visible,.alfhd-modal textarea:focus-visible,.alfhd-modal select:focus-visible{outline:2px solid rgba(139,92,255,.85)!important;outline-offset:2px!important}
+
+/* Desktop responsive audit */
+@media(min-width:861px) and (max-width:1180px){
+ .alfhd-sidebar{width:196px!important;min-width:196px!important}.alfhd-main{padding-inline:14px!important}
+ .approved-section-chrome{grid-template-columns:1fr!important}.approved-section-metrics{grid-template-columns:repeat(3,1fr)!important}
+ .rx-kpis{grid-template-columns:repeat(3,1fr)!important}.rx-mid,.rx-bottom{grid-template-columns:1fr 1fr!important}.rx-latest,.rx-response{grid-column:1/-1!important}
+ .alfhd-view-users .alfhd-users-grid,.alfhd-view-pages .alfhd-pages-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
+/* Mobile: app-like density and safe areas */
+@media(max-width:860px){
+ html,body,#root{min-height:100%;min-height:100dvh}.alfhd-main{padding-inline:8px!important}.alfhd-section-enter{padding:8px 8px calc(94px + env(safe-area-inset-bottom))!important}
+ .approved-section-chrome,.approved-native-hero{border-radius:14px!important}.approved-section-metrics{gap:5px!important}.approved-section-metrics>div{border-radius:9px!important}
+ .alfhd-bottom-nav{bottom:max(8px,env(safe-area-inset-bottom))!important;left:8px!important;right:8px!important;width:auto!important;border-radius:22px!important;overflow:hidden!important}
+ .alfhd-bottom-nav-item{min-width:0!important;padding-inline:4px!important}.alfhd-bottom-nav-item span{max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .approved-orders-view .orders-v2-hero{display:block!important;padding:12px!important}.approved-orders-view .orders-v2-actions{margin-top:10px!important}.approved-orders-view .orders-v2-kpis{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .approved-orders-view .orders-v2-stagebar{overflow-x:auto!important;scrollbar-width:none}.approved-orders-view .orders-v2-stagebar::-webkit-scrollbar{display:none}.approved-orders-view .orders-v2-stage{flex:0 0 auto!important}
+ .approved-conversations-view .alfhd-conv-item{margin-inline:5px!important}.approved-conversations-view .alfhd-chat-scroll{padding:12px 10px!important}.approved-conversations-view [class*="bubble" i]{max-width:86%!important}
+ [data-wh-view="dashboard"]>div:first-child{grid-template-columns:1fr 1fr!important}.alfhd-view-stats .alfhd-stats-row{grid-template-columns:1fr 1fr!important}.alfhd-view-users .alfhd-users-grid,.alfhd-view-pages .alfhd-pages-grid{grid-template-columns:1fr!important}
+ table{min-width:640px}.alfhd-main-area [style*="overflowX"],.alfhd-main-area [style*="overflow-x"]{scroll-snap-type:x proximity}
+ .alfhd-modal{overscroll-behavior:contain!important}
+}
+@media(max-width:390px){.approved-section-metrics{grid-template-columns:1fr 1fr!important}.approved-section-metrics>div:last-child{grid-column:1/-1}.approved-orders-view .orders-v2-kpis,.alfhd-view-stats .alfhd-stats-row,[data-wh-view="dashboard"]>div:first-child{grid-template-columns:1fr!important}}
+
+/* Motion */
+@media(prefers-reduced-motion:no-preference){.alfhd-section-enter{animation:faEnter .22s cubic-bezier(.2,.8,.2,1) both}.alfhd-main-area button:active{transition-duration:.06s!important}}
+@keyframes faEnter{from{opacity:.6;transform:translateY(5px)}to{opacity:1;transform:none}}
