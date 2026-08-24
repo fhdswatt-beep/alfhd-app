@@ -1,0 +1,75 @@
+/* Final approved interaction/detail layer — keeps original handlers, rebuilds visible controls. */
+:root{--afx-bg:#050815;--afx-panel:#0b1020;--afx-panel2:#0e1528;--afx-line:#1d2948;--afx-line2:#2a3961;--afx-text:#f4f6ff;--afx-muted:#7f89a5;--afx-v:#8b5cff;--afx-b:#3f8cff;--afx-g:#37d9b2;--afx-r:#ff685f;--afx-a:#ffad38}
+
+/* Detail surfaces / drawers / nested panels */
+.alfhd-main-area [class*="detail" i],.alfhd-main-area [class*="drawer" i],.alfhd-main-area [class*="panel" i],.alfhd-modal [class*="panel" i]{border-color:var(--afx-line)!important}
+.alfhd-main-area [class*="detail" i] [style*="background"],.alfhd-modal [style*="background"]{box-shadow:none}
+.alfhd-main-area [class*="detail" i] h2,.alfhd-main-area [class*="detail" i] h3,.alfhd-modal h2,.alfhd-modal h3{letter-spacing:-.45px!important;color:#fff!important}
+.alfhd-main-area [class*="detail" i] small,.alfhd-modal small{color:var(--afx-muted)!important}
+
+/* Modal = compact app sheet, not legacy popup */
+.alfhd-modal-overlay,.alfhd-overlay{background:rgba(2,5,13,.8)!important;backdrop-filter:blur(14px)!important;-webkit-backdrop-filter:blur(14px)!important}
+.alfhd-modal{position:relative!important;overflow:hidden!important;background:radial-gradient(360px 170px at 100% 0%,rgba(139,92,255,.13),transparent 70%),linear-gradient(150deg,#0e1427,#080d19)!important;border:1px solid #29385f!important;border-radius:18px!important;box-shadow:0 32px 95px rgba(0,0,0,.64),inset 0 1px rgba(255,255,255,.025)!important;padding:18px!important}
+.alfhd-modal:before{content:'';position:absolute;inset:0 12% auto;height:1px;background:linear-gradient(90deg,transparent,rgba(139,92,255,.7),rgba(57,230,255,.25),transparent);pointer-events:none}
+.alfhd-modal>div:first-child{border-color:rgba(255,255,255,.06)!important}
+
+/* Forms: grouped, touch-friendly, premium */
+.alfhd-modal label,.alfhd-main-area label{color:#aeb6ce!important;font-size:10.5px!important;font-weight:750!important}
+.alfhd-modal input,.alfhd-modal textarea,.alfhd-modal select,.alfhd-main-area input,.alfhd-main-area textarea,.alfhd-main-area select{min-height:39px!important;background:#0a1121!important;border:1px solid #1e2b4b!important;border-radius:10px!important;color:var(--afx-text)!important;padding-inline:11px!important;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease!important}
+.alfhd-modal textarea,.alfhd-main-area textarea{padding-block:10px!important;line-height:1.7!important}
+.alfhd-modal input:hover,.alfhd-modal textarea:hover,.alfhd-modal select:hover,.alfhd-main-area input:hover,.alfhd-main-area textarea:hover,.alfhd-main-area select:hover{border-color:#2b3a61!important}
+.alfhd-modal input:focus,.alfhd-modal textarea:focus,.alfhd-modal select:focus,.alfhd-main-area input:focus,.alfhd-main-area textarea:focus,.alfhd-main-area select:focus{outline:none!important;background:#0d1629!important;border-color:#725bd6!important;box-shadow:0 0 0 3px rgba(139,92,255,.09)!important}
+
+/* Buttons: new silhouette while preserving click handlers */
+.alfhd-main-area button,.alfhd-modal button{border-radius:9px!important;font-weight:750!important;letter-spacing:-.1px;transition:transform .14s cubic-bezier(.2,.8,.2,1),border-color .14s ease,background .14s ease,filter .14s ease!important}
+.alfhd-main-area button:hover,.alfhd-modal button:hover{filter:brightness(1.06)}
+.alfhd-main-area button:active,.alfhd-modal button:active{transform:scale(.972)!important}
+.alfhd-main-area button:disabled,.alfhd-modal button:disabled{opacity:.45!important;filter:saturate(.5)!important;transform:none!important}
+.alfhd-main-area button[style*="#4C8DFF"],.alfhd-main-area button[style*="#3B82F6"],.alfhd-main-area button[style*="#2563EB"],.alfhd-modal button[style*="#4C8DFF"],.alfhd-modal button[style*="#3B82F6"]{background:linear-gradient(135deg,#8b5cff,#5968ff)!important;border-color:#6754cf!important;color:#fff!important;box-shadow:0 8px 22px rgba(97,70,210,.22)!important}
+.alfhd-main-area button[style*="#10B981"],.alfhd-main-area button[style*="#22C55E"],.alfhd-modal button[style*="#10B981"]{background:linear-gradient(135deg,#37d9b2,#2dbd94)!important;color:#04130f!important;border-color:#42d5b3!important;box-shadow:0 8px 20px rgba(55,217,178,.16)!important}
+.alfhd-main-area button[style*="#EF4444"],.alfhd-main-area button[style*="#DC2626"],.alfhd-modal button[style*="#EF4444"]{background:rgba(255,104,95,.09)!important;border:1px solid rgba(255,104,95,.28)!important;color:#ff8d86!important;box-shadow:none!important}
+
+/* Detail metadata becomes compact modules */
+.alfhd-main-area [class*="meta" i],.alfhd-main-area [class*="info" i]{gap:8px!important}
+.alfhd-main-area [class*="meta" i]>* , .alfhd-main-area [class*="info" i]>*{border-radius:9px!important}
+
+/* Order details/actions */
+.approved-orders-view [class*="detail" i]{background:radial-gradient(280px 140px at 100% 0%,rgba(139,92,255,.08),transparent 70%),#080d19!important}
+.approved-orders-view [class*="action" i]{gap:6px!important}
+.approved-orders-view [class*="action" i] button{min-height:34px!important;padding-inline:11px!important}
+.approved-orders-view [class*="status" i]{font-weight:800!important}
+
+/* Conversation composer/actions */
+.approved-conversations-view button{border-radius:9px!important}
+.approved-conversations-view .alfhd-composer-bar,.approved-conversations-view [class*="composer" i]{padding:9px 11px!important;background:rgba(7,12,23,.97)!important;border-top:1px solid #1b2746!important;box-shadow:0 -12px 28px rgba(0,0,0,.18)!important}
+.approved-conversations-view [class*="composer" i] input,.approved-conversations-view [class*="composer" i] textarea{min-height:42px!important;border-radius:12px!important}
+.approved-conversations-view [class*="bubble" i]{line-height:1.65!important}
+
+/* Warehouse cards / product details */
+[data-wh-view="products"] button,[data-wh-view="sales"] button,[data-wh-view="debts"] button,[data-wh-view="suppliers"] button,[data-wh-view="employees"] button{border-radius:8px!important}
+[data-wh-view="products"] [style*="boxShadow"],[data-wh-view="products"] [style*="box-shadow"]{box-shadow:none!important}
+[data-wh-view="products"] [style*="borderRadius"]{border-color:#1e2a49!important}
+
+/* Empty/loading/error states */
+.alfhd-empty-state,.alfhd-loading-state,.alfhd-error-state,[class*="empty-state" i],[class*="loading-state" i],[class*="error-state" i]{min-height:150px!important;display:grid!important;place-items:center!important;text-align:center!important;padding:28px!important;border:1px dashed #273557!important;border-radius:14px!important;background:radial-gradient(220px 120px at 50% 0%,rgba(139,92,255,.06),transparent 72%),#080d19!important;color:#8791aa!important;box-shadow:none!important}
+
+/* Tables / ledgers */
+.alfhd-main-area table{border-spacing:0 6px!important}.alfhd-main-area thead th{font-size:9.5px!important;color:#73809e!important;padding-inline:10px!important}.alfhd-main-area tbody tr{transition:transform .14s ease,filter .14s ease}.alfhd-main-area tbody tr:hover{transform:translateY(-1px);filter:brightness(1.04)}
+
+/* Scrollbars */
+.alfhd-main-area *{scrollbar-width:thin;scrollbar-color:#273453 transparent}.alfhd-main-area *::-webkit-scrollbar{width:7px;height:7px}.alfhd-main-area *::-webkit-scrollbar-thumb{background:#273453;border-radius:99px}.alfhd-main-area *::-webkit-scrollbar-track{background:transparent}
+
+/* Mobile finishing */
+@media(max-width:860px){
+ .alfhd-section-enter{padding:10px 10px 100px!important}
+ .approved-section-chrome{position:relative!important}
+ .alfhd-modal-overlay,.alfhd-overlay{align-items:flex-end!important;padding:0!important}
+ .alfhd-modal{width:100%!important;max-width:none!important;max-height:92dvh!important;overflow:auto!important;border-radius:22px 22px 0 0!important;border-left:0!important;border-right:0!important;border-bottom:0!important;padding:16px 14px calc(16px + env(safe-area-inset-bottom))!important;animation:afxSheet .28s cubic-bezier(.2,.8,.2,1) both!important}
+ .alfhd-main-area button,.alfhd-modal button{min-height:40px!important}
+ .alfhd-main-area input,.alfhd-main-area select,.alfhd-main-area textarea,.alfhd-modal input,.alfhd-modal select,.alfhd-modal textarea{font-size:16px!important;min-height:44px!important}
+ .approved-orders-view .alfhd-order-card{padding:12px!important;border-radius:12px!important}
+ .approved-conversations-view [class*="composer" i]{padding-bottom:max(10px,env(safe-area-inset-bottom))!important}
+ [data-wh-view="products"] [style*="gridTemplateColumns"],[data-wh-view="products"] [style*="repeat(auto-fill"]{grid-template-columns:1fr!important}
+}
+@keyframes afxSheet{from{opacity:.55;transform:translateY(26px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.alfhd-modal{animation:none!important}.alfhd-main-area *{transition:none!important}}
