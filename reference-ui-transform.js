@@ -7,6 +7,7 @@ export default function referenceUiTransform() {
       let out = code;
       const firstImport = "import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';";
       if (out.includes(firstImport) && !out.includes("./ReferenceHomeView.jsx")) out = out.replace(firstImport, firstImport + "\nimport ReferenceHomeView from './ReferenceHomeView.jsx';");
+      if (out.includes(firstImport) && !out.includes("./ApprovedSectionChrome.jsx")) out = out.replace(firstImport, firstImport + "\nimport ApprovedSectionChrome from './ApprovedSectionChrome.jsx';");
 
       if (!out.includes("{ id: 'home', label: 'الرئيسية'")) out = out.replace(" const navItems = [", " const navItems = [\n  { id: 'home', label: 'الرئيسية', icon: Home },");
       out = out.replace("{ id: 'stats', label: 'الإحصائيات', icon: BarChart3, permId: 'stats' }", "{ id: 'stats', label: 'التقارير', icon: BarChart3, permId: 'stats' }");
@@ -28,6 +29,11 @@ export default function referenceUiTransform() {
       out = out.replace('className="orders-v2"', 'className="orders-v2 approved-orders-view"');
       out = out.replace('className="alfhd-conv-fullscreen"', 'className="alfhd-conv-fullscreen approved-conversations-view"');
 
+      const sectionRoot = '<div key={activeView} className="alfhd-section-enter">';
+      if (out.includes(sectionRoot) && !out.includes('<ApprovedSectionChrome')) {
+        out = out.replace(sectionRoot, `${sectionRoot}\n            <ApprovedSectionChrome view={activeView} orders={orders} conversations={conversations} pages={pages} currentUser={authedUser} />`);
+      }
+
       function functionBounds(name) {
         const start = out.indexOf(`function ${name}`); if (start < 0) return null;
         const brace = out.indexOf('{', start); if (brace < 0) return null;
@@ -48,8 +54,6 @@ export default function referenceUiTransform() {
       rebuildView('PagesView','pages','الصفحات','إدارة قنوات التواصل والصفحات المرتبطة بالنظام');
       rebuildView('AiAssistantView','ai','الذكاء','التحكم بالمساعد والردود والسلوك الذكي من لوحة موحدة');
 
-      // Warehouse is a mini-application. Mark each real subview so the approved design can rebuild
-      // its cards/tables/actions independently while retaining the original handlers and state.
       const whViews=[['WhDashboard','dashboard'],['WhProducts','products'],['WhSales','sales'],['WhSuppliers','suppliers'],['WhDebts','debts'],['WhEmployees','employees'],['WhReports','reports']];
       for(const [name,key] of whViews){
         const b=functionBounds(name); if(!b)continue; let body=out.slice(b.brace,b.end); if(body.includes(`data-wh-view=\"${key}\"`))continue;
