@@ -1,14 +1,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
-import FullRebuildShellV2 from './FullRebuildShellV2.jsx';
+import FullRebuildShellV3 from './FullRebuildShellV3.jsx';
 import fullRebuildV2Css from './full-rebuild-v2.css?inline';
 import fullRebuildOverrides from './full-rebuild-overrides.css?inline';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
-    <FullRebuildShellV2 />
+    <FullRebuildShellV3 />
   </React.StrictMode>
 );
 
