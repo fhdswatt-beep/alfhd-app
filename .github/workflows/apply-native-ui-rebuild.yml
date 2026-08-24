@@ -1,0 +1,30 @@
+name: Apply native UI rebuild
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/apply-native-ui-rebuild.mjs'
+permissions:
+  contents: write
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/apply-native-ui-rebuild.mjs
+      - name: Commit transformed App.jsx
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "alfhd-ui-rebuild-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/App.jsx
+          git commit -m "feat(ui): rebuild orders view natively"
+          git push
