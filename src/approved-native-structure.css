@@ -1,0 +1,41 @@
+/* Structural layer for the approved reference. Targets JSX roots injected into the real views. */
+[data-approved-view]{position:relative;isolation:isolate;min-height:100%;padding:0!important}
+[data-approved-view]>.approved-native-hero{margin:0 0 14px!important}
+.approved-native-hero{position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 18px;border:1px solid #202b4b;border-radius:14px;background:radial-gradient(420px 150px at 100% 0%,rgba(139,92,255,.15),transparent 70%),linear-gradient(145deg,#0d1325,#080d19);box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden}
+.approved-native-hero:after{content:'';position:absolute;inset:auto 16% 0;width:45%;height:1px;background:linear-gradient(90deg,transparent,#8b5cff,#39e6ff,transparent);opacity:.45}
+.approved-native-kicker{display:block;font-size:8px;font-weight:900;letter-spacing:.18em;color:#7567c9;margin-bottom:5px}.approved-native-hero h2{margin:0!important;color:#f7f8ff!important;font-size:22px!important;font-weight:900!important;letter-spacing:-.6px!important}.approved-native-hero p{margin:4px 0 0!important;color:#7f89a5!important;font-size:10.5px!important;max-width:620px}.approved-native-signal{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:9px;border:1px solid #203355;background:#0a1526;color:#8fe9cf;font-size:9px;font-weight:800}.approved-native-signal i{width:7px;height:7px;border-radius:50%;background:#37d9b2;box-shadow:0 0 12px #37d9b2}
+
+/* Hide the old generic title strip when the new command hero exists. */
+[data-approved-view]>.alfhd-view-header,[data-approved-view]>.viewHeader,[data-approved-view]>[class*="view-header"]{display:none!important}
+
+/* Warehouse becomes an operations console, not a vertical legacy page. */
+[data-approved-view="warehouse"]{display:block!important}
+.alfhd-view-warehouse .alfhd-section-enter{max-width:1600px;margin:0 auto}
+.alfhd-view-warehouse [style*="display: 'flex'"][style*="justifyContent: 'space-between'"]{background:transparent!important}
+.alfhd-view-warehouse [class*="product" i][class*="grid" i],.alfhd-view-warehouse [style*="gridTemplateColumns"]{gap:10px!important}
+.alfhd-view-warehouse [class*="product-card" i],.alfhd-view-warehouse .alfhd-product-card{min-height:92px!important;border-radius:12px!important;background:linear-gradient(145deg,#0d1325,#090e1b)!important;border:1px solid #1c2745!important;box-shadow:0 9px 24px rgba(0,0,0,.22)!important}
+.alfhd-view-warehouse [class*="product-card" i]:hover,.alfhd-view-warehouse .alfhd-product-card:hover{border-color:#354775!important;transform:translateY(-2px)!important}
+.alfhd-view-warehouse button{min-height:34px;border-radius:9px!important;font-size:10.5px!important}.alfhd-view-warehouse input,.alfhd-view-warehouse select{min-height:37px!important}
+
+/* Reports: compact analytics board matching the approved dashboard proportions. */
+[data-approved-view="stats"] .alfhd-stats-row,.alfhd-view-stats .alfhd-stats-row{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:9px!important}.alfhd-view-stats .alfhd-stats-grid-2{display:grid!important;grid-template-columns:1.55fr 1fr!important;gap:10px!important}.alfhd-view-stats .alfhd-stats-grid-2>*{min-height:220px!important;border-radius:12px!important;background:linear-gradient(145deg,#0d1325,#080d19)!important;border:1px solid #1d2745!important;box-shadow:0 10px 28px rgba(0,0,0,.24)!important}
+
+/* Users and pages use modular board cards instead of old large admin panels. */
+.alfhd-view-users .alfhd-users-grid,.alfhd-view-pages .alfhd-pages-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}.alfhd-view-users .alfhd-users-grid>*,.alfhd-view-pages .alfhd-pages-grid>*{min-height:150px!important;padding:14px!important;border-radius:12px!important;background:linear-gradient(145deg,#0d1325,#080d19)!important;border:1px solid #1d2745!important;box-shadow:0 10px 28px rgba(0,0,0,.24)!important}.alfhd-view-users .alfhd-users-grid button,.alfhd-view-pages .alfhd-pages-grid button{min-height:34px!important;border-radius:9px!important}
+
+/* AI becomes a split control console if its native content already exposes multiple panes. */
+.alfhd-view-ai_assistant .alfhd-section-enter,.alfhd-view-ai .alfhd-section-enter{max-width:1500px;margin:0 auto}.alfhd-view-ai_assistant [class*="card" i],.alfhd-view-ai [class*="card" i]{border-radius:12px!important;background:linear-gradient(145deg,#0d1325,#080d19)!important;border:1px solid #1d2745!important;box-shadow:0 10px 28px rgba(0,0,0,.22)!important}
+
+/* Orders: actual cards are reconstructed into denser operational modules. */
+.approved-orders-view .alfhd-order-card{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;column-gap:14px!important;padding:14px!important;border-radius:12px!important;background:linear-gradient(145deg,#0d1325,#080d19)!important;border:1px solid #1c2745!important;box-shadow:0 10px 26px rgba(0,0,0,.24)!important}.approved-orders-view .alfhd-order-card:hover{border-color:#32436e!important;transform:translateY(-2px)!important}.approved-orders-view .alfhd-order-card button{min-height:33px!important;border-radius:8px!important}.approved-orders-view .alfhd-filter-chip,.approved-orders-view .alfhd-tab{border-radius:8px!important}
+
+/* Conversations: reference-style workspace proportions and composer. */
+.approved-conversations-view{background:#050815!important}.approved-conversations-view .alfhd-conv-layout{display:grid!important;grid-template-columns:330px minmax(0,1fr)!important;height:100%!important}.approved-conversations-view .alfhd-conv-list{background:#080d19!important;border-left:1px solid #1b2541!important}.approved-conversations-view .alfhd-conv-item{border-radius:9px!important;margin:4px 7px!important}.approved-conversations-view .alfhd-chat-detail{background:radial-gradient(620px 420px at 50% 110%,rgba(90,55,195,.10),transparent 68%),#060a14!important}.approved-conversations-view .alfhd-composer-bar{background:rgba(8,13,25,.96)!important;border-top:1px solid #1b2541!important}.approved-conversations-view .alfhd-composer-bar button{border-radius:10px!important}
+
+/* Mobile: keep the same approved visual identity while changing layout, not just scale. */
+@media(max-width:860px){
+  .alfhd-section-enter{padding:10px 10px 94px!important}.approved-native-hero{margin:0 0 10px!important;padding:13px 14px;border-radius:12px}.approved-native-hero h2{font-size:18px!important}.approved-native-hero p{font-size:9.5px!important}.approved-native-signal{display:none}
+  .alfhd-view-users .alfhd-users-grid,.alfhd-view-pages .alfhd-pages-grid{grid-template-columns:1fr!important}.alfhd-view-stats .alfhd-stats-row,[data-approved-view="stats"] .alfhd-stats-row{grid-template-columns:repeat(2,1fr)!important}.alfhd-view-stats .alfhd-stats-grid-2{grid-template-columns:1fr!important}
+  .approved-orders-view .alfhd-order-card{grid-template-columns:1fr!important;border-radius:12px!important}.approved-conversations-view .alfhd-conv-layout{display:block!important}.approved-conversations-view .alfhd-conv-list{width:100%!important;max-width:none!important}
+}
+@keyframes arNativeEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}[data-approved-view]{animation:arNativeEnter .24s ease both}
