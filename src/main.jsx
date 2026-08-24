@@ -4,6 +4,7 @@ import App from './App.jsx';
 import ApprovedMobileShell from './ApprovedMobileShell.jsx';
 import premiumCss from './reference-exact.css?inline';
 import approvedMobileCss from './approved-mobile.css?inline';
+import approvedMobilePolishCss from './approved-mobile-polish.css?inline';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 const mountPremiumLayer = () => {
   document.getElementById('alfhd-premium-final-layer')?.remove();
   document.getElementById('alfhd-approved-mobile-layer')?.remove();
+  document.getElementById('alfhd-approved-mobile-polish-layer')?.remove();
 
   const premium = document.createElement('style');
   premium.id = 'alfhd-premium-final-layer';
@@ -28,6 +30,11 @@ const mountPremiumLayer = () => {
   approved.id = 'alfhd-approved-mobile-layer';
   approved.textContent = approvedMobileCss;
   document.head.appendChild(approved);
+
+  const polish = document.createElement('style');
+  polish.id = 'alfhd-approved-mobile-polish-layer';
+  polish.textContent = approvedMobilePolishCss;
+  document.head.appendChild(polish);
 };
 
 requestAnimationFrame(() => requestAnimationFrame(mountPremiumLayer));
