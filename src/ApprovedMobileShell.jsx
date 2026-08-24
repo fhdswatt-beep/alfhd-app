@@ -2,190 +2,32 @@ import React from 'react';
 import { Home, MessageSquare, Package, MoreHorizontal, Bell, Plus, BarChart3, ClipboardList, Box, ChevronLeft, CarFront } from 'lucide-react';
 
 const SUPABASE_URL = 'https://wqfuovvebgipiowaarbo.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6IndxZnVvdnZlYmdpcGlvd2FhcmJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTM2ODEsImV4cCI6MjA5NzQ4OTY4MX0.xeQ80kco6TOpbyMnYonzSCBDI3Hn_EKiavKKfC7kLl8';
 const HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+function getSession(){try{const raw=localStorage.getItem('alfhd_session')||sessionStorage.getItem('alfhd_session');return raw?JSON.parse(raw):null}catch{return null}}
+function number(v){const n=Number(String(v??0).replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:0}
+function fmt(v){return new Intl.NumberFormat('en-US').format(Math.round(number(v)))}
+function orderNo(o,i){return o.order_no||o.orderNo||o.fahd_ref||o.fahdRef||`#${1058-i}`}
+function customer(o){return o.customer||o.customer_name||o.customerName||'عميل'}
+function product(o){return o.order_type||o.orderType||o.items||o.product_name||o.productName||'طلب جديد'}
+function created(o){return o.created_at||o.createdAt||o.date||null}
+function stageLabel(o){if(o.prep_status==='rejected'||o.prepStatus==='rejected')return'مرفوض';if(o.converted)return'مؤرشف';const s=String(o.stage||o.status||'').toLowerCase();if(/deliver|shipping|ofd/.test(s))return'لدى التوصيل';if(/prep|print/.test(s)||o.printed)return'قيد المعالجة';return'جديد'}
+function useMobile(){const[mobile,setMobile]=React.useState(()=>typeof window!=='undefined'&&window.innerWidth<861);React.useEffect(()=>{const fn=()=>setMobile(window.innerWidth<861);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn)},[]);return mobile}
+function PremiumCarScene(){return <svg className="approved-car-svg" viewBox="0 0 360 170" aria-hidden="true"><defs><linearGradient id="carBody" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#b99bff"/><stop offset=".38" stopColor="#7350e8"/><stop offset=".72" stopColor="#3d2a91"/><stop offset="1" stopColor="#17152c"/></linearGradient><linearGradient id="carGlass" x1="0" x2="1"><stop stopColor="#18182d"/><stop offset="1" stopColor="#5c4e9e"/></linearGradient><radialGradient id="wheelGlow"><stop stopColor="#a26cff" stopOpacity=".85"/><stop offset="1" stopColor="#4d2ec5" stopOpacity="0"/></radialGradient><filter id="carShadow"><feGaussianBlur stdDeviation="8"/></filter></defs><ellipse cx="180" cy="143" rx="132" ry="20" fill="#6c38ff" opacity=".34" filter="url(#carShadow)"/><path d="M54 112 L72 83 Q80 69 98 65 L154 52 Q180 43 208 49 L248 57 Q263 60 274 71 L300 97 L327 105 Q337 108 338 119 L336 130 L318 134 Q312 110 287 110 Q261 110 255 136 L108 136 Q102 111 77 111 Q51 111 45 133 L28 129 L30 116 Q34 111 54 112Z" fill="url(#carBody)" stroke="#b18bff" strokeWidth="2"/><path d="M112 68 L159 57 Q184 51 207 56 L244 63 Q251 65 260 76 L274 92 L91 92 L101 75 Q105 70 112 68Z" fill="url(#carGlass)" stroke="#9a7cff" strokeOpacity=".65"/><path d="M172 58 L166 91 M223 59 L236 91" stroke="#a28bdf" strokeOpacity=".45"/><path d="M48 111 L95 104 L281 104 L327 111" stroke="#d8c9ff" strokeOpacity=".42"/><path d="M74 96 L59 100 L51 108 L78 106" fill="#d9cfff" opacity=".78"/><path d="M292 99 L318 105 L326 112 L295 109" fill="#b78fff" opacity=".72"/><circle cx="79" cy="136" r="25" fill="#080811" stroke="#5a3fa8" strokeWidth="5"/><circle cx="79" cy="136" r="12" fill="#272139" stroke="#9b7eff" strokeWidth="3"/><circle cx="286" cy="136" r="25" fill="#080811" stroke="#5a3fa8" strokeWidth="5"/><circle cx="286" cy="136" r="12" fill="#272139" stroke="#9b7eff" strokeWidth="3"/><circle cx="79" cy="136" r="38" fill="url(#wheelGlow)" opacity=".23"/><circle cx="286" cy="136" r="38" fill="url(#wheelGlow)" opacity=".23"/><path d="M124 112 L235 112" stroke="#c0a8ff" strokeOpacity=".25" strokeWidth="2"/></svg>}
 
-function getSession() {
-  try {
-    const raw = localStorage.getItem('alfhd_session') || sessionStorage.getItem('alfhd_session');
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-function number(v) { const n = Number(String(v ?? 0).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0; }
-function fmt(v) { return new Intl.NumberFormat('en-US').format(Math.round(number(v))); }
-function orderNo(o, i) { return o.order_no || o.orderNo || o.fahd_ref || o.fahdRef || `#${1058 - i}`; }
-function customer(o) { return o.customer || o.customer_name || o.customerName || 'عميل'; }
-function product(o) { return o.order_type || o.orderType || o.items || o.product_name || o.productName || 'طلب جديد'; }
-function created(o) { return o.created_at || o.createdAt || o.date || null; }
-function stageLabel(o) {
-  if (o.prep_status === 'rejected' || o.prepStatus === 'rejected') return 'مرفوض';
-  if (o.converted) return 'مؤرشف';
-  const s = String(o.stage || o.status || '').toLowerCase();
-  if (/deliver|shipping|ofd/.test(s)) return 'لدى التوصيل';
-  if (/prep|print/.test(s) || o.printed) return 'قيد المعالجة';
-  return 'جديد';
-}
-function useMobile() {
-  const [mobile, setMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth < 861);
-  React.useEffect(() => { const fn = () => setMobile(window.innerWidth < 861); window.addEventListener('resize', fn); return () => window.removeEventListener('resize', fn); }, []);
-  return mobile;
-}
-
-function PremiumCarScene() {
-  return (
-    <svg className="approved-car-svg" viewBox="0 0 360 170" aria-hidden="true">
-      <defs>
-        <linearGradient id="carBody" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stopColor="#b99bff"/><stop offset=".38" stopColor="#7350e8"/><stop offset=".72" stopColor="#3d2a91"/><stop offset="1" stopColor="#17152c"/>
-        </linearGradient>
-        <linearGradient id="carGlass" x1="0" x2="1"><stop stopColor="#18182d"/><stop offset="1" stopColor="#5c4e9e"/></linearGradient>
-        <radialGradient id="wheelGlow"><stop stopColor="#a26cff" stopOpacity=".85"/><stop offset="1" stopColor="#4d2ec5" stopOpacity="0"/></radialGradient>
-        <filter id="carShadow"><feGaussianBlur stdDeviation="8"/></filter>
-      </defs>
-      <ellipse cx="180" cy="143" rx="132" ry="20" fill="#6c38ff" opacity=".34" filter="url(#carShadow)"/>
-      <path d="M54 112 L72 83 Q80 69 98 65 L154 52 Q180 43 208 49 L248 57 Q263 60 274 71 L300 97 L327 105 Q337 108 338 119 L336 130 L318 134 Q312 110 287 110 Q261 110 255 136 L108 136 Q102 111 77 111 Q51 111 45 133 L28 129 L30 116 Q34 111 54 112Z" fill="url(#carBody)" stroke="#b18bff" strokeWidth="2"/>
-      <path d="M112 68 L159 57 Q184 51 207 56 L244 63 Q251 65 260 76 L274 92 L91 92 L101 75 Q105 70 112 68Z" fill="url(#carGlass)" stroke="#9a7cff" strokeOpacity=".65"/>
-      <path d="M172 58 L166 91 M223 59 L236 91" stroke="#a28bdf" strokeOpacity=".45"/>
-      <path d="M48 111 L95 104 L281 104 L327 111" stroke="#d8c9ff" strokeOpacity=".42"/>
-      <path d="M74 96 L59 100 L51 108 L78 106" fill="#d9cfff" opacity=".78"/>
-      <path d="M292 99 L318 105 L326 112 L295 109" fill="#b78fff" opacity=".72"/>
-      <circle cx="79" cy="136" r="25" fill="#080811" stroke="#5a3fa8" strokeWidth="5"/><circle cx="79" cy="136" r="12" fill="#272139" stroke="#9b7eff" strokeWidth="3"/>
-      <circle cx="286" cy="136" r="25" fill="#080811" stroke="#5a3fa8" strokeWidth="5"/><circle cx="286" cy="136" r="12" fill="#272139" stroke="#9b7eff" strokeWidth="3"/>
-      <circle cx="79" cy="136" r="38" fill="url(#wheelGlow)" opacity=".23"/><circle cx="286" cy="136" r="38" fill="url(#wheelGlow)" opacity=".23"/>
-      <path d="M124 112 L235 112" stroke="#c0a8ff" strokeOpacity=".25" strokeWidth="2"/>
-    </svg>
-  );
-}
-
-export default function ApprovedMobileShell() {
-  const mobile = useMobile();
-  const [session, setSession] = React.useState(() => getSession());
-  const [tab, setTab] = React.useState('home');
-  const [orders, setOrders] = React.useState([]);
-  const [loading, setLoading] = React.useState(false);
-
-  React.useEffect(() => {
-    const t = setInterval(() => {
-      const next = getSession();
-      setSession((prev) => {
-        const a = prev?.userId || prev?.userData?.id;
-        const b = next?.userId || next?.userData?.id;
-        return a === b && !!prev === !!next ? prev : next;
-      });
-    }, 600);
-    return () => clearInterval(t);
-  }, []);
-
-  const user = session?.userData || {};
-  const workspaceId = user.workspaceId || user.workspace_id || null;
-
-  const loadOrders = React.useCallback(async () => {
-    if (!session) return;
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('select', '*'); params.set('order', 'created_at.desc'); params.set('limit', '80');
-      if (workspaceId) params.set('workspace_id', `eq.${workspaceId}`);
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_orders?${params.toString()}`, { headers: HEADERS });
-      if (!r.ok) throw new Error(`orders ${r.status}`);
-      const rows = await r.json(); setOrders(Array.isArray(rows) ? rows : []);
-    } catch (e) { console.error('approved home orders load:', e); setOrders([]); }
-    setLoading(false);
-  }, [session, workspaceId]);
-
-  React.useEffect(() => {
-    if (!mobile || !session) return;
-    loadOrders(); const t = setInterval(loadOrders, 15000); return () => clearInterval(t);
-  }, [mobile, session, loadOrders]);
-
-  const labels = React.useMemo(() => ({ conversations: 'المحادثات', orders: 'الطلبات', warehouse: 'المخزن', stats: 'الإحصائيات' }), []);
-  const navigateNative = React.useCallback((id) => {
-    setTab(id);
-    if (id === 'home') return;
-    const target = [...document.querySelectorAll('button.alfhd-bottom-nav-item, button.alfhd-nav-item')]
-      .find((b) => b.textContent?.includes(labels[id] || ''));
-    target?.click();
-  }, [labels]);
-
-  // Keep our premium nav in sync if App.jsx changes sections itself.
-  React.useEffect(() => {
-    if (!mobile || tab === 'home') return;
-    const sync = () => {
-      const active = [...document.querySelectorAll('button.alfhd-bottom-nav-item-active, button.alfhd-nav-item.alfhd-bottom-nav-item-active')][0];
-      const text = active?.textContent || '';
-      const match = Object.entries(labels).find(([, label]) => text.includes(label));
-      if (match && match[0] !== tab) setTab(match[0]);
-    };
-    const t = setInterval(sync, 500); sync(); return () => clearInterval(t);
-  }, [mobile, tab, labels]);
-
-  if (!mobile || !session) return null;
-
-  const todayKey = new Date().toDateString();
-  const todayOrders = orders.filter((o) => { const d = new Date(created(o) || 0); return !Number.isNaN(d.getTime()) && d.toDateString() === todayKey; });
-  const processing = orders.filter((o) => /prep|print/i.test(String(o.stage || '')) || o.printed).length;
-  const delivered = orders.filter((o) => /deliver|completed|done/i.test(String(o.status || o.stage || ''))).length;
-  const revenue = orders.reduce((s, o) => s + number(o.total || o.amount || o.price), 0);
-  const latest = orders.slice(0, 4);
-  const hero = orders.find((o) => !o.converted) || orders[0];
-
-  return (
-    <>
-      {tab === 'home' && (
-        <section className="approved-home" dir="rtl">
-          <div className="approved-home-scroll">
-            <header className="approved-top">
-              <div className="approved-avatar">{String(user.name || 'فهد').slice(0, 1)}</div>
-              <button className="approved-icon-btn" aria-label="الإشعارات"><Bell size={21}/><i/></button>
-            </header>
-            <div className="approved-greeting"><h1>مرحبا {user.name || 'فهد'} 👋</h1><p>أهلاً بك في الفهد لإدارة الطلبات</p></div>
-
-            <article className="approved-hero-card">
-              <div className="approved-hero-copy">
-                <small>طلب نشط</small><strong>{hero ? orderNo(hero, 0) : '#1058'}</strong><span>{hero ? product(hero) : 'هيونداي سوناتا 2023'}</span>
-                <em>{hero ? stageLabel(hero) : 'قيد المعالجة'} <b/></em>
-              </div>
-              <div className="approved-car-stage"><div className="approved-car-glow"/><PremiumCarScene/></div>
-              <button className="approved-hero-arrow" onClick={() => navigateNative('orders')}><ChevronLeft size={18}/></button>
-            </article>
-
-            <div className="approved-actions">
-              <button onClick={() => navigateNative('orders')}><span><Plus/></span><b>طلب جديد</b></button>
-              <button onClick={() => navigateNative('orders')}><span><ClipboardList/></span><b>الطلبات</b></button>
-              <button onClick={() => navigateNative('warehouse')}><span><Box/></span><b>المخزون</b></button>
-              <button onClick={() => navigateNative('stats')}><span><BarChart3/></span><b>التقارير</b></button>
-            </div>
-
-            <div className="approved-section-title"><h2>نظرة سريعة</h2><button onClick={() => navigateNative('stats')}>عرض الكل</button></div>
-            <div className="approved-kpis">
-              <div><small>إجمالي الطلبات</small><strong>{fmt(orders.length)}</strong><span>+12% <i>●</i></span><b><Package size={17}/></b></div>
-              <div><small>طلبات قيد المعالجة</small><strong>{fmt(processing)}</strong><span>+8% <i>●</i></span><b><ClipboardList size={17}/></b></div>
-              <div><small>الإيرادات</small><strong>{revenue ? `${fmt(revenue)} د.ع` : '—'}</strong><span>+15% <i>●</i></span><b><BarChart3 size={17}/></b></div>
-              <div><small>تم التسليم اليوم</small><strong>{fmt(delivered || todayOrders.length)}</strong><span>+5% <i>●</i></span><b><Package size={17}/></b></div>
-            </div>
-
-            <div className="approved-section-title approved-latest-title"><h2>آخر الطلبات</h2><button onClick={() => navigateNative('orders')}>عرض الكل</button></div>
-            <div className="approved-latest">
-              {loading && !latest.length ? <div className="approved-empty">جارٍ تحميل الطلبات...</div> : latest.map((o, i) => (
-                <button key={o.id || i} onClick={() => navigateNative('orders')}>
-                  <div className="approved-thumb"><CarFront size={22}/></div>
-                  <div className="approved-order-copy"><b>{product(o)}</b><small>{customer(o)} · {created(o) ? new Date(created(o)).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}) : 'الآن'}</small></div>
-                  <span className="approved-status">{stageLabel(o)}</span><strong>{orderNo(o, i)}</strong><ChevronLeft size={16}/>
-                </button>
-              ))}
-              {!loading && !latest.length && <div className="approved-empty">لا توجد طلبات حالياً</div>}
-            </div>
-          </div>
-        </section>
-      )}
-
-      <nav className="approved-bottom-nav" dir="rtl">
-        <button className={tab==='home'?'active':''} onClick={() => navigateNative('home')}><Home/><span>الرئيسية</span></button>
-        <button className={tab==='orders'?'active':''} onClick={() => navigateNative('orders')}><ClipboardList/><span>الطلبات</span></button>
-        <button className={tab==='conversations'?'active':''} onClick={() => navigateNative('conversations')}><MessageSquare/><span>المحادثات</span></button>
-        <button className={tab==='warehouse'?'active':''} onClick={() => navigateNative('warehouse')}><Box/><span>المخزون</span></button>
-        <button className={tab==='stats'?'active':''} onClick={() => navigateNative('stats')}><MoreHorizontal/><span>المزيد</span></button>
-      </nav>
-    </>
-  );
+export default function ApprovedMobileShell(){
+ const mobile=useMobile();const[session,setSession]=React.useState(()=>getSession());const[tab,setTab]=React.useState('home');const[orders,setOrders]=React.useState([]);const[loading,setLoading]=React.useState(false);
+ React.useEffect(()=>{const t=setInterval(()=>{const next=getSession();setSession(prev=>{const a=prev?.userId||prev?.userData?.id,b=next?.userId||next?.userData?.id;return a===b&&!!prev===!!next?prev:next})},600);return()=>clearInterval(t)},[]);
+ const user=session?.userData||{},workspaceId=user.workspaceId||user.workspace_id||null;
+ const loadOrders=React.useCallback(async()=>{if(!session)return;setLoading(true);try{const p=new URLSearchParams();p.set('select','*');p.set('order','created_at.desc');p.set('limit','80');if(workspaceId)p.set('workspace_id',`eq.${workspaceId}`);const r=await fetch(`${SUPABASE_URL}/rest/v1/alfhd_orders?${p.toString()}`,{headers:HEADERS});if(!r.ok)throw new Error(`orders ${r.status}`);const rows=await r.json();setOrders(Array.isArray(rows)?rows:[])}catch(e){console.error('approved home orders load:',e);setOrders([])}setLoading(false)},[session,workspaceId]);
+ React.useEffect(()=>{if(!mobile||!session)return;loadOrders();const t=setInterval(loadOrders,15000);return()=>clearInterval(t)},[mobile,session,loadOrders]);
+ const labels=React.useMemo(()=>({conversations:'المحادثات',orders:'الطلبات',warehouse:'المخزن',stats:'الإحصائيات'}),[]);
+ const navigateNative=React.useCallback(id=>{setTab(id);if(id==='home')return;const target=[...document.querySelectorAll('button.alfhd-bottom-nav-item, button.alfhd-nav-item')].find(b=>b.textContent?.includes(labels[id]||''));target?.click()},[labels]);
+ const openMore=React.useCallback(()=>{const candidates=[...document.querySelectorAll('button')];const menu=candidates.find(b=>b.querySelector('svg')&&/الأقسام الإدارية|القائمة|المزيد/.test(b.title||b.getAttribute('aria-label')||''))||document.querySelector('.alfhd-app-wrap > header button');menu?.click()},[]);
+ const openNotifications=React.useCallback(()=>document.querySelector('.alfhd-notif-bell button')?.click(),[]);
+ const openNewOrder=React.useCallback(()=>{navigateNative('orders');setTimeout(()=>{const btn=[...document.querySelectorAll('button')].find(b=>/طلب جديد|إضافة طلب/.test(b.textContent||''));btn?.click()},180)},[navigateNative]);
+ React.useEffect(()=>{if(!mobile||tab==='home')return;const sync=()=>{const active=[...document.querySelectorAll('button.alfhd-bottom-nav-item-active, button.alfhd-nav-item.alfhd-bottom-nav-item-active')][0];const text=active?.textContent||'';const match=Object.entries(labels).find(([,label])=>text.includes(label));if(match&&match[0]!==tab)setTab(match[0])};const t=setInterval(sync,500);sync();return()=>clearInterval(t)},[mobile,tab,labels]);
+ if(!mobile||!session)return null;
+ const todayKey=new Date().toDateString();const todayOrders=orders.filter(o=>{const d=new Date(created(o)||0);return!Number.isNaN(d.getTime())&&d.toDateString()===todayKey});const processing=orders.filter(o=>/prep|print/i.test(String(o.stage||''))||o.printed).length;const delivered=orders.filter(o=>/deliver|completed|done/i.test(String(o.status||o.stage||''))).length;const revenue=orders.reduce((s,o)=>s+number(o.total||o.amount||o.price),0);const latest=orders.slice(0,4);const hero=orders.find(o=>!o.converted)||orders[0];
+ return <>{tab==='home'&&<section className="approved-home" dir="rtl"><div className="approved-home-scroll"><header className="approved-top"><div className="approved-avatar">{String(user.name||'فهد').slice(0,1)}</div><button className="approved-icon-btn" aria-label="الإشعارات" onClick={openNotifications}><Bell size={21}/><i/></button></header><div className="approved-greeting"><h1>مرحبا {user.name||'فهد'} 👋</h1><p>أهلاً بك في الفهد لإدارة الطلبات</p></div><article className="approved-hero-card"><div className="approved-hero-copy"><small>طلب نشط</small><strong>{hero?orderNo(hero,0):'#1058'}</strong><span>{hero?product(hero):'هيونداي سوناتا 2023'}</span><em>{hero?stageLabel(hero):'قيد المعالجة'} <b/></em></div><div className="approved-car-stage"><div className="approved-car-glow"/><PremiumCarScene/></div><button className="approved-hero-arrow" onClick={()=>navigateNative('orders')}><ChevronLeft size={18}/></button></article><div className="approved-actions"><button onClick={openNewOrder}><span><Plus/></span><b>طلب جديد</b></button><button onClick={()=>navigateNative('orders')}><span><ClipboardList/></span><b>الطلبات</b></button><button onClick={()=>navigateNative('warehouse')}><span><Box/></span><b>المخزون</b></button><button onClick={()=>navigateNative('stats')}><span><BarChart3/></span><b>التقارير</b></button></div><div className="approved-section-title"><h2>نظرة سريعة</h2><button onClick={()=>navigateNative('stats')}>عرض الكل</button></div><div className="approved-kpis"><div><small>إجمالي الطلبات</small><strong>{fmt(orders.length)}</strong><span>+12% <i>●</i></span><b><Package size={17}/></b></div><div><small>طلبات قيد المعالجة</small><strong>{fmt(processing)}</strong><span>+8% <i>●</i></span><b><ClipboardList size={17}/></b></div><div><small>الإيرادات</small><strong>{revenue?`${fmt(revenue)} د.ع`:'—'}</strong><span>+15% <i>●</i></span><b><BarChart3 size={17}/></b></div><div><small>تم التسليم اليوم</small><strong>{fmt(delivered||todayOrders.length)}</strong><span>+5% <i>●</i></span><b><Package size={17}/></b></div></div><div className="approved-section-title approved-latest-title"><h2>آخر الطلبات</h2><button onClick={()=>navigateNative('orders')}>عرض الكل</button></div><div className="approved-latest">{loading&&!latest.length?<div className="approved-empty">جارٍ تحميل الطلبات...</div>:latest.map((o,i)=><button key={o.id||i} onClick={()=>navigateNative('orders')}><div className="approved-thumb"><CarFront size={22}/></div><div className="approved-order-copy"><b>{product(o)}</b><small>{customer(o)} · {created(o)?new Date(created(o)).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}):'الآن'}</small></div><span className="approved-status">{stageLabel(o)}</span><strong>{orderNo(o,i)}</strong><ChevronLeft size={16}/></button>)}{!loading&&!latest.length&&<div className="approved-empty">لا توجد طلبات حالياً</div>}</div></div></section>}<nav className="approved-bottom-nav" dir="rtl"><button className={tab==='home'?'active':''} onClick={()=>navigateNative('home')}><Home/><span>الرئيسية</span></button><button className={tab==='orders'?'active':''} onClick={()=>navigateNative('orders')}><ClipboardList/><span>الطلبات</span></button><button className={tab==='conversations'?'active':''} onClick={()=>navigateNative('conversations')}><MessageSquare/><span>المحادثات</span></button><button className={tab==='warehouse'?'active':''} onClick={()=>navigateNative('warehouse')}><Box/><span>المخزون</span></button><button onClick={openMore}><MoreHorizontal/><span>المزيد</span></button></nav></>
 }
