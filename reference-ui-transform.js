@@ -9,7 +9,23 @@ export default function referenceUiTransform() {
       if (out.includes(firstImport) && !out.includes("./ReferenceHomeView.jsx")) out = out.replace(firstImport, firstImport + "\nimport ReferenceHomeView from './ReferenceHomeView.jsx';");
       if (out.includes(firstImport) && !out.includes("./ApprovedSectionChrome.jsx")) out = out.replace(firstImport, firstImport + "\nimport ApprovedSectionChrome from './ApprovedSectionChrome.jsx';");
 
-      const aiHelper = `async function aiRuntimeControl(action, payload = {}, currentUser = null) {\n const userId = currentUser?.id || '';\n const userCode = currentUser?.code || '';\n if (!userId || !userCode) throw new Error('جلسة المستخدم غير صالحة');\n const res = await fetch(\`${SUPABASE_URL}/functions/v1/ai-runtime-control\`, {\n  method: 'POST',\n  headers: { 'apikey': SUPABASE_KEY, 'Authorization': \`Bearer ${SUPABASE_KEY}\`, 'Content-Type': 'application/json' },\n  body: JSON.stringify({ action, user_id: userId, user_code: userCode, ...payload }),\n });\n const text = await res.text();\n let data = null; try { data = text ? JSON.parse(text) : null; } catch (_e) { data = null; }\n if (!res.ok) throw new Error(data?.reason || \`ai-runtime-control failed: ${res.status}\`);\n return data;\n}\n`;
+      const aiHelper = [
+        "async function aiRuntimeControl(action, payload = {}, currentUser = null) {",
+        " const userId = currentUser?.id || '';",
+        " const userCode = currentUser?.code || '';",
+        " if (!userId || !userCode) throw new Error('جلسة المستخدم غير صالحة');",
+        " const res = await fetch(SUPABASE_URL + '/functions/v1/ai-runtime-control', {",
+        "  method: 'POST',",
+        "  headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },",
+        "  body: JSON.stringify({ action, user_id: userId, user_code: userCode, ...payload }),",
+        " });",
+        " const text = await res.text();",
+        " let data = null; try { data = text ? JSON.parse(text) : null; } catch (_e) { data = null; }",
+        " if (!res.ok) throw new Error(data?.reason || ('ai-runtime-control failed: ' + res.status));",
+        " return data;",
+        "}",
+        "",
+      ].join('\n');
       if (!out.includes('async function aiRuntimeControl(') && out.includes('function fileToBase64(file)')) {
         out = out.replace('function fileToBase64(file)', aiHelper + 'function fileToBase64(file)');
       }
