@@ -3344,30 +3344,41 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const isDelivery = section === 'delivery';
 
   return (
-    <div style={styles.viewWrap} className="orders-v2">
-      <section className="orders-v2-hero alfhd-no-print">
-        <div>
-          <h2 className="orders-v2-title">الطلبات</h2>
-          <p className="orders-v2-subtitle">مركز تشغيل موحّد للطباعة والتجهيز والتوصيل — بنفس بيانات ووظائف النظام الحالية</p>
-          <div className="orders-v2-kpis">
-            {[
-              { label: 'طلبات اليوم', value: todayStats.total, color: '#6D7CFF' },
-              { label: 'طُبعت اليوم', value: todayStats.printed, color: '#F0A868' },
-              { label: 'سُلّمت اليوم', value: todayStats.delivered, color: '#55E6A5' },
-              { label: 'رواجع اليوم', value: todayStats.returned, color: '#F45B69' },
-            ].map((s) => (
-              <div className="orders-v2-kpi" key={s.label}>
-                <strong style={{ color: s.color }}>{s.value}</strong>
-                <span>{s.label}</span>
-              </div>
-            ))}
+    <div style={styles.viewWrap}>
+      {/* ── هيدر الطلبات ── */}
+      <div style={styles.viewHeader} className="alfhd-view-header alfhd-no-print">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div>
+            <h2 style={styles.viewTitle}>الطلبات</h2>
+            <p style={styles.viewSubtitle}>متابعة كاملة عبر مراحل الطباعة والتجهيز والتوصيل</p>
           </div>
         </div>
+        {/* شريط إحصائيات اليوم السريعة */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', marginTop: 4 }} className="alfhd-no-print">
+          {[
+            { label: 'طلبات اليوم', value: todayStats.total, color: '#3B82F6' },
+            { label: 'طُبعت اليوم', value: todayStats.printed, color: '#F0A868' },
+            { label: 'سُلّمت اليوم', value: todayStats.delivered, color: '#34D399' },
+            { label: 'رواجع اليوم', value: todayStats.returned, color: '#F45B69' },
+          ].map((s) => (
+            <div key={s.label} style={{ flex: '1 1 auto', minWidth: 80, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11, padding: '8px 12px' }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: '#9FB0C3', marginTop: 4 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {/* أزرار الإجراءات — صف أنيق */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
 
-        <div className="orders-v2-actions">
-          <div className="orders-v2-search">
-            <Search size={14} color="#8F98AA" />
-            <input value={globalOrderSearch} onChange={(e) => setGlobalOrderSearch(e.target.value)} placeholder="بحث سريع..." />
+          {/* بحث عام */}
+          <div style={styles.globalOrderSearchWrap}>
+            <Search size={14} color="#60A5FA" />
+            <input
+              value={globalOrderSearch}
+              onChange={(e) => setGlobalOrderSearch(e.target.value)}
+              placeholder="بحث سريع..."
+              style={styles.globalOrderSearchInput}
+            />
             {globalOrderSearch.trim().length >= 2 && (
               <div style={styles.globalOrderResultsBox}>
                 {globalOrderResults.length === 0 ? (
@@ -3387,27 +3398,72 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
               </div>
             )}
           </div>
+
           <input type="file" accept="image/*" ref={ocrInputRef} onChange={handlePickOcrImage} style={{ display: 'none' }} />
-          <button className="orders-v2-action" onClick={() => ocrInputRef.current?.click()} disabled={ocrLoading}>
-            {ocrLoading ? <RefreshCw size={14} /> : <Image size={14} />}
+
+          {/* زر إضافة بالصورة */}
+          <button
+            onClick={() => ocrInputRef.current?.click()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 12px', background: 'rgba(76,141,255,0.10)',
+              border: '1px solid rgba(76,141,255,0.22)', borderRadius: 10,
+              color: '#4C8DFF', fontSize: 12.5, fontWeight: 700,
+            }}
+            disabled={ocrLoading}
+          >
+            {ocrLoading
+              ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Image size={14} />}
             {ocrLoading ? 'جارٍ الاستخراج...' : 'إضافة بصورة'}
           </button>
-          <button className="orders-v2-action primary" onClick={startNewOrder}><Plus size={15} /> طلب جديد</button>
-          {isReady && (
-            <button className="orders-v2-action success" onClick={handlePrintReady}><Printer size={15} /> طباعة الكل ({stageOrders.length})</button>
-          )}
-          <button className="orders-v2-action" onClick={() => setBatchHistoryOpen(true)} title="سجل الطباعة"><Clock size={16} /> سجل الطباعة</button>
-        </div>
-      </section>
 
-      <nav className="orders-v2-stagebar alfhd-no-print" aria-label="مراحل الطلبات">
-        {ORDER_STAGES.map((st) => (
-          <button key={st.id} onClick={() => { setSection(st.id); setStatusFilter('all'); }} className={`orders-v2-stage ${section === st.id ? 'active' : ''}`}>
-            <span>{st.label}</span>
-            {st.id !== 'delivery' && <span className="orders-v2-count">{stageCounts[st.id]}</span>}
+          {/* زر إضافة طلب */}
+          <button
+            onClick={startNewOrder}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 16px',
+              background: 'linear-gradient(135deg,#4C8DFF,#3A78E8)',
+              border: 'none', borderRadius: 10,
+              color: '#fff', fontSize: 12.5, fontWeight: 700,
+              boxShadow: '0 2px 8px rgba(76,141,255,0.35)',
+            }}
+          >
+            <Plus size={15} /> طلب جديد
           </button>
-        ))}
-      </nav>
+
+          {/* زر طباعة — فقط في قسم جاهز */}
+          {isReady && (
+            <button
+              onClick={handlePrintReady}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 16px',
+                background: 'linear-gradient(135deg,#34D399,#22C55E)',
+                border: 'none', borderRadius: 10,
+                color: '#fff', fontSize: 12.5, fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(52,211,153,0.35)',
+              }}
+            >
+              <Printer size={15} /> طباعة الكل ({stageOrders.length})
+            </button>
+          )}
+          {/* زر دائرة سجل الدفعات المطبوعة */}
+          <button
+            onClick={() => setBatchHistoryOpen(true)}
+            title="سجل الطباعة"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: '50%',
+              background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)',
+              color: '#A78BFA', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <Clock size={17} />
+          </button>
+        </div>
+      </div>
 
       {!isDelivery && (
       <div style={styles.statsRow} className="alfhd-stats-row alfhd-no-print">
@@ -3421,6 +3477,24 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           active={isDelivery && statusFilter === 'returned'} onClick={() => { setSection('delivery'); setStatusFilter('returned'); }} />
       </div>
       )}
+
+      <div style={styles.sectionTabs} className="alfhd-no-print">
+        {ORDER_STAGES.map((st) => (
+          <button
+            key={st.id}
+            onClick={() => { setSection(st.id); setStatusFilter('all'); }}
+            className="alfhd-tab alfhd-ripple"
+            style={{ ...styles.sectionTab, ...(section === st.id ? styles.sectionTabActive : {}) }}
+          >
+            {st.label}
+            {st.id !== 'delivery' && (
+              <span style={{ ...styles.convTabCount, ...(section === st.id ? styles.convTabCountActive : {}) }}>
+                {stageCounts[st.id]}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <OrderFilters
         pages={pages}
