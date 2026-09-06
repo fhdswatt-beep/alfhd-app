@@ -1,0 +1,59 @@
+/* Production hotfix: keep the conversations workspace out of generic section/card chrome. */
+.alfhd-main-conv .alfhd-section-enter,
+.alfhd-main-conv .approved-conversations-view,
+.alfhd-main-conv .approved-conversations-view section,
+.alfhd-main-conv .approved-conversations-view article {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.alfhd-main-conv .alfhd-section-enter {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.alfhd-main-conv .approved-section-chrome,
+.alfhd-main-conv .alfhd-view-header {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .alfhd-main-conv {
+    padding: 0 0 calc(86px + env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
+  }
+
+  .alfhd-main-conv .alfhd-section-enter {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .alfhd-main-conv .approved-conversations-view,
+  .alfhd-main-conv .alfhd-conv-fullscreen,
+  .alfhd-main-conv .alfhd-conv-layout {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: calc(100dvh - 72px) !important;
+    margin: 0 !important;
+  }
+
+  .alfhd-main-conv .alfhd-conv-list {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    border-left: 0 !important;
+  }
+
+  .alfhd-main-conv .alfhd-conv-list > div:first-child {
+    margin-top: 0 !important;
+  }
+
+  .alfhd-main-conv .alfhd-conv-item {
+    width: auto !important;
+    margin: 4px 6px !important;
+  }
+}
