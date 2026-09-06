@@ -9,6 +9,30 @@ export default function referenceUiTransform() {
       if (out.includes(firstImport) && !out.includes("./ReferenceHomeView.jsx")) out = out.replace(firstImport, firstImport + "\nimport ReferenceHomeView from './ReferenceHomeView.jsx';");
       if (out.includes(firstImport) && !out.includes("./ApprovedSectionChrome.jsx")) out = out.replace(firstImport, firstImport + "\nimport ApprovedSectionChrome from './ApprovedSectionChrome.jsx';");
 
+      const aiHelper = [
+        "async function aiRuntimeControl(action, payload = {}, currentUser = null) {",
+        " const userId = currentUser?.id || '';",
+        " const userCode = currentUser?.code || '';",
+        " if (!userId || !userCode) throw new Error('جلسة المستخدم غير صالحة');",
+        " const res = await fetch(SUPABASE_URL + '/functions/v1/ai-runtime-control', {",
+        "  method: 'POST',",
+        "  headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },",
+        "  body: JSON.stringify({ action, user_id: userId, user_code: userCode, ...payload }),",
+        " });",
+        " const text = await res.text();",
+        " let data = null; try { data = text ? JSON.parse(text) : null; } catch (_e) { data = null; }",
+        " if (!res.ok) throw new Error(data?.reason || ('ai-runtime-control failed: ' + res.status));",
+        " return data;",
+        "}",
+        "",
+      ].join('\n');
+      if (!out.includes('async function aiRuntimeControl(') && out.includes('function fileToBase64(file)')) {
+        out = out.replace('function fileToBase64(file)', aiHelper + 'function fileToBase64(file)');
+      }
+      out = out.replace("const row = await sbRpc('get_ai_runtime_status');", "const row = await aiRuntimeControl('status', {}, currentUser);");
+      out = out.replace("const data = await sbRpc('set_ai_runtime', { p_enabled: turnOnAll });", "const data = await aiRuntimeControl('set_runtime', { enabled: turnOnAll }, currentUser);");
+      out = out.replace("const data = await sbRpc('set_ai_conversation_enabled', { p_conv: convId, p_enabled: next });", "const data = await aiRuntimeControl('set_conversation', { conversation_id: convId, enabled: next }, currentUser);");
+
       if (!out.includes("{ id: 'home', label: 'الرئيسية'")) out = out.replace(" const navItems = [", " const navItems = [\n  { id: 'home', label: 'الرئيسية', icon: Home },");
       out = out.replace("{ id: 'stats', label: 'الإحصائيات', icon: BarChart3, permId: 'stats' }", "{ id: 'stats', label: 'التقارير', icon: BarChart3, permId: 'stats' }");
       out = out.replace("const [activeView, setActiveView] = useState('conversations');", "const [activeView, setActiveView] = useState('home');");
