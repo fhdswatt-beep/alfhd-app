@@ -95,7 +95,60 @@ async function sbRpc(name, payload = {}) { const res = await fetch(`${SUPABASE_U
  if (!res.ok) { const errBody = await res.text();
   console.error(`sbRpc ${name} failed [${res.status}]:`, errBody);
   throw new Error(`sbRpc ${name} failed: ${res.status} — ${errBody}`); }
- return res.json(); }
+  return res.json(); }
+// ── طبقة احتياطية لتشغيل/إيقاف الرد الآلي ──
+// إذا فشلت دوال قاعدة البيانات (صلاحيات ناقصة) نتعامل مباشرة مع الجداول حتى يبقى الزر شغال.
+async function sbCount(table, query = '') {
+ try {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=id${query}`, { headers: { ...sbHeaders, 'Prefer': 'count=exact', 'Range': '0-0' } });
+  const cr = res.headers.get('content-range') || '';
+  const n = Number(String(cr).split('/')[1]);
+  return Number.isFinite(n) ? n : 0;
+ } catch (_e) { return 0; }
+}
+async function aiFallbackStatus() {
+ const [activeCount, eligibleCount] = await Promise.all([
+  sbCount('alfhd_conversations', '&ai_mode=eq.active&tab=neq.handoff'),
+  sbCount('alfhd_conversations', '&tab=neq.handoff'),
+ ]);
+ const scope = activeCount === 0 ? 'off' : (activeCount >= eligibleCount ? 'all' : 'selective');
+ return { ok: true, fallback: true, scope, enabled: scope !== 'off', active_count: activeCount, eligible_count: eligibleCount };
+}
+async function aiFallbackSaveScope(scope) {
+ try {
+  await fetch(`${SUPABASE_URL}/rest/v1/ai_settings?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+   body: JSON.stringify({ runtime_scope: scope, enabled_globally: scope !== 'off' }) });
+ } catch (_e) { /* تجاهل */ }
+}
+async function aiFallbackSetGlobal(enabled) {
+ const mode = enabled ? 'active' : 'paused';
+ const res = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?tab=neq.handoff&ai_mode=neq.${mode}`, {
+  method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' }, body: JSON.stringify({ ai_mode: mode }) });
+ if (!res.ok) { const t = await res.text(); throw new Error(`تعذّر تغيير حالة الرد: ${res.status} — ${t}`); }
+ const status = await aiFallbackStatus();
+ await aiFallbackSaveScope(status.scope);
+ return status;
+}
+async function aiFallbackSetConversation(convId, enabled) {
+ if (!convId) throw new Error('محادثة غير معروفة');
+ const res = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?id=eq.${convId}`, {
+  method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' }, body: JSON.stringify({ ai_mode: enabled ? 'active' : 'paused' }) });
+ if (!res.ok) { const t = await res.text(); throw new Error(`تعذّر تغيير حالة المحادثة: ${res.status} — ${t}`); }
+ const status = await aiFallbackStatus();
+ await aiFallbackSaveScope(status.scope);
+ return status;
+}
+async function aiRpc(name, payload = {}) {
+ try {
+  const data = await sbRpc(name, payload);
+  if (data && data.ok !== false) return data;
+  if (data?.reason === 'human_handoff') return data;
+ } catch (e) { console.warn(`aiRpc ${name}: تحويل للطريقة الاحتياطية —`, e?.message || e); }
+ if (name === 'get_ai_runtime_status') return aiFallbackStatus();
+ if (name === 'set_ai_runtime') return aiFallbackSetGlobal(payload?.p_enabled !== false);
+ if (name === 'set_ai_conversation_enabled') return aiFallbackSetConversation(payload?.p_conv, payload?.p_enabled !== false);
+ throw new Error(`RPC ${name} غير متاح`);
+}
 function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader();
   reader.onload = () => { const result = reader.result || '';
    const base64 = String(result).split(',')[1] || '';
@@ -774,21 +827,26 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
  const [globalAiEnabled, setGlobalAiEnabled] = useState(null);
  const [globalAiScope, setGlobalAiScope] = useState(null); // off | selective | all
  const [globalActiveAiCount, setGlobalActiveAiCount] = useState(0);
- useEffect(() => {
-  let cancelled = false;
-  (async () => {
-   try {
-    const row = await sbRpc('get_ai_runtime_status');
-    if (!cancelled) {
-     const scope = row?.scope || (row?.enabled === false ? 'off' : 'selective');
-     setGlobalAiScope(scope);
-     setGlobalAiEnabled(scope !== 'off' && row?.enabled !== false);
-     setGlobalActiveAiCount(Number(row?.active_count || 0));
-    }
-   } catch (_e) { if (!cancelled) { setGlobalAiEnabled(null); setGlobalAiScope(null); setGlobalActiveAiCount(0); } }
-  })();
-  return () => { cancelled = true; };
- }, []);
+  useEffect(() => {
+   let cancelled = false;
+   const load = async () => {
+    try {
+     const row = await aiRpc('get_ai_runtime_status');
+     if (!cancelled) {
+      const scope = row?.scope || (row?.enabled === false ? 'off' : 'selective');
+      setGlobalAiScope(scope);
+      setGlobalAiEnabled(scope !== 'off' && row?.enabled !== false);
+      setGlobalActiveAiCount(Number(row?.active_count || 0));
+     }
+    } catch (_e) { if (!cancelled) { setGlobalAiEnabled(null); setGlobalAiScope(null); setGlobalActiveAiCount(0); } }
+   };
+   load();
+   // تحديث دوري + عند الرجوع للتبويب حتى تبقى الحالة (أخضر/برتقالي/أحمر) صحيحة دائماً
+   const timer = setInterval(() => { if (!document.hidden) load(); }, 30000);
+   const onVis = () => { if (!document.hidden) load(); };
+   document.addEventListener('visibilitychange', onVis);
+   return () => { cancelled = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
  // Handoff والحجز يقررهما الـBackend المركزي؛ الواجهة تعرض النتيجة فقط ولا تنشئ طلباً من نص الرد.
  const lastMsgTimeRef = React.useRef(null); // آخر وقت رسالة (للجلب التزايدي)
  const loadMessages = useCallback(async (convId, isCancelled) => { if (!convId) return;
@@ -983,7 +1041,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
          if (!confirm(msg)) return;
          setGlobalAiBusy(true);
          try {
-          const data = await sbRpc('set_ai_runtime', { p_enabled: turnOnAll });
+          const data = await aiRpc('set_ai_runtime', { p_enabled: turnOnAll });
           if (!data?.ok) throw new Error(data?.reason || 'تعذّر تغيير حالة الذكاء');
           const scopeNext = data.scope || (turnOnAll ? 'all' : 'off');
           setGlobalAiScope(scopeNext);
@@ -1152,7 +1210,7 @@ function ConversationsView({ conversations, pages, orders, setOrders, setConvers
            const convId = selectedConv.id;
            setConvAiBusyId(convId);
            try {
-             const data = await sbRpc('set_ai_conversation_enabled', { p_conv: convId, p_enabled: next });
+             const data = await aiRpc('set_ai_conversation_enabled', { p_conv: convId, p_enabled: next });
              if (!data?.ok) throw new Error(data?.reason === 'human_handoff' ? 'المحادثة بيد موظف' : (data?.reason || 'فشل تغيير الحالة'));
              const mode = next ? 'active' : 'paused';
              setSelectedConv((c) => (c?.id === convId ? { ...c, ai_mode: mode } : c));
@@ -7317,7 +7375,7 @@ function AIAssistantView({ currentUser }) {
       try {
         const [s] = await sbSelect('ai_settings', '&id=eq.1');
         const [ctrl] = await sbSelect('ai_control_config', '&id=eq.1');
-        const runtime = await sbRpc('get_ai_runtime_status');
+        const runtime = await aiRpc('get_ai_runtime_status');
         setSettings({ ...(s || { system_prompt: '', training_examples: '', enabled_globally: false, runtime_scope: 'off' }), runtime_scope: runtime?.scope || s?.runtime_scope || 'off', runtime_active_count: Number(runtime?.active_count || 0), runtime_eligible_count: Number(runtime?.eligible_count || 0), booking_commit_enabled: ctrl?.booking_commit_enabled === true });
       } catch (e) { console.error('AI settings load error:', e); }
       try {
@@ -7365,7 +7423,7 @@ function AIAssistantView({ currentUser }) {
       : (scope === 'selective' ? `إيقاف الرد عن الجميع؟ حالياً ${activeN} محادثة شغالة.` : 'إيقاف الرد الآلي عن الجميع؟'))) return;
     setSaving(true);
     try {
-      const data = await sbRpc('set_ai_runtime', { p_enabled: turnOnAll });
+      const data = await aiRpc('set_ai_runtime', { p_enabled: turnOnAll });
       if (!data?.ok) throw new Error(data?.reason || 'تعذّر تغيير حالة النظام');
       const nextScope = data.scope || (turnOnAll ? 'all' : 'off');
       const [fresh] = await sbSelect('ai_settings', '&id=eq.1');
@@ -7542,7 +7600,7 @@ function AIAssistantView({ currentUser }) {
   // تبديل وضع الذكاء لمحادثة معينة من هنا مباشرة
   async function setConvMode(convId, mode) {
     try {
-      const data = await sbRpc('set_ai_conversation_enabled', { p_conv: convId, p_enabled: mode === 'active' });
+      const data = await aiRpc('set_ai_conversation_enabled', { p_conv: convId, p_enabled: mode === 'active' });
       if (!data?.ok) throw new Error(data?.reason || 'فشل تغيير الحالة');
       setConvs((prev) => prev.map((c) => (c.id === convId ? { ...c, ai_mode: mode } : c)));
       const [fresh] = await sbSelect('ai_settings', '&id=eq.1');
