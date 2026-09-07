@@ -57,3 +57,92 @@
     margin: 4px 6px !important;
   }
 }
+
+/* ===== إصلاح تمدد قائمة المحادثات على الجوال (نص المعاينة كان يمدد الصف خارج الشاشة) ===== */
+@media (max-width: 860px) {
+  .alfhd-main-conv .alfhd-conv-list { overflow-x: hidden !important; }
+
+  .alfhd-main-conv .alfhd-conv-item,
+  .alfhd-main-conv .alfhd-conv-item * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .alfhd-main-conv .alfhd-conv-item {
+    width: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  /* اسم العميل ونص آخر رسالة: سطر واحد مع "..." بدل التمدد */
+  .alfhd-main-conv .alfhd-conv-item p,
+  .alfhd-main-conv .alfhd-conv-item span,
+  .alfhd-main-conv .alfhd-conv-item div > div {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* شريط الصفحات/الفلاتر أعلى المحادثات: تمرير أفقي بدل الخروج عن الشاشة */
+  .alfhd-main-conv .alfhd-conv-fullscreen > div:first-child {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  .alfhd-main-conv .alfhd-conv-fullscreen > div:first-child::-webkit-scrollbar { display: none; }
+}
+
+/* شريط الصفحة/الحالة أعلى قائمة المحادثات: تمرير أفقي بدل القص */
+@media (max-width: 860px) {
+  .alfhd-main-conv .alfhd-conv-list > div:first-child {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    justify-content: flex-start !important;
+    scrollbar-width: none !important;
+    padding-inline: 12px !important;
+  }
+  .alfhd-main-conv .alfhd-conv-list > div:first-child::-webkit-scrollbar { display: none; }
+
+  .alfhd-main-conv .alfhd-conv-item {
+    width: calc(100% - 12px) !important;
+    margin: 4px 6px !important;
+  }
+}
+
+/* ===== سطح المكتب: قائمة المحادثات يمين ولوحة المحادثة تملأ الباقي (بدل التكديس والفراغ الأسود) ===== */
+@media (min-width: 861px) {
+  .alfhd-main-conv .alfhd-conv-fullscreen,
+  .alfhd-main-conv .alfhd-conv-layout {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    height: calc(100dvh - 96px) !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 96px) !important;
+    overflow: hidden !important;
+    border-radius: 18px !important;
+  }
+
+  .alfhd-main-conv .alfhd-conv-list {
+    width: 340px !important;
+    min-width: 340px !important;
+    max-width: 340px !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+  }
+
+  .alfhd-main-conv .alfhd-conv-detail {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .alfhd-main-conv .alfhd-chat-scroll {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+}

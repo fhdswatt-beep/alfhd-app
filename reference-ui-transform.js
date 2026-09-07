@@ -69,8 +69,8 @@ export default function referenceUiTransform() {
         const b=functionBounds(name); if(!b)return; let body=out.slice(b.brace,b.end); if(body.includes(`data-approved-view=\"${key}\"`))return;
         const r=body.lastIndexOf('return ('); if(r<0)return; const root=body.indexOf('<div',r); if(root<0)return; const rootEnd=body.indexOf('>',root); if(rootEnd<0)return;
         const open=body.slice(root,rootEnd+1); const marked=open.replace('<div',`<div data-approved-view=\"${key}\"`);
-        const hero=`\n      <section className=\"approved-native-hero\"><div className=\"approved-native-hero-copy\"><span className=\"approved-native-kicker\">ALFHD CONTROL CENTER</span><h2>${title}</h2><p>${subtitle}</p></div><div className=\"approved-native-signal\"><i></i><span>مباشر</span></div></section>`;
-        body=body.slice(0,root)+marked+hero+body.slice(rootEnd+1); out=out.slice(0,b.brace)+body+out.slice(b.end);
+        void title; void subtitle; // العنوان يأتي من ApprovedSectionChrome — لا نكرره هنا
+        body=body.slice(0,root)+marked+body.slice(rootEnd+1); out=out.slice(0,b.brace)+body+out.slice(b.end);
       }
       rebuildView('WarehouseView','warehouse','المخزن','إدارة المنتجات والمبيعات والديون والموردين من مساحة تشغيل واحدة');
       rebuildView('StatsView','stats','التقارير','قراءة فورية للأداء والحركة التشغيلية والنتائج');

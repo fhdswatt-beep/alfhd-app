@@ -81,3 +81,36 @@
 /* Motion */
 @media(prefers-reduced-motion:no-preference){.alfhd-section-enter{animation:faEnter .22s cubic-bezier(.2,.8,.2,1) both}.alfhd-main-area button:active{transition-duration:.06s!important}}
 @keyframes faEnter{from{opacity:.6;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* منع تكرار عنوان القسم: عنوان واحد فقط (شريط ALFHD OPERATIONS) مع إبقاء الفلاتر */
+.alfhd-section-enter:has(.approved-section-chrome) .alfhd-view-header > div:first-child { display: none !important; }
+.alfhd-section-enter:has(.approved-section-chrome) .alfhd-view-header {
+  justify-content: flex-start !important;
+  margin-bottom: 12px !important;
+}
+
+/* قسم الطلبات: عنوان واحد + مؤشرات مدمجة بدل صفوف مكدّسة */
+.alfhd-section-enter:has(.approved-section-chrome) .orders-v2-title,
+.alfhd-section-enter:has(.approved-section-chrome) .orders-v2-subtitle { display: none !important; }
+.orders-v2 .orders-v2-kpis,
+.approved-orders-view .orders-v2-kpis {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+.orders-v2 .orders-v2-kpi,
+.approved-orders-view .orders-v2-kpi {
+  display: grid !important;
+  gap: 2px !important;
+  justify-items: center !important;
+  text-align: center !important;
+  padding: 10px 6px !important;
+  min-width: 0 !important;
+}
+.orders-v2 .orders-v2-kpi span { font-size: 10px !important; white-space: nowrap !important; }
+@media (max-width: 520px) {
+  .orders-v2 .orders-v2-kpis,
+  .approved-orders-view .orders-v2-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
