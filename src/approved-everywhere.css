@@ -1,0 +1,122 @@
+/* Global finishing layer: catches legacy inline-styled sections across the whole app. */
+:root{--fx-bg:#09090d;--fx-panel:#121217;--fx-panel2:#18181f;--fx-line:rgba(255,255,255,.075);--fx-text:#f7f5fb;--fx-muted:#918d9c;--fx-v:#8b59ff;--fx-v2:#b78cff;--fx-green:#55d68f;--fx-red:#f06d7d;--fx-amber:#e9b56c}
+
+/* Every actual app page */
+.alfhd-main-area,.alfhd-section-enter{color:var(--fx-text)!important;background-color:var(--fx-bg)!important}
+.alfhd-main-area h1,.alfhd-main-area h2,.alfhd-main-area h3,.alfhd-main-area h4{color:#fff!important;letter-spacing:-.025em}
+.alfhd-main-area p,.alfhd-main-area small,.alfhd-main-area label{color:var(--fx-muted)}
+
+/* Kill remaining old navy/blue surfaces created with inline styles */
+.alfhd-main-area [style*="#0b1220"],.alfhd-main-area [style*="#0B1220"],
+.alfhd-main-area [style*="#0f172a"],.alfhd-main-area [style*="#0F172A"],
+.alfhd-main-area [style*="#111827"],.alfhd-main-area [style*="#111827"],
+.alfhd-main-area [style*="#121826"],.alfhd-main-area [style*="#131b28"],
+.alfhd-main-area [style*="#141A22"],.alfhd-main-area [style*="#141a22"],
+.alfhd-main-area [style*="#151c26"],.alfhd-main-area [style*="#161e29"],
+.alfhd-main-area [style*="#181F29"],.alfhd-main-area [style*="#181f29"],
+.alfhd-main-area [style*="#1E2630"],.alfhd-main-area [style*="#1e2630"],
+.alfhd-main-area [style*="#1f2937"],.alfhd-main-area [style*="#202938"],
+.alfhd-main-area [style*="rgb(20, 26, 34)"],.alfhd-main-area [style*="rgb(24, 31, 41)"]{
+  background:linear-gradient(155deg,#191820,#111116)!important;border-color:var(--fx-line)!important;color:var(--fx-text)!important
+}
+
+/* Catch legacy cards/panels even if their class is unknown */
+.alfhd-main-area [style*="borderRadius"][style*="background"],
+.alfhd-main-area [style*="border-radius"][style*="background"],
+.alfhd-main-area [style*="boxShadow"][style*="background"],
+.alfhd-main-area [style*="box-shadow"][style*="background"]{
+  border-color:var(--fx-line)!important;box-shadow:0 12px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.025)!important
+}
+
+/* Old blue accents -> approved purple language */
+.alfhd-main-area [style*="#2563EB"],.alfhd-main-area [style*="#2563eb"],
+.alfhd-main-area [style*="#3B82F6"],.alfhd-main-area [style*="#3b82f6"],
+.alfhd-main-area [style*="#4C8DFF"],.alfhd-main-area [style*="#60A5FA"],
+.alfhd-main-area [style*="#0EA5E9"],.alfhd-main-area [style*="#38BDF8"]{color:var(--fx-v2)!important;border-color:rgba(139,89,255,.28)!important}
+
+/* Generic operational controls */
+.alfhd-main-area input,.alfhd-main-area textarea,.alfhd-main-area select,
+.alfhd-modal input,.alfhd-modal textarea,.alfhd-modal select{
+ background:#17171d!important;color:#fff!important;border:1px solid var(--fx-line)!important;border-radius:13px!important;box-shadow:none!important
+}
+.alfhd-main-area input:focus,.alfhd-main-area textarea:focus,.alfhd-main-area select:focus,
+.alfhd-modal input:focus,.alfhd-modal textarea:focus,.alfhd-modal select:focus{
+ border-color:rgba(145,91,255,.55)!important;box-shadow:0 0 0 3px rgba(139,89,255,.11)!important;outline:0!important
+}
+
+/* Buttons that previously keep old blue blocks */
+.alfhd-main-area button[style*="background"],.alfhd-modal button[style*="background"]{border-radius:13px!important}
+.alfhd-main-area button[style*="#2563"],.alfhd-main-area button[style*="#3B82"],.alfhd-main-area button[style*="#4C8D"],
+.alfhd-modal button[style*="#2563"],.alfhd-modal button[style*="#3B82"]{
+ background:linear-gradient(145deg,#6331c8,#8b59ff)!important;color:white!important;border-color:rgba(185,143,255,.24)!important;box-shadow:0 9px 26px rgba(104,50,213,.24)!important
+}
+
+/* All known grid/card families */
+.alfhd-users-grid>*,.alfhd-pages-grid>*,.alfhd-stats-row>*,.alfhd-stats-grid-2>*,.alfhd-order-card,
+.alfhd-main-area .alfhd-linked-order,.alfhd-main-area .alfhd-card,.alfhd-main-area .alfhd-panel{
+ background:radial-gradient(140px 90px at 100% 0%,rgba(126,73,235,.08),transparent 72%),linear-gradient(155deg,#191820,#111116)!important;
+ border:1px solid var(--fx-line)!important;border-radius:19px!important;box-shadow:0 12px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.03)!important
+}
+
+/* Tables in warehouse, sales, debts, employees, pages, orders */
+.alfhd-main-area table{width:100%;background:#101014!important;border:1px solid var(--fx-line)!important;border-radius:18px!important;overflow:hidden!important}
+.alfhd-main-area thead th{background:#15151b!important;color:#9c98a7!important;border-color:var(--fx-line)!important;padding-top:12px!important;padding-bottom:12px!important}
+.alfhd-main-area tbody td{background:transparent!important;color:#e6e2ec!important;border-color:rgba(255,255,255,.052)!important}
+.alfhd-main-area tbody tr:nth-child(even){background:rgba(255,255,255,.012)!important}
+.alfhd-main-area tbody tr:hover{background:rgba(139,89,255,.035)!important}
+
+/* Pills / tabs / filters across all sections */
+.alfhd-main-area [role="tab"],.alfhd-main-area .alfhd-tab,.alfhd-main-area .alfhd-filter-chip{
+ background:#15151b!important;color:#9f9aa9!important;border:1px solid var(--fx-line)!important;border-radius:999px!important
+}
+.alfhd-main-area [aria-selected="true"],.alfhd-main-area .alfhd-tab.active,.alfhd-main-area .alfhd-filter-chip.active{
+ background:rgba(134,78,245,.16)!important;color:#d5c1ff!important;border-color:rgba(151,96,255,.3)!important
+}
+
+/* Modals / detail drawers / confirmations */
+.alfhd-modal-overlay,.alfhd-overlay{background:rgba(4,3,8,.76)!important;backdrop-filter:blur(14px)!important;-webkit-backdrop-filter:blur(14px)!important}
+.alfhd-modal,.alfhd-main-area [role="dialog"]{
+ background:radial-gradient(320px 200px at 100% 0%,rgba(125,72,238,.1),transparent 70%),linear-gradient(155deg,#1a1921,#111116)!important;
+ border:1px solid var(--fx-line)!important;color:#fff!important;box-shadow:0 34px 100px rgba(0,0,0,.62),inset 0 1px rgba(255,255,255,.035)!important
+}
+
+/* Conversations and AI surfaces */
+.alfhd-main-conv,.alfhd-conv-layout,.alfhd-conv-fullscreen,.alfhd-conv-detail,.alfhd-chat-scroll{background-color:#09090d!important}
+.alfhd-conv-list{background:#101014!important;border-color:var(--fx-line)!important}
+.alfhd-conv-item{border-color:rgba(255,255,255,.05)!important}
+.alfhd-chat-detail-header,.alfhd-composer-bar{background:rgba(16,16,21,.97)!important;border-color:var(--fx-line)!important;backdrop-filter:blur(24px)!important}
+.alfhd-chat-bubble-row>div,.alfhd-msg-row>div{border:1px solid rgba(255,255,255,.04)!important}
+
+/* Login / account */
+.alfhd-login-card{background:radial-gradient(380px 260px at 100% 0%,rgba(135,76,255,.15),transparent 68%),linear-gradient(155deg,#1b1922,#101014)!important;border:1px solid rgba(150,94,255,.18)!important}
+
+/* Notification / dropdown / popover surfaces */
+.alfhd-notif-bell>div,.alfhd-app-wrap [role="menu"],.alfhd-app-wrap [role="listbox"]{
+ background:#15151a!important;border:1px solid var(--fx-line)!important;color:#fff!important;box-shadow:0 24px 70px rgba(0,0,0,.56)!important
+}
+
+/* Desktop: every section feels like one product */
+@media (min-width:861px){
+ .alfhd-main-area{padding:18px 22px 36px!important}
+ .alfhd-section-enter{max-width:1600px;margin:0 auto!important}
+ .alfhd-main-area>div:first-child{animation:fxPageIn .28s cubic-bezier(.2,.8,.2,1) both}
+ .alfhd-main-area [style*="gridTemplateColumns"],.alfhd-main-area [style*="grid-template-columns"]{gap:12px!important}
+}
+
+/* Mobile: restyle all remaining native pages, not only home/chat */
+@media (max-width:860px){
+ .alfhd-main-area{padding:12px 12px 108px!important;background:#09090d!important}
+ .alfhd-main-area.alfhd-main-conv{padding:0 0 92px!important}
+ .alfhd-section-enter{min-height:calc(100dvh - 92px)!important}
+ .alfhd-main-area h1{font-size:23px!important}.alfhd-main-area h2{font-size:18px!important}
+ .alfhd-main-area table{display:block!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;border-radius:16px!important}
+ .alfhd-main-area button{touch-action:manipulation}
+ .alfhd-main-area [style*="padding: 24"],.alfhd-main-area [style*="padding:24"]{padding:14px!important}
+ .alfhd-main-area [style*="borderRadius: 8"],.alfhd-main-area [style*="border-radius: 8"]{border-radius:16px!important}
+ .alfhd-main-area [style*="borderRadius: 10"],.alfhd-main-area [style*="border-radius: 10"]{border-radius:17px!important}
+ .alfhd-main-area [style*="borderRadius: 12"],.alfhd-main-area [style*="border-radius: 12"]{border-radius:18px!important}
+ .alfhd-modal,.alfhd-main-area [role="dialog"]{width:100%!important;max-width:none!important;max-height:92dvh!important;border-radius:26px 26px 0 0!important}
+}
+
+@keyframes fxPageIn{from{opacity:.55;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){.alfhd-main-area>div:first-child{animation:none!important}}
