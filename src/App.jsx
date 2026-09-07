@@ -91,9 +91,13 @@ async function sbDelete(table, id) { const res = await fetch(`${SUPABASE_URL}/re
   console.error(`sbDelete ${table} failed [${res.status}]:`, errBody);
   throw new Error(`sbDelete ${table} failed: ${res.status} — ${errBody}`); }
  return true; }
+const sbRpcWarned = new Set();
 async function sbRpc(name, payload = {}) { const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, { method: 'POST', headers: sbHeaders, body: JSON.stringify(payload) });
  if (!res.ok) { const errBody = await res.text();
-  console.error(`sbRpc ${name} failed [${res.status}]:`, errBody);
+  // أخطاء الصلاحيات متوقعة (نستخدم الطريقة الاحتياطية) فلا نضجّ بها الكونسول
+  const permissionIssue = res.status === 401 || res.status === 403 || /42501|PGRST202/.test(errBody);
+  if (permissionIssue) { if (!sbRpcWarned.has(name)) { sbRpcWarned.add(name); console.warn(`sbRpc ${name}: صلاحيات ناقصة — تم التحويل للطريقة الاحتياطية`); } }
+  else console.error(`sbRpc ${name} failed [${res.status}]:`, errBody);
   throw new Error(`sbRpc ${name} failed: ${res.status} — ${errBody}`); }
   return res.json(); }
 // ── طبقة احتياطية لتشغيل/إيقاف الرد الآلي ──
