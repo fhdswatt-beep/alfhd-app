@@ -138,12 +138,19 @@ async function aiFallbackSetConversation(convId, enabled) {
  await aiFallbackSaveScope(status.scope);
  return status;
 }
+const aiRpcBlocked = new Set(); // دوال القاعدة الممنوعة بالصلاحيات: نتوقف عن محاولتها ونستخدم الطريقة الاحتياطية
 async function aiRpc(name, payload = {}) {
- try {
-  const data = await sbRpc(name, payload);
-  if (data && data.ok !== false) return data;
-  if (data?.reason === 'human_handoff') return data;
- } catch (e) { console.warn(`aiRpc ${name}: تحويل للطريقة الاحتياطية —`, e?.message || e); }
+ if (!aiRpcBlocked.has(name)) {
+  try {
+   const data = await sbRpc(name, payload);
+   if (data && data.ok !== false) return data;
+   if (data?.reason === 'human_handoff') return data;
+  } catch (e) {
+   const msg = String(e?.message || e);
+   if (msg.includes('401') || msg.includes('403') || msg.includes('42501') || msg.includes('PGRST202')) aiRpcBlocked.add(name);
+  }
+ }
+
  if (name === 'get_ai_runtime_status') return aiFallbackStatus();
  if (name === 'set_ai_runtime') return aiFallbackSetGlobal(payload?.p_enabled !== false);
  if (name === 'set_ai_conversation_enabled') return aiFallbackSetConversation(payload?.p_conv, payload?.p_enabled !== false);
