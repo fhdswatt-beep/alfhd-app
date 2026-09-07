@@ -248,6 +248,57 @@ function rememberDeletedOrder(o) {
     localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(map));
   } catch (_e) { /* تجاهل */ }
 }
+const TRASH_KEY = 'fhd_trash_v1';
+const TRASH_TTL_MS = 30 * 86400000;
+function readTrash() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(TRASH_KEY) || '[]');
+    const now = Date.now();
+    const kept = arr.filter((t) => now - Number(t.deletedAt || 0) <= TRASH_TTL_MS);
+    if (kept.length !== arr.length) localStorage.setItem(TRASH_KEY, JSON.stringify(kept));
+    return kept;
+  } catch (_e) { return []; }
+}
+function pushTrash(order, reason) {
+  try {
+    if (!order?.id) return;
+    const arr = readTrash().filter((t) => t.order?.id !== order.id);
+    arr.unshift({ order, deletedAt: Date.now(), reason: reason || 'حذف يدوي' });
+    localStorage.setItem(TRASH_KEY, JSON.stringify(arr.slice(0, 300)));
+  } catch (_e) { /* تجاهل */ }
+}
+function dropFromTrash(id) {
+  try { localStorage.setItem(TRASH_KEY, JSON.stringify(readTrash().filter((t) => t.order?.id !== id))); } catch (_e) { /* تجاهل */ }
+}
+// يشيل الطلب من سجل الحذف حتى ما ينحذف تلقائياً بعد الاسترجاع
+function forgetDeletedOrder(o) {
+  try {
+    const map = readDeletedOrders();
+    if (o?.id) delete map[`id:${o.id}`];
+    if (o?.sourceMessageId) delete map[`msg:${o.sourceMessageId}`];
+    if (o?.orderNo) delete map[`no:${o.orderNo}`];
+    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(map));
+  } catch (_e) { /* تجاهل */ }
+}
+// ── سجل تغييرات الطلبات (منو غيّر ومتى) ──
+const ORDER_LOG_KEY = 'fhd_order_events_v1';
+const ORDER_LOG_TTL_MS = 30 * 86400000;
+function readOrderEvents() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(ORDER_LOG_KEY) || '[]');
+    const now = Date.now();
+    const kept = arr.filter((e) => now - Number(e.at || 0) <= ORDER_LOG_TTL_MS);
+    if (kept.length !== arr.length) localStorage.setItem(ORDER_LOG_KEY, JSON.stringify(kept));
+    return kept;
+  } catch (_e) { return []; }
+}
+function logOrderEvent(order, action, detail) {
+  try {
+    const arr = readOrderEvents();
+    arr.unshift({ at: Date.now(), orderId: order?.id || null, orderNo: order?.orderNo || '', action, detail: detail || '' });
+    localStorage.setItem(ORDER_LOG_KEY, JSON.stringify(arr.slice(0, 800)));
+  } catch (_e) { /* تجاهل */ }
+}
 function isDeletedOrder(o, map) {
   if (!o) return false;
   return !!(map[`id:${o.id}`] || (o.sourceMessageId && map[`msg:${o.sourceMessageId}`]) || (o.orderNo && map[`no:${o.orderNo}`]));
@@ -1764,6 +1815,9 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const [printModal, setPrintModal] = useState(null); // {html, title} أو null
   const [printLoading, setPrintLoading] = useState(false);
   const [batchHistoryOpen, setBatchHistoryOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashItems, setTrashItems] = useState([]);
+  const [trashBusy, setTrashBusy] = useState(null);
   // قسم المهمل
   const [neglectedOpen, setNeglectedOpen] = useState(false);
   const [neglectedSelected, setNeglectedSelected] = useState([]); // ids المحددة
@@ -2021,6 +2075,55 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setEditingOrder({ ...o, total: String(o.total), conversationId: o.conversationId || '' });
   }
 
+  function openTrash() { setTrashItems(readTrash()); setTrashOpen(true); }
+
+  // إرجاع طلب من سلة المحذوفات إلى القاعدة
+  async function restoreFromTrash(entry) {
+    const o = entry?.order;
+    if (!o?.id) return;
+    setTrashBusy(o.id);
+    try {
+      forgetDeletedOrder(o);
+      const payload = {
+        id: o.id,
+        order_no: o.orderNo,
+        page_id: o.pageId,
+        customer_name: o.customer,
+        phone: o.phone,
+        address: o.address,
+        governorate_code: o.governorateCode || null,
+        governorate_name: o.governorateName || null,
+        area: o.area || null,
+        items: o.items,
+        order_type: o.orderType || null,
+        total: Number(o.total) || 0,
+        status: o.status || 'pending',
+        stage: o.stage || 'ready',
+        order_date: o.date || new Date().toISOString().slice(0, 10),
+        conversation_id: o.conversationId || null,
+        source: o.source || 'manual',
+        platform: o.platform || null,
+      };
+      const created = await sbInsert('alfhd_orders', payload);
+      const restored = created?.[0] ? mapOrderFromDb(created[0]) : o;
+      setOrders((prev) => (prev.some((x) => x.id === restored.id) ? prev : [restored, ...prev]));
+      dropFromTrash(o.id);
+      logOrderEvent(o, 'استرجاع', 'من سلة المحذوفات');
+      setTrashItems(readTrash());
+    } catch (e) {
+      console.error('restore order error:', e);
+      rememberDeletedOrder(o);
+      alert('تعذّر استرجاع الطلب: ' + (e.message || 'تحقق من الاتصال'));
+    } finally { setTrashBusy(null); }
+  }
+
+  function purgeFromTrash(entry) {
+    if (!entry?.order?.id) return;
+    if (!window.confirm(`حذف الطلب #${entry.order.orderNo} نهائياً من السلة؟`)) return;
+    dropFromTrash(entry.order.id);
+    setTrashItems(readTrash());
+  }
+
   async function handleDelete(o) {
     const shippedWarning = (o.jenniSent || o.jenniShipmentId)
       ? '\n\n⚠️ هذا الطلب مُرسل لشركة التوصيل. حذفه من الموقع لا يلغي الشحنة الخارجية تلقائياً.'
@@ -2028,6 +2131,8 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع، ولن يُحتسب ضمن الإحصائيات.${shippedWarning}`)) return;
     try {
       rememberDeletedOrder(o);
+      pushTrash(o, 'حذف من قائمة الطلبات');
+      logOrderEvent(o, 'حذف', `الحالة: ${o.status || '-'}`);
       await sbDelete('alfhd_orders', o.id);
       const stillThere = await sbSelectColumns('alfhd_orders', 'id', `&id=eq.${o.id}&limit=1`);
       if (stillThere?.length) throw new Error('قاعدة البيانات لم تحذف الطلب (تحقق من صلاحية الحذف)');
@@ -2275,9 +2380,24 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
           source: editingOrder.conversationId ? 'chat' : 'manual',
           platform: editingOrder.platform || null,
         };
+        // منع التكرار: لو نفس الزبون/الهاتف/المبلغ انحفظ خلال آخر ٥ دقائق نوقف
+        try {
+          const since = new Date(Date.now() - 5 * 60000).toISOString();
+          const phoneQ = String(editingOrder.phone || '').trim();
+          if (phoneQ) {
+            const dup = await sbSelectColumns('alfhd_orders', 'id,order_no,total,created_at',
+              `&phone=eq.${encodeURIComponent(phoneQ)}&created_at=gte.${since}&limit=5`);
+            const same = (dup || []).find((d) => Number(d.total) === Number(payload.total));
+            if (same) {
+              const go = window.confirm(`يوجد طلب بنفس الرقم والمبلغ انحفظ قبل دقائق (#${same.order_no}). تريد تحفظ طلب ثاني؟`);
+              if (!go) { closeOrderEditor(); return; }
+            }
+          }
+        } catch (_e) { /* لا نمنع الحفظ بسبب فشل الفحص */ }
         const created = await sbInsert('alfhd_orders', payload);
         if (created?.[0]) {
           const newOrder = mapOrderFromDb(created[0]);
+          logOrderEvent(newOrder, 'إنشاء', `المبلغ: ${newOrder.total}`);
           setOrders((prev) => [newOrder, ...prev]);
           if (editingOrder.conversationId) await pinConversationToOrder(editingOrder.conversationId, created[0].id);
           // ── إرسال فوري لجيني فقط إذا اكتملت كل الحقول ──
@@ -3082,6 +3202,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     for (const id of ids) {
       const order = orders.find((o) => o.id === id);
       try {
+        if (order) { rememberDeletedOrder(order); pushTrash(order, 'حذف من المتأخرة'); logOrderEvent(order, 'حذف', 'من قسم المتأخرة'); }
         await sbDelete('alfhd_orders', id);
         const check = await sbSelectColumns('alfhd_orders', 'id', `&id=eq.${id}&limit=1`);
         if (check?.length) throw new Error('لم يُحذف من قاعدة البيانات');
@@ -3511,6 +3632,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
             <button className="orders-v2-action success" onClick={handlePrintReady}><Printer size={15} /> طباعة الكل ({stageOrders.length})</button>
           )}
           <button className="orders-v2-action" onClick={() => setBatchHistoryOpen(true)} title="سجل الطباعة"><Clock size={16} /> سجل الطباعة</button>
+          <button className="orders-v2-action" onClick={openTrash} title="سلة المحذوفات"><Trash2 size={16} /> سلة المحذوفات</button>
         </div>
       </section>
 
@@ -3545,6 +3667,31 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
         search={search} setSearch={setSearch}
         searchPlaceholder="رقم الطلب، الاسم، الهاتف، أو نوع الطلب..."
       />
+
+      {/* ── شريط توضيح الفلتر الشغال + إظهار الكل ── */}
+      {(() => {
+        const active = [];
+        if (selectedPage !== 'all') active.push(`الصفحة: ${pages.find((p) => p.id === selectedPage)?.name || 'محددة'}`);
+        if (String(search || '').trim()) active.push(`بحث: "${search.trim()}"`);
+        if (datePreset && datePreset !== 'all') active.push('فلتر تاريخ');
+        if (isDelivery && statusFilter !== 'all') active.push(`الحالة: ${STATUS_CONFIG[statusFilter]?.label || statusFilter}`);
+        if (!active.length) return null;
+        const hidden = Math.max(0, visibleOrders.length - stageOrders.length);
+        return (
+          <div className="alfhd-no-print" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            background: 'rgba(240,168,104,0.10)', border: '1px solid rgba(240,168,104,0.28)', borderRadius: 12, padding: '10px 14px', marginBottom: 14 }}>
+            <AlertCircle size={16} color="#F0A868" />
+            <span style={{ fontSize: 13, color: '#F0A868', fontWeight: 700 }}>
+              فلتر شغال ({active.join(' · ')}) — {hidden} طلب مخفي عن هذي القائمة
+            </span>
+            <div style={{ flex: 1 }} />
+            <button onClick={() => { setSelectedPage('all'); setSearch(''); setDatePreset('all'); setStatusFilter('all'); }}
+              style={{ padding: '7px 14px', borderRadius: 9, border: 'none', cursor: 'pointer', background: '#F0A868', color: '#10131A', fontSize: 13, fontWeight: 800 }}>
+              إظهار الكل
+            </button>
+          </div>
+        );
+      })()}
 
       {isDelivery && (
         <div style={{ ...styles.filterChips, marginBottom: 16 }} className="alfhd-no-print">
@@ -4086,6 +4233,54 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── سلة المحذوفات ── */}
+      {trashOpen && (
+        <div onClick={() => setTrashOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: '#141B2D', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Trash2 size={18} color="#F45B69" />
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#EAF0F7' }}>سلة المحذوفات</div>
+              </div>
+              <button onClick={() => setTrashOpen(false)} style={{ width: 44, height: 44, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.06)', color: '#8B9AB3', fontSize: 20, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+              {trashItems.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#8FA0B5', fontSize: 13, padding: '40px 0' }}>السلة فارغة — الطلبات المحذوفة تبقى هنا ٣٠ يوم</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {trashItems.map((t) => (
+                    <div key={t.order.id} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#EAF0F7' }}>#{t.order.orderNo} — {t.order.customer || 'بدون اسم'}</div>
+                          <div style={{ fontSize: 12, color: '#8FA0B5', marginTop: 2 }}>
+                            {t.order.phone || '-'} · {Number(t.order.total) || 0} د.ع · {new Date(t.deletedAt).toLocaleString('ar-IQ')}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6D7C90', marginTop: 2 }}>{t.reason}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button disabled={trashBusy === t.order.id} onClick={() => restoreFromTrash(t)}
+                            style={{ padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'rgba(34,197,94,0.14)', color: '#22C55E', fontSize: 13, fontWeight: 800 }}>
+                            {trashBusy === t.order.id ? '...' : 'استرجاع'}
+                          </button>
+                          <button onClick={() => purgeFromTrash(t)}
+                            style={{ padding: '8px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'rgba(244,91,105,0.12)', color: '#F45B69', fontSize: 13, fontWeight: 800 }}>
+                            حذف نهائي
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
