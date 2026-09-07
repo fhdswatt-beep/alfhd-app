@@ -62,6 +62,9 @@ function startFacebookLogin() { const dialogUrl = new URL('https://www.facebook.
  dialogUrl.searchParams.set('response_type', 'code');
  window.location.href = dialogUrl.toString(); }
 const sbHeaders = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Accept-Profile': 'public', 'Content-Profile': 'public', };
+async function sbSelectCols(table, cols, query = '') { const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${cols}${query}`, { headers: sbHeaders, });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); }
 async function sbSelect(table, query = '') { const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${query}`, { headers: sbHeaders, });
  if (!res.ok) throw new Error(`sbSelect ${table} failed: ${res.status}`);
  return res.json(); }
@@ -162,6 +165,47 @@ function playAlarmSound() { try { const Ctx = window.AudioContext || window.webk
    osc.stop(now + start + 0.18); }); } catch (_e) { /* ignore error */ } }
 function mapPageFromDb(row) { return { id: row.id, name: row.name, avatar: row.avatar || '📄', source: row.source, connected: row.connected, fbPageId: row.fb_page_id,
   waPhoneNumberId: row.wa_phone_number_id || null, waToken: row.wa_token || null, waPhone: row.wa_phone || null, waConnected: !!row.wa_connected || !!(row.wa_phone_number_id && row.wa_token), }; }
+// ── سجل الطلبات المحذوفة (يمنع رجوعها بعد ثواني إذا أعادت خدمة الاستخراج إنشاءها) ──
+const DELETED_ORDERS_KEY = 'fhd_deleted_orders_v1';
+const DELETED_TTL_MS = 14 * 86400000;
+function readDeletedOrders() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DELETED_ORDERS_KEY) || '{}');
+    const now = Date.now();
+    let changed = false;
+    for (const k of Object.keys(raw)) { if (now - Number(raw[k] || 0) > DELETED_TTL_MS) { delete raw[k]; changed = true; } }
+    if (changed) localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(raw));
+    return raw;
+  } catch (_e) { return {}; }
+}
+function rememberDeletedOrder(o) {
+  try {
+    const map = readDeletedOrders();
+    const now = Date.now();
+    if (o?.id) map[`id:${o.id}`] = now;
+    if (o?.sourceMessageId) map[`msg:${o.sourceMessageId}`] = now;
+    if (o?.orderNo) map[`no:${o.orderNo}`] = now;
+    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(map));
+  } catch (_e) { /* تجاهل */ }
+}
+function isDeletedOrder(o, map) {
+  if (!o) return false;
+  return !!(map[`id:${o.id}`] || (o.sourceMessageId && map[`msg:${o.sourceMessageId}`]) || (o.orderNo && map[`no:${o.orderNo}`]));
+}
+// يشيل الطلبات المحذوفة من العرض، ويحذف من قاعدة البيانات أي صف رجع من جديد
+function filterDeletedOrders(list) {
+  const map = readDeletedOrders();
+  if (!Object.keys(map).length) return list;
+  const kept = [];
+  for (const o of list) {
+    if (isDeletedOrder(o, map)) {
+      sbDelete('alfhd_orders', o.id).catch(() => {});
+      continue;
+    }
+    kept.push(o);
+  }
+  return kept;
+}
 function mapOrderFromDb(row) { return { id: row.id, orderNo: row.order_no, sourceMessageId: row.source_message_id || null, pageId: row.page_id, customer: row.customer_name,
   phone: row.phone, address: row.address, items: row.items, orderType: row.order_type || '', total: Number(row.total) || 0, status: row.status, date: row.order_date,
   fahdRef: row.fahd_ref, source: row.source || 'manual', platform: row.platform || null, // whatsapp | facebook — منصة مصدر الطلب
@@ -1790,17 +1834,27 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     setDetailOrder(o);
   }
 
-  const THREE_DAYS = 3 * 86400000;
-  // طلب مهمل: في قيد التجهيز أو لدى شركة التوصيل، مرّ عليه 3 أيام دون أن تتغير حالته/تستلمه الشركة
+  // ── قاعدة تأخير موحّدة لكل الأقسام ──
+  const LATE_WARN_HOURS = 30;   // تنبيه برتقالي
+  const LATE_HOURS = 48;        // متأخر (أحمر)
+  const HOUR_MS = 3600000;
+  function orderActivityRef(o) {
+    return o.deliveryUpdatedAt || o.printedAt || o.createdAt || o.date || null;
+  }
+  // يرجع 'red' | 'orange' | null لأي طلب لم يصل الزبون ولم تستلمه شركة التوصيل
+  function orderLateLevel(o) {
+    if (!o || o.converted) return null;
+    if (o.status === 'delivered' || o.status === 'returned' || o.status === 'cancelled') return null;
+    if (o.deliveryStep || o.deliveryStatus) return null;
+    const ref = orderActivityRef(o);
+    if (!ref) return null;
+    const hrs = (Date.now() - new Date(ref).getTime()) / HOUR_MS;
+    if (hrs >= LATE_HOURS) return 'red';
+    if (hrs >= LATE_WARN_HOURS) return 'orange';
+    return null;
+  }
   function isNeglected(o) {
-    const stage = o.stage || (o.printed ? 'prep' : 'ready');
-    if (stage !== 'prep' && stage !== 'delivery') return false;
-    // إذا الشركة استلمته أو تغيّرت حالته الفعلية، فهو ليس مهملاً
-    if (o.deliveryStep || o.deliveryStatus) return false;
-    // المرجع الزمني: آخر تحديث للحالة أو وقت الطباعة أو الإنشاء
-    const ref = o.deliveryUpdatedAt || o.printedAt || o.createdAt || o.date;
-    if (!ref) return false;
-    return (Date.now() - new Date(ref).getTime()) > THREE_DAYS;
+    return orderLateLevel(o) === 'red';
   }
 
   const stageOrders = useMemo(() => {
@@ -1908,6 +1962,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
       : '';
     if (!window.confirm(`هل تريد حذف الطلب #${o.orderNo}؟ لا يمكن التراجع، ولن يُحتسب ضمن الإحصائيات.${shippedWarning}`)) return;
     try {
+      rememberDeletedOrder(o);
       await sbDelete('alfhd_orders', o.id);
       const stillThere = await sbSelectColumns('alfhd_orders', 'id', `&id=eq.${o.id}&limit=1`);
       if (stillThere?.length) throw new Error('قاعدة البيانات لم تحذف الطلب (تحقق من صلاحية الحذف)');
@@ -3001,16 +3056,10 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
   const prepBatches = useMemo(() => groupByBatch(stageOrders), [stageOrders]);
 
   // ── قسم "مطبوع": التبويبات الفرعية ودوال الطباعة ──
-  const HOUR = 3600000;
-  // طلب يحتاج متابعة: مطبوع ومر عليه وقت دون أن يُرسل/يُستلم من الشركة
+  const HOUR = HOUR_MS;
+  // نفس القاعدة الموحّدة (30س تنبيه / 48س متأخر) لكل الأقسام
   function followupLevel(o) {
-    if (o.jenniSent || o.deliveryStep) return null; // أُرسل/استُلم — لا يحتاج متابعة
-    const ref = o.printedAt || o.createdAt || o.date;
-    if (!ref) return null;
-    const hrs = (Date.now() - new Date(ref).getTime()) / HOUR;
-    if (hrs >= 48) return 'red';
-    if (hrs >= 30) return 'orange';
-    return null;
+    return orderLateLevel(o);
   }
   // كل الطلبات المطبوعة (الأحدث أولاً) — مستقل عن فلتر التاريخ/البحث حتى ما تنخفي طلبات
   const prepAllOrders = useMemo(() => {
@@ -3033,7 +3082,7 @@ function OrdersView({ orders, pages, setOrders, conversations, setConversations,
     const scoped = visibleOrders.filter((o) => {
       if (selectedPage !== 'all' && o.pageId !== selectedPage) return false;
       const stage = o.stage || (o.printed ? 'prep' : 'ready');
-      return stage === 'prep';
+      return stage === 'prep' || stage === 'ready' || stage === 'delivery';
     });
     return scoped
       .filter((o) => followupLevel(o))
@@ -5974,7 +6023,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
         if (isNew) { try { playNotificationSound(); } catch (_e) { /* تجاهل */ } }
       }
       knownIdsRef.current = new Set(mapped.map((o) => o.id));
-      setOrders(mapped);
+      setOrders(filterDeletedOrders(mapped));
     } catch (e) {
       console.error('prep load error:', e);
     } finally {
@@ -5984,7 +6033,7 @@ function PrepWorkerView({ currentUser, onLogout }) {
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(loadOrders, 12000);
+    const interval = setInterval(loadOrders, 20000);
     return () => clearInterval(interval);
   }, [loadOrders]);
 
@@ -6386,8 +6435,22 @@ export default function AlFhdApp() {
 
   // جلب المحادثات الحقيقية من Supabase (يُستخدم عند التحميل وعند كل تحديث دوري)
   const convSignatureRef = React.useRef('');
-  const refreshConversations = useCallback(async () => {
+  const convProbeRef = React.useRef('');
+  const refreshConversations = useCallback(async (opts = {}) => {
     try {
+      // فحص خفيف أولاً: نجلب أعمدة صغيرة فقط، وما نحمّل القائمة الكاملة إلا إذا فعلاً تغيّر شي
+      if (!opts.force) {
+        try {
+          const probe = await sbSelectCols(
+            'alfhd_conversations',
+            'id,last_message_time,unread_count,tab,order_id',
+            wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc&limit=500'
+          );
+          const psig = probe.map((c) => `${c.id}:${c.last_message_time}:${c.unread_count}:${c.tab}:${c.order_id}`).join('|');
+          if (psig === convProbeRef.current) return;
+          convProbeRef.current = psig;
+        } catch (_e) { /* لو فشل الفحص الخفيف نكمل بالجلب الكامل */ }
+      }
       const dbConversations = await sbSelect(
         'alfhd_conversations',
         wsFilter() + '&order=last_message_time.desc.nullslast,created_at.desc&limit=500'
@@ -6446,7 +6509,13 @@ export default function AlFhdApp() {
     } catch (_e) { /* تجاهل */ }
   }, []);
 
-  const refreshOrders = useCallback(async () => {
+  const refreshInFlightRef = React.useRef(false);
+  const lastOrdersFetchRef = React.useRef(0);
+  const refreshOrders = useCallback(async (opts = {}) => {
+    if (refreshInFlightRef.current) return;
+    if (!opts.force && Date.now() - lastOrdersFetchRef.current < 5000) return;
+    refreshInFlightRef.current = true;
+    lastOrdersFetchRef.current = Date.now();
     try {
       // نجلب أحدث 1000 طلب + كل الطلبات المطبوعة غير المرسلة (مهما كان عمرها)
       // مهم: الطلبات المتأخرة هي الأقدم، فلو اعتمدنا على الحد بس راح تختفي من "بحاجة لمتابعة"
@@ -6533,11 +6602,13 @@ export default function AlFhdApp() {
         if (suspiciousDrop) {
           console.warn(`⚠️ تم تجاهل تحديث مشبوه: الطلبات كانت ${prevCount} ورجعت ${newCount}. الإبقاء على الحالية لمنع الاختفاء.`);
         } else {
-          setOrders(mapped);
+          setOrders(filterDeletedOrders(mapped));
         }
       }
     } catch (e) {
       console.error('orders refresh error:', e);
+    } finally {
+      refreshInFlightRef.current = false;
     }
   }, [pushNotif]);
 
@@ -6557,12 +6628,12 @@ export default function AlFhdApp() {
       if (interval) return;
       interval = setInterval(() => {
         if (!document.hidden) refreshOrders();
-      }, 12000);
+      }, 25000);
     };
     const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
     start();
     // أوقف عند إخفاء التبويب، واستأنف عند العودة مع تحديث فوري
-    const onVis = () => { if (document.hidden) stop(); else { refreshOrders(); start(); } };
+    const onVis = () => { if (document.hidden) stop(); else { refreshOrders({ force: true }); start(); } };
     document.addEventListener('visibilitychange', onVis);
     return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, [storageReady, refreshOrders]);
@@ -6619,7 +6690,7 @@ export default function AlFhdApp() {
             }, ...prev].slice(0, 50));
           }
         }
-        if (dbOrders?.length) setOrders(dbOrders.map(mapOrderFromDb));
+        if (dbOrders?.length) setOrders(filterDeletedOrders(dbOrders.map(mapOrderFromDb)));
         if (dbUsers?.length) setUsers(dbUsers.map(mapUserFromDb));
 
         await refreshConversations();
@@ -6668,7 +6739,7 @@ export default function AlFhdApp() {
     };
 
     const start = () => {
-      if (!convTimer) convTimer = setInterval(tickConv, 1000);   // القائمة: كل ثانية
+      if (!convTimer) convTimer = setInterval(tickConv, 3000);   // القائمة: فحص خفيف كل 3 ثواني
       // الرسائل توصل لحظياً عبر الويب هوك — هذا السحب صار شبكة أمان فقط (كان كل 1.5 ثانية ويستهلك ميتا بلا داعي)
       if (!fbTimer) fbTimer = setInterval(tickFb, 30000);
     };
