@@ -110,34 +110,63 @@ async function sbCount(table, query = '') {
   return Number.isFinite(n) ? n : 0;
  } catch (_e) { return 0; }
 }
+async function aiReadSettings() {
+ try {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/ai_settings?id=eq.1&select=enabled_globally,outbound_enabled,runtime_scope`, { headers: sbHeaders });
+  const rows = await res.json();
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+ } catch (_e) { return null; }
+}
 async function aiFallbackStatus() {
- const [activeCount, eligibleCount] = await Promise.all([
+ const [activeCount, eligibleCount, settings] = await Promise.all([
   sbCount('alfhd_conversations', '&ai_mode=eq.active&tab=neq.handoff'),
   sbCount('alfhd_conversations', '&tab=neq.handoff'),
+  aiReadSettings(),
  ]);
- const scope = activeCount === 0 ? 'off' : (activeCount >= eligibleCount ? 'all' : 'selective');
- return { ok: true, fallback: true, scope, enabled: scope !== 'off', active_count: activeCount, eligible_count: eligibleCount };
+ const globalOn = settings ? (settings.enabled_globally !== false && settings.outbound_enabled !== false) : true;
+ let scope = 'off';
+ if (globalOn && activeCount > 0) scope = activeCount >= eligibleCount ? 'all' : 'selective';
+ return { ok: true, fallback: true, scope, enabled: scope !== 'off', active_count: globalOn ? activeCount : 0, eligible_count: eligibleCount };
 }
 async function aiFallbackSaveScope(scope) {
- try {
-  await fetch(`${SUPABASE_URL}/rest/v1/ai_settings?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
-   body: JSON.stringify({ runtime_scope: scope, enabled_globally: scope !== 'off' }) });
- } catch (_e) { /* تجاهل */ }
+ const on = scope !== 'off';
+ const res = await fetch(`${SUPABASE_URL}/rest/v1/ai_settings?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+  body: JSON.stringify({ runtime_scope: scope, enabled_globally: on, outbound_enabled: on }) });
+ if (!res.ok) { const t = await res.text(); throw new Error(`تعذّر حفظ مفتاح الرد: ${res.status} — ${t}`); }
+ const saved = await aiReadSettings();
+ if (!saved || saved.enabled_globally !== on || saved.outbound_enabled !== on) throw new Error('لم يُحفظ مفتاح الرد في قاعدة البيانات');
+}
+async function aiBulkSetMode(mode) {
+ for (let round = 0; round < 40; round++) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?select=id&tab=neq.handoff&ai_mode=neq.${mode}&limit=1000`, { headers: sbHeaders });
+  if (!res.ok) throw new Error('تعذّر قراءة المحادثات: ' + res.status);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  for (let i2 = 0; i2 < rows.length; i2 += 250) {
+   const ids = rows.slice(i2, i2 + 250).map((r) => r.id).join(',');
+   const up = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?id=in.(${ids})`, {
+    method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' }, body: JSON.stringify({ ai_mode: mode }) });
+   if (!up.ok) { const t = await up.text(); throw new Error('تعذّر تغيير حالة الرد: ' + up.status + ' — ' + t); }
+  }
+ }
 }
 async function aiFallbackSetGlobal(enabled) {
  const mode = enabled ? 'active' : 'paused';
- const res = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?tab=neq.handoff&ai_mode=neq.${mode}`, {
-  method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' }, body: JSON.stringify({ ai_mode: mode }) });
- if (!res.ok) { const t = await res.text(); throw new Error(`تعذّر تغيير حالة الرد: ${res.status} — ${t}`); }
+ await aiFallbackSaveScope(enabled ? 'all' : 'off');
+ await aiBulkSetMode(mode);
  const status = await aiFallbackStatus();
  await aiFallbackSaveScope(status.scope);
  return status;
 }
 async function aiFallbackSetConversation(convId, enabled) {
  if (!convId) throw new Error('محادثة غير معروفة');
+ if (enabled) {
+  const s = await aiReadSettings();
+  if (!s || s.enabled_globally === false || s.outbound_enabled === false) await aiFallbackSaveScope('selective');
+ }
  const res = await fetch(`${SUPABASE_URL}/rest/v1/alfhd_conversations?id=eq.${convId}`, {
   method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' }, body: JSON.stringify({ ai_mode: enabled ? 'active' : 'paused' }) });
- if (!res.ok) { const t = await res.text(); throw new Error(`تعذّر تغيير حالة المحادثة: ${res.status} — ${t}`); }
+ if (!res.ok) { const t = await res.text(); throw new Error('تعذّر تغيير حالة المحادثة: ' + res.status + ' — ' + t); }
  const status = await aiFallbackStatus();
  await aiFallbackSaveScope(status.scope);
  return status;
